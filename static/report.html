@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>안전 위험요소 분석 리포트 - COSMAX</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; background: #f5f6fa; color: #333; line-height: 1.6; }
+        .wrap { max-width: 1100px; margin: 0 auto; padding: 24px; }
+        .report-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 0; border-bottom: 3px solid #1a237e; margin-bottom: 24px; }
+        .report-header h1 { font-size: 22px; color: #1a237e; letter-spacing: 1px; }
+        .report-header p { color: #666; font-size: 13px; margin-top: 4px; }
+        .print-btn { padding: 10px 24px; background: #1a237e; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; }
+        .print-btn:hover { background: #283593; }
+        .section-title { color: #1a237e; font-size: 17px; font-weight: 700; margin: 28px 0 14px; padding-bottom: 8px; border-bottom: 2px solid #e0e0e0; }
+        .summary-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+        .s-card { background: #fff; padding: 16px; border-radius: 8px; text-align: center; border: 1px solid #e0e0e0; }
+        .s-label { font-size: 11px; color: #888; margin-bottom: 4px; font-weight: 600; }
+        .s-value { font-size: 28px; font-weight: 700; }
+        .s-value.green { color: #27ae60; }
+        .s-value.blue { color: #3498db; }
+        .s-value.orange { color: #f39c12; }
+        .s-value.red { color: #e74c3c; }
+        .s-value.darkred { color: #8e24aa; }
+        .s-value.teal { color: #1abc9c; }
+        .chart-box { background: #fff; padding: 20px; border-radius: 8px; border: 1px solid #e0e0e0; margin-bottom: 16px; }
+        .chart-box h3 { font-size: 14px; color: #555; margin-bottom: 12px; font-weight: 600; }
+        .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+        .bar-chart { padding: 8px 0; }
+        .bar-row { display: flex; align-items: center; margin-bottom: 5px; }
+        .bar-label { width: 100px; font-size: 12px; text-align: right; padding-right: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .bar-track { flex: 1; height: 24px; background: #f0f0f0; border-radius: 4px; overflow: hidden; }
+        .bar-fill { height: 100%; background: #3949ab; border-radius: 4px; }
+        .bar-val { width: 40px; text-align: right; font-size: 12px; font-weight: 600; padding-left: 8px; }
+        .rtable { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; background: #fff; }
+        .rtable thead th { background: #1a237e; color: #fff; padding: 9px 12px; text-align: left; font-weight: 600; white-space: nowrap; }
+        .rtable td { padding: 7px 12px; border-bottom: 1px solid #e8e8e8; }
+        .rtable tr:nth-child(even) { background: #fafbfc; }
+        .rtable tr:hover { background: #f0f4ff; }
+        .wrap-cell { max-width: 400px; word-break: break-all; }
+        .grade-tag { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; color: #fff; }
+        .g-A { background: #27ae60; }
+        .g-B { background: #3498db; }
+        .g-C { background: #f39c12; }
+        .g-D { background: #e74c3c; }
+        .g-E { background: #8e24aa; }
+        .g-F { background: #4a148c; }
+        .g-- { background: #bdc3c7; }
+        .loading { text-align: center; padding: 80px; color: #888; font-size: 16px; }
+        @media print {
+            body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .wrap { max-width: none; padding: 10px; }
+            .print-btn { display: none !important; }
+            .section-title { page-break-after: avoid; }
+            .chart-grid, .chart-box { page-break-inside: avoid; }
+            .rtable { page-break-inside: auto; }
+            .rtable tr { page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+    <div id="report" class="wrap">
+        <p class="loading">리포트를 불러오는 중...</p>
+    </div>
+    <script>
+    (async function() {
+        let data = null;
+        if (window.opener && window.opener.__reportData) {
+            data = window.opener.__reportData;
+        } else {
+            const token = decodeURIComponent(window.location.hash.substring(1));
+            if (!token) {
+                document.getElementById('report').innerHTML = '<p class="loading">인증 정보가 없습니다. 대시보드에서 리포트 출력을 클릭해주세요.</p>';
+                return;
+            }
+            try {
+                const res = await fetch('/api/summary', { headers: { Authorization: 'Bearer ' + token } });
+                if (!res.ok) throw new Error('인증 실패');
+                data = await res.json();
+            } catch (e) {
+                document.getElementById('report').innerHTML = '<p class="loading">데이터를 불러올 수 없습니다: ' + e.message + '</p>';
+                return;
+            }
+        }
+
+        if (!data || !data.records || data.records.length === 0) {
+            document.getElementById('report').innerHTML = '<p class="loading">표시할 데이터가 없습니다.</p>';
+            return;
+        }
+
+        const records = data.records;
+        const total = data.total;
+        const today = new Date().toLocaleDateString('ko-KR');
+        function esc(s) { return s ? String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') : ''; }
+
+        const gA = data.grade_a, gB = data.grade_b, gC = data.grade_c, gD = data.grade_d;
+        const gE = records.filter(r => r.grade_before === 'E' || r.grade_before === 'F').length;
+
+        const channelStats = data.channel_stats || {};
+        const channelGradeStats = data.channel_grade_stats || {};
+        const channelList = Object.entries(channelStats).sort((a, b) => b[1] - a[1]);
+
+        const companies = Object.entries(data.location_stats)
+            .map(([name, g]) => ({
+                name,
+                total: (g.A || 0) + (g.B || 0) + (g.C || 0) + (g.D || 0) + (g['-'] || 0),
+                A: g.A || 0, B: g.B || 0, C: g.C || 0, D: g.D || 0
+            }))
+            .sort((a, b) => b.total - a.total);
+        const maxComp = companies[0]?.total || 1;
+
+        const weeks = Object.entries(data.week_stats).sort((a, b) => a[0].localeCompare(b[0]));
+
+        const catMap = {};
+        records.forEach(r => {
+            const m = r.disaster_type || '기타';
+            const s = r.process || '미분류';
+            const key = m + '||' + s;
+            catMap[key] = (catMap[key] || 0) + 1;
+        });
+        const cats = Object.entries(catMap)
+            .map(([k, c]) => { const [m, s] = k.split('||'); return { m, s, c, p: total ? (c / total * 100).toFixed(1) : '0' }; })
+            .sort((a, b) => b.c - a.c);
+
+        const mainCatMap = {};
+        cats.forEach(c => { mainCatMap[c.m] = (mainCatMap[c.m] || 0) + c.c; });
+        const mainCats = Object.entries(mainCatMap).sort((a, b) => b[1] - a[1]);
+
+        const highRisk = records.filter(r => r.grade_before === 'D' || r.grade_before === 'E' || r.grade_before === 'F');
+
+        const contentGroups = {};
+        records.forEach(r => {
+            const c = (r.content_full || '').trim();
+            if (!c) return;
+            if (!contentGroups[c]) contentGroups[c] = { n: 0, locs: new Set() };
+            contentGroups[c].n++;
+            if (r.location_group) contentGroups[c].locs.add(r.location_group);
+        });
+        const repeats = Object.entries(contentGroups)
+            .filter(([_, v]) => v.n >= 2)
+            .map(([content, v]) => ({ content, count: v.n, location: [...v.locs].join(', ') }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 10);
+
+        let html = '';
+
+        html += '<header class="report-header"><div>';
+        html += '<h1>COSMAX 안전 위험요소 분석 리포트</h1>';
+        html += '<p>생성일: ' + today + ' | 총 ' + total + '건</p>';
+        html += '</div><button class="print-btn" onclick="window.print()">인쇄 / PDF 저장</button></header>';
+
+        html += '<h2 class="section-title">1. 전체 현황 요약</h2>';
+        html += '<div class="summary-cards">';
+        html += '<div class="s-card"><div class="s-label">전체 건수</div><div class="s-value">' + total + '</div></div>';
+        html += '<div class="s-card"><div class="s-label">A등급 (저위험)</div><div class="s-value green">' + gA + '</div></div>';
+        html += '<div class="s-card"><div class="s-label">B등급 (보통)</div><div class="s-value blue">' + gB + '</div></div>';
+        html += '<div class="s-card"><div class="s-label">C등급 (주의)</div><div class="s-value orange">' + gC + '</div></div>';
+        html += '<div class="s-card"><div class="s-label">D등급 (고위험)</div><div class="s-value red">' + gD + '</div></div>';
+        html += '<div class="s-card"><div class="s-label">E/F등급 (심각)</div><div class="s-value darkred">' + gE + '</div></div>';
+        html += '<div class="s-card"><div class="s-label">개선 완료</div><div class="s-value teal">' + data.complete + '</div></div>';
+        html += '<div class="s-card"><div class="s-label">미완료</div><div class="s-value red">' + data.incomplete + '</div></div>';
+        html += '</div>';
+
+        html += '<h2 class="section-title">2. 채널별 분석</h2>';
+        html += '<div class="chart-grid">';
+        html += '<div class="chart-box"><h3>채널별 위험요소 건수</h3><canvas id="c-channel"></canvas></div>';
+        html += '<div class="chart-box"><h3>채널별 등급 분포</h3><canvas id="c-channel-grade"></canvas></div>';
+        html += '</div>';
+        html += '<table class="rtable"><thead><tr><th>채널</th><th>건수</th><th>비율</th><th>A</th><th>B</th><th>C</th><th>D</th></tr></thead><tbody>';
+        channelList.forEach(([ch, cnt]) => {
+            const g = channelGradeStats[ch] || {};
+            html += '<tr><td>' + esc(ch) + '</td><td>' + cnt + '</td><td>' + (total ? (cnt / total * 100).toFixed(1) : '0') + '%</td>';
+            html += '<td>' + (g.A || 0) + '</td><td>' + (g.B || 0) + '</td><td>' + (g.C || 0) + '</td><td>' + (g.D || 0) + '</td></tr>';
+        });
+        html += '</tbody></table>';
+
+        html += '<h2 class="section-title">3. 구분별 위험요소 현황</h2>';
+        html += '<div class="chart-box"><h3>구분별 위험요소 건수</h3><div class="bar-chart">';
+        companies.forEach(c => {
+            html += '<div class="bar-row">';
+            html += '<div class="bar-label">' + esc(c.name) + '</div>';
+            html += '<div class="bar-track"><div class="bar-fill" style="width:' + (c.total / maxComp * 100).toFixed(1) + '%"></div></div>';
+            html += '<div class="bar-val">' + c.total + '</div>';
+            html += '</div>';
+        });
+        html += '</div></div>';
+        html += '<table class="rtable"><thead><tr><th>구분</th><th>건수</th><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th></tr></thead><tbody>';
+        companies.forEach(c => {
+            html += '<tr><td>' + esc(c.name) + '</td><td>' + c.total + '</td><td>' + c.A + '</td><td>' + c.B + '</td><td>' + c.C + '</td><td>' + c.D + '</td><td>0</td></tr>';
+        });
+        html += '</tbody></table>';
+
+        html += '<h2 class="section-title">4. 위험등급 및 주차별 분석</h2>';
+        html += '<div class="chart-grid">';
+        html += '<div class="chart-box"><h3>위험등급별 분포</h3><canvas id="c-grade"></canvas></div>';
+        html += '<div class="chart-box"><h3>주차별 위험요소 발굴 현황</h3><canvas id="c-weekly"></canvas></div>';
+        html += '</div>';
+        html += '<div class="chart-box"><h3>구분별 위험등급별 현황</h3><canvas id="c-stacked"></canvas></div>';
+
+        html += '<h2 class="section-title">5. 유형별 위험요소 분석</h2>';
+        html += '<div class="chart-grid">';
+        html += '<div class="chart-box"><h3>대분류별 위험요소 분포</h3><canvas id="c-catpie"></canvas></div>';
+        html += '<div class="chart-box"><h3>세부 위험유형 TOP 10</h3><canvas id="c-cattop"></canvas></div>';
+        html += '</div>';
+        html += '<table class="rtable"><thead><tr><th>대분류</th><th>중분류</th><th>건수</th><th>비율</th></tr></thead><tbody>';
+        cats.forEach(c => {
+            html += '<tr><td>' + esc(c.m) + '</td><td>' + esc(c.s) + '</td><td>' + c.c + '</td><td>' + c.p + '%</td></tr>';
+        });
+        html += '</tbody></table>';
+
+        html += '<h2 class="section-title">6. 고위험 항목 (D/E/F등급) - ' + highRisk.length + '건</h2>';
+        html += '<table class="rtable"><thead><tr><th>구분</th><th>발견일</th><th>장소</th><th>위험요소 내용</th><th>등급</th><th>점수</th><th>완료</th></tr></thead><tbody>';
+        highRisk.forEach(r => {
+            html += '<tr>';
+            html += '<td>' + esc(r.location_group || '-') + '</td>';
+            html += '<td>' + (r.date || '-') + '</td>';
+            html += '<td>' + esc(r.location || '-') + '</td>';
+            html += '<td class="wrap-cell">' + esc(r.content_full || r.content || '-') + '</td>';
+            html += '<td><span class="grade-tag g-' + r.grade_before + '">' + r.grade_before + '</span></td>';
+            html += '<td>' + (r.risk_before || '-') + '</td>';
+            html += '<td>' + (r.completion || '-') + '</td>';
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+
+        html += '<h2 class="section-title">7. 반복 출현 위험요소 TOP 10</h2>';
+        html += '<table class="rtable"><thead><tr><th>위험요소 내용</th><th>반복 횟수</th><th>해당 구분</th></tr></thead><tbody>';
+        repeats.forEach(r => {
+            html += '<tr>';
+            html += '<td class="wrap-cell">' + esc(r.content) + '</td>';
+            html += '<td>' + r.count + '회</td>';
+            html += '<td>' + esc(r.location) + '</td>';
+            html += '</tr>';
+        });
+        if (repeats.length === 0) {
+            html += '<tr><td colspan="3" style="text-align:center;color:#999;padding:20px;">반복 위험요소가 없습니다.</td></tr>';
+        }
+        html += '</tbody></table>';
+
+        document.getElementById('report').innerHTML = html;
+
+        Chart.register(ChartDataLabels);
+        Chart.defaults.set('plugins.datalabels', { display: false });
+        const COLORS = ['#e74c3c', '#3498db', '#f39c12', '#27ae60', '#9b59b6', '#1abc9c', '#e67e22', '#34495e', '#e91e63', '#00bcd4'];
+
+        if (channelList.length > 0) {
+            new Chart(document.getElementById('c-channel'), {
+                type: 'bar',
+                data: {
+                    labels: channelList.map(c => c[0]),
+                    datasets: [{ label: '건수', data: channelList.map(c => c[1]), backgroundColor: channelList.map(function(_, i) { return COLORS[i % COLORS.length]; }), borderRadius: 4 }]
+                },
+                options: {
+                    responsive: true,
+                    indexAxis: 'y',
+                    plugins: { legend: { display: false }, datalabels: { display: true, anchor: 'end', align: 'right', font: { weight: 'bold' }, color: '#333' } },
+                    scales: { x: { beginAtZero: true, grid: { display: false } }, y: { grid: { display: false } } }
+                }
+            });
+
+            new Chart(document.getElementById('c-channel-grade'), {
+                type: 'bar',
+                data: {
+                    labels: channelList.map(c => c[0]),
+                    datasets: [
+                        { label: 'A등급', data: channelList.map(c => (channelGradeStats[c[0]] || {}).A || 0), backgroundColor: '#27ae60', borderRadius: 2 },
+                        { label: 'B등급', data: channelList.map(c => (channelGradeStats[c[0]] || {}).B || 0), backgroundColor: '#3498db', borderRadius: 2 },
+                        { label: 'C등급', data: channelList.map(c => (channelGradeStats[c[0]] || {}).C || 0), backgroundColor: '#f39c12', borderRadius: 2 },
+                        { label: 'D등급', data: channelList.map(c => (channelGradeStats[c[0]] || {}).D || 0), backgroundColor: '#e74c3c', borderRadius: 2 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { position: 'top' }, datalabels: { display: false } },
+                    scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true } }
+                }
+            });
+        }
+
+        new Chart(document.getElementById('c-grade'), {
+            type: 'pie',
+            data: {
+                labels: ['A등급', 'B등급', 'C등급', 'D등급'],
+                datasets: [{
+                    data: [gA, gB, gC, gD],
+                    backgroundColor: ['#27ae60', '#3498db', '#f39c12', '#e74c3c'],
+                    borderWidth: 2, borderColor: '#fff'
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'bottom' },
+                    datalabels: {
+                        display: true, color: '#fff',
+                        font: { weight: 'bold', size: 14 },
+                        formatter: function(v, ctx) {
+                            var sum = ctx.dataset.data.reduce(function(a, b) { return a + b; }, 0);
+                            return sum ? Math.round(v / sum * 100) + '%' : '';
+                        }
+                    }
+                }
+            }
+        });
+
+        if (weeks.length > 0) {
+            new Chart(document.getElementById('c-weekly'), {
+                type: 'bar',
+                data: {
+                    labels: weeks.map(w => w[0]),
+                    datasets: [{ label: '발굴 건수', data: weeks.map(w => w[1]), backgroundColor: '#26a69a', borderRadius: 4 }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false },
+                        datalabels: { display: true, anchor: 'end', align: 'top', font: { weight: 'bold' }, color: '#333' }
+                    },
+                    scales: { x: { grid: { display: false } }, y: { beginAtZero: true } }
+                }
+            });
+        }
+
+        new Chart(document.getElementById('c-stacked'), {
+            type: 'bar',
+            data: {
+                labels: companies.map(c => c.name),
+                datasets: [
+                    { label: 'A등급', data: companies.map(c => c.A), backgroundColor: '#27ae60', borderRadius: 2 },
+                    { label: 'B등급', data: companies.map(c => c.B), backgroundColor: '#3498db', borderRadius: 2 },
+                    { label: 'C등급', data: companies.map(c => c.C), backgroundColor: '#f39c12', borderRadius: 2 },
+                    { label: 'D등급', data: companies.map(c => c.D), backgroundColor: '#e74c3c', borderRadius: 2 }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { position: 'top' }, datalabels: { display: false } },
+                scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true } }
+            }
+        });
+
+        new Chart(document.getElementById('c-catpie'), {
+            type: 'pie',
+            data: {
+                labels: mainCats.map(c => c[0]),
+                datasets: [{
+                    data: mainCats.map(c => c[1]),
+                    backgroundColor: mainCats.map(function(_, i) { return COLORS[i % COLORS.length]; }),
+                    borderWidth: 2, borderColor: '#fff'
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'bottom', labels: { font: { size: 11 } } },
+                    datalabels: {
+                        display: true, color: '#fff',
+                        font: { weight: 'bold', size: 12 },
+                        formatter: function(v, ctx) {
+                            var sum = ctx.dataset.data.reduce(function(a, b) { return a + b; }, 0);
+                            var pct = sum ? Math.round(v / sum * 100) : 0;
+                            return pct >= 5 ? pct + '%' : '';
+                        }
+                    }
+                }
+            }
+        });
+
+        var top10 = cats.slice(0, 10);
+        new Chart(document.getElementById('c-cattop'), {
+            type: 'bar',
+            data: {
+                labels: top10.map(c => c.m + ' > ' + c.s),
+                datasets: [{
+                    label: '건수',
+                    data: top10.map(c => c.c),
+                    backgroundColor: top10.map(function(_, i) { return COLORS[i % COLORS.length]; }),
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                indexAxis: 'y',
+                plugins: {
+                    legend: { display: false },
+                    datalabels: { display: true, anchor: 'end', align: 'right', font: { weight: 'bold', size: 11 }, color: '#333' }
+                },
+                scales: {
+                    x: { beginAtZero: true, grid: { display: false } },
+                    y: { grid: { display: false } }
+                }
+            }
+        });
+    })();
+    </script>
+</body>
+</html>
