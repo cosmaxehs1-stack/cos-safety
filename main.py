@@ -1,27 +1,339 @@
 import os
-import uuid
 import json
-import sqlite3
 import hashlib
 import secrets
-from datetime import datetime, timedelta
-from contextlib import contextmanager
+import uuid
+import zipfile
+from datetime import datetime, date
+from typing import Optional
+from xml.etree import ElementTree as ET
 
-from fastapi import FastAPI, UploadFile, File, Form, Request, HTTPException, Depends
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Response
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-import jwt
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 import openpyxl
 
-# --- Config ---
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "data.db")
-UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
-SECRET_KEY = os.getenv("SECRET_KEY", "safety-dashboard-secret-key-change-me")
-PASSWORD = os.getenv("DASHBOARD_PASSWORD", "cosmax")
-JWT_ALGORITHM = "HS256"
-JWT_EXPIRE_HOURS = 24
+app = FastAPI(title="Safety Risk Dashboard")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+UPLOAD_DIR = os.environ.get("DATA_DIR", "uploads")
+IMAGE_DIR = os.path.join(UPLOAD_DIR, "images")
+DATA_FILE = os.path.join(UPLOAD_DIR, "current_data.json")
+PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "2026")
+SESSION_TOKENS: set[str] = set()
+
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(IMAGE_DIR, exist_ok=True)
+
+
+# --- Auth ---
+@app.post("/api/login")
+async def login(request: Request):
+    body = await request.json()
+    if body.get("password") == PASSWORD:
+        token = secrets.token_hex(32)
+        SESSION_TOKENS.add(token)
+        return {"token": token}
+    raise HTTPException(status_code=401, detail="비밀번호가 올바르지 않습니다.")
+
+
+def verify_token(request: Request):
+    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    if token not in SESSION_TOKENS:
+        raise HTTPException(status_code=401, detail="인증이 필요합니다.")
+
+
+# --- Excel Parsing ---
+def parse_date(val) -> Optional[str]:
+    if val is None:
+        return None
+    if isinstance(val, datetime):
+        return val.strftime("%Y-%m-%d")
+    if isinstance(val, date):
+        return val.strftime("%Y-%m-%d")
+    s = str(val).strip()
+    if not s:
+        return None
+    for fmt in ("%Y.%m.%d", "%Y-%m-%d", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return datetime.strptime(s.split(" ")[0] if " " in s and "." not in s else s, fmt).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+    return s
+
+
+def parse_number(val) -> int:
+    if val is None:
+        return 0
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return 0
+
+
+def extract_location_group(location: str) -> str:
+    if not location:
+        return "기타"
+    loc = location.strip()
+    if "화성" in loc:
+        for i in range(1, 10):
+            if f"{i}공장" in loc or f"{i} 공장" in loc:
+                return f"화성{i}공장"
+        return "화성(기타)"
+    if "평택" in loc:
+        for i in range(1, 10):
+            if f"{i}공장" in loc or f"{i} 공장" in loc:
+                return f"평택{i}공장"
+        return "평택(기타)"
+    if "고렴" in loc:
+        return "고렴리 창고"
+    return loc[:10] if len(loc) > 10 else loc
+
+
+
+
+def extract_excel_images(file_path: str) -> dict[str, dict[int, str]]:
+    """
+    ZIP + XML 기반으로 엑셀 내 이미지를 추출.
+    Microsoft 365 richData 형식 (셀 내 이미지) 지원.
+    Returns {sheet_name: {row_number(1-based): {"before": url, "after": url}}}.
+    """
+    result: dict[str, dict[int, dict[str, str]]] = {}
+    NS_R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+    NS_S = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+    NS_RD = "http://schemas.microsoft.com/office/spreadsheetml/2017/richdata"
+    NS_RVREL = "http://schemas.microsoft.com/office/spreadsheetml/2022/richvaluerel"
+
+    try:
+        with zipfile.ZipFile(file_path, 'r') as zf:
+            namelist = set(zf.namelist())
+
+            # 1) Read all media files
+            media_data: dict[str, bytes] = {}
+            for name in namelist:
+                if '/media/' in name:
+                    media_data[name.split('/')[-1]] = zf.read(name)
+            if not media_data:
+                return result
+
+            # 2) workbook.xml.rels → rId to sheet path
+            rid_to_path: dict[str, str] = {}
+            wb_rels = 'xl/_rels/workbook.xml.rels'
+            if wb_rels in namelist:
+                for rel in ET.fromstring(zf.read(wb_rels)):
+                    rid = rel.get('Id', '')
+                    target = rel.get('Target', '')
+                    if rid and target:
+                        if target.startswith('/'):
+                            rid_to_path[rid] = target.lstrip('/')
+                        else:
+                            rid_to_path[rid] = 'xl/' + target.lstrip('./')
+
+            # 3) workbook.xml → sheet name to sheet path
+            sheet_files: dict[str, str] = {}
+            if 'xl/workbook.xml' in namelist:
+                wb_root = ET.fromstring(zf.read('xl/workbook.xml'))
+                for el in wb_root.iter(f'{{{NS_S}}}sheet'):
+                    sname = el.get('name', '')
+                    rid = el.get(f'{{{NS_R}}}id', '')
+                    if sname and rid and rid in rid_to_path:
+                        sheet_files[sname] = rid_to_path[rid]
+
+            # 4) Try richData format (Microsoft 365 "Place in Cell" images)
+            richdata_rels = 'xl/richData/_rels/richValueRel.xml.rels'
+            richdata_rel = 'xl/richData/richValueRel.xml'
+            richdata_rv = 'xl/richData/rdrichvalue.xml'
+
+            if all(f in namelist for f in (richdata_rels, richdata_rel, richdata_rv)):
+                # 4a) richValueRel.xml.rels → rId to media filename
+                rid_to_media: dict[str, str] = {}
+                for rel in ET.fromstring(zf.read(richdata_rels)):
+                    rid = rel.get('Id', '')
+                    target = rel.get('Target', '')
+                    if rid and target:
+                        rid_to_media[rid] = target.split('/')[-1]
+
+                # 4b) richValueRel.xml → ordered list of rIds
+                rvrel_root = ET.fromstring(zf.read(richdata_rel))
+                rel_rids: list[str] = []
+                for rel_el in rvrel_root:
+                    rid = rel_el.get(f'{{{NS_R}}}id', '')
+                    rel_rids.append(rid)
+
+                # 4c) rdrichvalue.xml → rv index to media filename
+                #     rv[i].v[0] = index into rel_rids
+                rv_root = ET.fromstring(zf.read(richdata_rv))
+                vm_to_media: dict[int, str] = {}  # vm (1-based) → media filename
+                for i, rv in enumerate(rv_root.findall(f'{{{NS_RD}}}rv')):
+                    vals = [v.text for v in rv.findall(f'{{{NS_RD}}}v')]
+                    if vals:
+                        try:
+                            rel_idx = int(vals[0])
+                            if 0 <= rel_idx < len(rel_rids):
+                                rid = rel_rids[rel_idx]
+                                media_name = rid_to_media.get(rid, '')
+                                if media_name:
+                                    vm_to_media[i + 1] = media_name  # vm is 1-based
+                        except (ValueError, IndexError):
+                            pass
+
+                # 4d) Parse each sheet XML for cells with vm attribute
+                # Column N = 개선 전 사진, Column W = 개선 후 사진
+                col_to_key = {"N": "before", "W": "after"}
+                for sheet_name, sheet_path in sheet_files.items():
+                    if sheet_path not in namelist:
+                        continue
+                    sheet_root = ET.fromstring(zf.read(sheet_path))
+                    row_images: dict[int, dict[str, str]] = {}
+
+                    for cell in sheet_root.iter(f'{{{NS_S}}}c'):
+                        vm = cell.get('vm')
+                        if vm is None:
+                            continue
+                        ref = cell.get('r', '')
+                        col = ''.join(c for c in ref if c.isalpha())
+                        img_key = col_to_key.get(col)
+                        if not img_key:
+                            continue
+
+                        row_num = int(''.join(c for c in ref if c.isdigit()))
+                        vm_idx = int(vm)
+                        media_name = vm_to_media.get(vm_idx, '')
+                        if not media_name or media_name not in media_data:
+                            continue
+                        if row_num in row_images and img_key in row_images[row_num]:
+                            continue
+
+                        # Save image file
+                        ext = os.path.splitext(media_name)[1] or '.png'
+                        fname = f"{uuid.uuid4().hex}{ext}"
+                        fpath = os.path.join(IMAGE_DIR, fname)
+                        with open(fpath, "wb") as f:
+                            f.write(media_data[media_name])
+                        if row_num not in row_images:
+                            row_images[row_num] = {}
+                        row_images[row_num][img_key] = f"/uploads/images/{fname}"
+
+                    if row_images:
+                        result[sheet_name] = row_images
+
+    except Exception as e:
+        print(f"[extract_excel_images] error: {e}")
+        import traceback
+        traceback.print_exc()
+
+    return result
+
+
+def parse_excel(file_path: str) -> list[dict]:
+    # ZIP 기반으로 이미지 먼저 추출 (openpyxl 의존 X)
+    all_images = extract_excel_images(file_path)
+
+    wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+    all_records = []
+
+    target_sheets = [s for s in wb.sheetnames if s != "미완료"]
+
+    for sheet_name in target_sheets:
+        ws = wb[sheet_name]
+        month_label = sheet_name
+        image_map = all_images.get(sheet_name, {})
+
+        for row_num, row in enumerate(
+            ws.iter_rows(min_row=7, max_row=ws.max_row, values_only=True),
+            start=7,
+        ):
+            if not row or len(row) < 27:
+                continue
+
+            no = row[0]
+            if no is None or str(no).strip() == "":
+                continue
+            try:
+                int(no)
+            except (ValueError, TypeError):
+                continue
+
+            department = str(row[1] or "").strip()
+            person = str(row[2] or "").strip()
+
+            if not department and not person:
+                continue
+
+            date_val = parse_date(row[3])
+            location = str(row[4] or "").strip()
+            content = str(row[5] or "").strip()
+            process = str(row[6] or "").strip()
+            disaster_type = str(row[7] or "").strip()
+
+            likelihood_before = parse_number(row[8])
+            severity_before = parse_number(row[9])
+            risk_before = parse_number(row[10])
+            grade_before = str(row[11] or "").strip().replace(" ", "")
+
+            improvement_needed = str(row[12] or "").strip()
+            improvement_plan = str(row[14] or "").strip()
+            improve_dept = str(row[15] or "").strip()
+            planned_date = parse_date(row[16])
+            actual_date = parse_date(row[17])
+
+            likelihood_after = parse_number(row[18])
+            severity_after = parse_number(row[19])
+            risk_after = parse_number(row[20])
+            grade_after = str(row[21] or "").strip().replace(" ", "")
+
+            completion = str(row[23] or "").strip()
+            note = str(row[24] or "").strip()
+            tracking_manager = str(row[25] or "").strip()
+            week = parse_number(row[26]) if len(row) > 26 else 0
+
+            if grade_before == "-" or grade_before == "":
+                grade_before = "-"
+
+            record = {
+                "no": int(no),
+                "month": month_label,
+                "department": department,
+                "person": person,
+                "date": date_val,
+                "location": location,
+                "location_group": extract_location_group(location),
+                "content": content[:100],
+                "content_full": content,
+                "process": process,
+                "disaster_type": disaster_type,
+                "likelihood_before": likelihood_before,
+                "severity_before": severity_before,
+                "risk_before": risk_before,
+                "grade_before": grade_before,
+                "improvement_needed": improvement_needed,
+                "improvement_plan": improvement_plan,
+                "improve_dept": improve_dept,
+                "planned_date": planned_date,
+                "actual_date": actual_date,
+                "likelihood_after": likelihood_after,
+                "severity_after": severity_after,
+                "risk_after": risk_after,
+                "grade_after": grade_after,
+                "completion": completion,
+                "note": note,
+                "tracking_manager": tracking_manager,
+                "week": week,
+                "image": (image_map.get(row_num) or {}).get("before", ""),
+                "image_after": (image_map.get(row_num) or {}).get("after", ""),
+            }
+            all_records.append(record)
+
+    wb.close()
+    return all_records
+
 
 CHANNELS = [
     "정기위험성평가(코스맥스)",
@@ -33,678 +345,528 @@ CHANNELS = [
     "5S/EHS평가",
 ]
 
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-app = FastAPI()
-security = HTTPBearer(auto_error=False)
-
-# --- Static Files ---
-app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
-app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
-
-# --- Database ---
-def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    return conn
-
-def init_db():
-    conn = get_db()
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS records (
-            id TEXT PRIMARY KEY,
-            channel TEXT NOT NULL,
-            month TEXT,
-            person TEXT,
-            date TEXT,
-            location TEXT,
-            location_group TEXT,
-            content TEXT,
-            process TEXT,
-            disaster_type TEXT,
-            likelihood_before INTEGER DEFAULT 0,
-            severity_before INTEGER DEFAULT 0,
-            risk_before INTEGER DEFAULT 0,
-            grade_before TEXT DEFAULT '-',
-            improvement_plan TEXT,
-            likelihood_after INTEGER DEFAULT 0,
-            severity_after INTEGER DEFAULT 0,
-            risk_after INTEGER DEFAULT 0,
-            grade_after TEXT DEFAULT '-',
-            completion TEXT DEFAULT '미완료',
-            week INTEGER DEFAULT 0,
-            image TEXT,
-            image_after TEXT,
-            created_at TEXT
-        )
-    """)
-    conn.commit()
-    conn.close()
-
-init_db()
-
-# --- Auth ---
-def create_token():
-    exp = datetime.utcnow() + timedelta(hours=JWT_EXPIRE_HOURS)
-    return jwt.encode({"exp": exp, "sub": "user"}, SECRET_KEY, algorithm=JWT_ALGORITHM)
-
-def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    if not credentials:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    try:
-        jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[JWT_ALGORITHM])
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expired")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    return True
-
-# --- Helpers ---
-def calc_grade(likelihood, severity):
-    if likelihood <= 0 or severity <= 0:
-        return 0, "-"
-    risk = likelihood * severity
-    if risk <= 4:
-        grade = "A"
-    elif risk <= 8:
-        grade = "B"
-    elif risk <= 12:
-        grade = "C"
-    else:
-        grade = "D"
-    return risk, grade
-
-def extract_location_group(location):
-    if not location:
-        return ""
-    return location.strip()
-
-# --- Routes ---
-@app.get("/", response_class=HTMLResponse)
-async def root():
-    return FileResponse(os.path.join(BASE_DIR, "static", "index.html"))
-
-@app.post("/api/login")
-async def login(request: Request):
-    body = await request.json()
-    pw = body.get("password", "")
-    if pw != PASSWORD:
-        raise HTTPException(status_code=401, detail="Invalid password")
-    token = create_token()
-    return {"token": token}
-
-COLUMN_ALIASES = {
-    "month": ["월", "점검월", "월도", "개월"],
-    "person": ["발굴자", "담당자", "점검자", "이름", "점검원", "작성자", "평가자", "성명", "작업자", "검사자"],
-    "date": ["일시", "날짜", "발굴일", "점검일", "평가일", "작성일", "일자", "년월일", "작성일자", "점검날짜"],
-    "location": ["장소", "위치", "공장", "점검장소", "점검위치", "작업장소", "작업장", "구분", "부서", "영역", "지역"],
-    "content": ["위험요소 내용", "위험요소내용", "내용", "점검내용", "위험내용",
-                 "위험요소", "불안전상태", "불안전행동", "지적사항", "발굴내용",
-                 "위험성", "유해위험요인", "유해·위험요인", "세부내용", "설명", "비고", "개요"],
-    "process": ["공정", "공정명", "작업공정", "작업명", "세부공정", "프로세스", "부공정", "단계"],
-    "disaster_type": ["재해유형", "유형", "재해", "사고유형", "위험분류", "분류", "사고분류", "카테고리", "종류"],
-    "likelihood_before": ["가능성", "빈도", "발생빈도", "가능성(전)", "빈도(전)", "빈도전", "발생가능성"],
-    "severity_before": ["중대성", "심각성", "강도", "중대성(전)", "강도(전)", "심각성(전)", "중대성전", "영향도"],
-    "risk_before": ["위험도", "위험도(전)", "위험성", "Risk", "점수", "레벨", "수준", "위험도전"],
-    "grade_before": ["등급", "위험등급", "등급(전)", "Risk등급", "등급전", "관리등급", "레벨"],
-    "improvement": ["개선대책", "개선", "대책", "개선방안", "조치내용", "개선내용", "조치사항", "안전대책", "예방방법", "조치", "개선계획"],
-    "likelihood_after": ["가능성(후)", "빈도(후)", "발생빈도(후)", "빈도후", "가능성후"],
-    "severity_after": ["중대성(후)", "심각성(후)", "강도(후)", "중대성후", "심각성후"],
-    "risk_after": ["위험도(후)", "위험성(후)", "위험도후", "점수후"],
-    "grade_after": ["등급(후)", "위험등급(후)", "등급후"],
-    "completion": ["완료", "완료여부", "상태", "조치완료", "이행여부", "진행상태", "이행상태", "처리상태", "완료상태"],
-    "week": ["주차", "주", "주수", "주간"],
-}
-
-def find_header_row(ws, max_scan=30):
-    """Scan rows to find the header row by matching known column names."""
-    content_keywords = COLUMN_ALIASES["content"]
-    for row in ws.iter_rows(min_row=1, max_row=max_scan):
-        cell_texts = []
-        for cell in row:
-            val = str(cell.value or "").strip().replace("\n", " ")
-            cell_texts.append(val)
-        # Check if this row has a content-like column
-        for text in cell_texts:
-            for kw in content_keywords:
-                if kw in text:
-                    return row[0].row, cell_texts
-    return None, []
-
-def map_columns(header_texts):
-    """Map column field names to column indices based on header texts."""
-    col_map = {}
-    for field, aliases in COLUMN_ALIASES.items():
-        for idx, text in enumerate(header_texts):
-            # Exact match first
-            if text in aliases:
-                col_map[field] = idx
-                break
-        # If no exact match, try partial match
-        if field not in col_map:
-            for alias in aliases:
-                for idx, text in enumerate(header_texts):
-                    if alias in text and text.strip() != "":
-                        col_map[field] = idx
-                        break
-                if field in col_map:
-                    break
-    return col_map
-
-def parse_grade_from_text(text):
-    """Extract grade letter from text like 'A', 'A등급', 'D(16)' etc."""
-    if not text:
-        return "-"
-    text = text.strip().upper()
-    for g in ["A", "B", "C", "D", "E", "F"]:
-        if text.startswith(g):
-            return g
-    return "-"
 
 @app.post("/api/upload")
-async def upload_file(
-    file: UploadFile = File(...),
-    channel: str = Form(...),
-    _auth: bool = Depends(verify_token),
-):
+async def upload_excel(request: Request, file: UploadFile = File(...), channel: str = Form("안전점검")):
+    verify_token(request)
+
     if not file.filename.endswith((".xlsx", ".xlsm")):
-        raise HTTPException(status_code=400, detail="xlsx/xlsm 파일만 업로드 가능합니다.")
+        raise HTTPException(status_code=400, detail="엑셀 파일(.xlsx, .xlsm)만 업로드 가능합니다.")
+
+    file_path = os.path.join(UPLOAD_DIR, "uploaded.xlsm")
+    content = await file.read()
+    with open(file_path, "wb") as f:
+        f.write(content)
 
     try:
-        raw = await file.read()
-        wb = openpyxl.load_workbook(
-            filename=__import__("io").BytesIO(raw),
-            data_only=True,
-        )
+        records = parse_excel(file_path)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"엑셀 파일을 읽을 수 없습니다: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"엑셀 파싱 오류: {str(e)}")
 
-    conn = get_db()
-    total_count = 0
-    error_rows = []
+    for r in records:
+        r["channel"] = channel
+        r["source"] = "excel"
+        r["_id"] = uuid.uuid4().hex
+        if not r.get("image"):
+            r["image"] = ""
+        if not r.get("image_after"):
+            r["image_after"] = ""
 
-    for sheet_idx, ws in enumerate(wb.worksheets):
-        header_row_num, header_texts = find_header_row(ws)
-        if header_row_num is None:
-            continue
+    existing = load_data()
+    # 엑셀 데이터만 교체, 직접입력(manual) 데이터는 보존
+    existing = [r for r in existing if r.get("channel") != channel or r.get("source") == "manual"]
+    existing.extend(records)
 
-        col_map = map_columns(header_texts)
-        if "content" not in col_map:
-            continue
+    save_data(existing)
 
-        row_num = header_row_num
-        for row in ws.iter_rows(min_row=header_row_num + 1, values_only=False):
-            row_num += 1
-            # Ensure we have enough cells
-            max_col_idx = max(col_map.values()) if col_map else 0
-            vals = [cell.value if cell.value is not None else "" for cell in row[:max_col_idx + 1]]
-            # Pad with empty strings if needed
-            while len(vals) <= max_col_idx:
-                vals.append("")
+    return {"message": f"[{channel}] {len(records)}건 업로드 완료 (전체 {len(existing)}건)", "count": len(records)}
 
-            def get_val(field, default=""):
-                try:
-                    idx = col_map.get(field)
-                    if idx is not None and idx < len(vals):
-                        v = vals[idx]
-                        if v is None or v == "":
-                            return default
-                        if isinstance(v, datetime):
-                            return v.strftime("%Y-%m-%d")
-                        return str(v).strip()
-                    return default
-                except Exception:
-                    return default
 
-            def get_int(field, default=0):
-                v = get_val(field, "")
-                if not v:
-                    return default
-                try:
-                    # Handle various number formats
-                    v_clean = str(v).replace(",", "").replace("%", "").strip()
-                    return int(float(v_clean))
-                except (ValueError, TypeError):
-                    return default
+@app.get("/api/channels")
+async def get_channels(request: Request):
+    verify_token(request)
+    return {"channels": CHANNELS}
 
-            try:
-                content_text = get_val("content")
-                if not content_text or content_text == "" or content_text.lower() in ["없음", "na", "n/a"]:
-                    continue
 
-                month = get_val("month")
-                person = get_val("person")
-                date_val = get_val("date")
-                # Try to normalize date format using stdlib only
-                if date_val and isinstance(date_val, str):
-                    raw_date = date_val.strip()
-                    normalized = raw_date
-                    for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d", "%y-%m-%d", "%y/%m/%d", "%y.%m.%d"):
-                        try:
-                            normalized = datetime.strptime(raw_date, fmt).strftime("%Y-%m-%d")
-                            break
-                        except Exception:
-                            continue
-                    date_val = normalized
-                
-                location = get_val("location")
-                process = get_val("process")
-                disaster_type = get_val("disaster_type")
-                improvement = get_val("improvement")
-                completion = get_val("completion")
-                week = get_int("week")
+@app.get("/api/channels/status")
+async def channel_status(request: Request):
+    verify_token(request)
+    data = load_data()
+    counts: dict[str, int] = {}
+    for r in data:
+        ch = r.get("channel", "미분류")
+        counts[ch] = counts.get(ch, 0) + 1
+    return {"channels": CHANNELS, "counts": counts, "total": len(data)}
 
-                # Likelihood / Severity
-                lh_before = get_int("likelihood_before")
-                sv_before = get_int("severity_before")
-                lh_after = get_int("likelihood_after")
-                sv_after = get_int("severity_after")
 
-                # Try to read grade directly from Excel, else calculate
-                grade_before_text = get_val("grade_before")
-                grade_after_text = get_val("grade_after")
+@app.post("/api/channels/delete")
+async def delete_channel_data(request: Request):
+    verify_token(request)
+    body = await request.json()
+    channel = body.get("channel")
+    if not channel:
+        raise HTTPException(status_code=400, detail="채널명이 필요합니다.")
+    data = load_data()
+    before = len(data)
+    data = [r for r in data if r.get("channel") != channel]
+    after = len(data)
+    save_data(data)
+    return {"message": f"[{channel}] {before - after}건 삭제 완료", "remaining": after}
 
-                if lh_before > 0 and sv_before > 0:
-                    risk_before, grade_before = calc_grade(lh_before, sv_before)
-                elif grade_before_text:
-                    grade_before = parse_grade_from_text(grade_before_text)
-                    risk_before = get_int("risk_before")
-                else:
-                    risk_before, grade_before = 0, "-"
 
-                if lh_after > 0 and sv_after > 0:
-                    risk_after, grade_after = calc_grade(lh_after, sv_after)
-                elif grade_after_text:
-                    grade_after = parse_grade_from_text(grade_after_text)
-                    risk_after = get_int("risk_after")
-                else:
-                    risk_after, grade_after = 0, "-"
+# --- Image Upload ---
+ALLOWED_IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic")
 
-                # Normalize completion
-                if completion and "완료" in completion and "미" not in completion:
-                    completion = "완료"
-                else:
-                    completion = "미완료"
+@app.post("/api/image/upload")
+async def upload_image(request: Request, file: UploadFile = File(...)):
+    verify_token(request)
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in ALLOWED_IMAGE_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="이미지 파일만 업로드 가능합니다. (jpg, png, gif, webp)")
+    filename = f"{uuid.uuid4().hex}{ext}"
+    filepath = os.path.join(IMAGE_DIR, filename)
+    content = await file.read()
+    with open(filepath, "wb") as f:
+        f.write(content)
+    return {"filename": filename, "url": f"/uploads/images/{filename}"}
 
-                record_id = str(uuid.uuid4())
-                conn.execute(
-                    """INSERT INTO records (id, channel, month, person, date, location, location_group,
-                       content, process, disaster_type, likelihood_before, severity_before,
-                       risk_before, grade_before, improvement_plan,
-                       likelihood_after, severity_after, risk_after, grade_after,
-                       completion, week, created_at)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (record_id, channel, month, person, date_val, location,
-                     extract_location_group(location), content_text, process, disaster_type,
-                     lh_before, sv_before, risk_before, grade_before, improvement,
-                     lh_after, sv_after, risk_after, grade_after,
-                     completion, week, datetime.utcnow().isoformat()),
-                )
-                total_count += 1
-            except Exception as e:
-                error_rows.append({"row": row_num, "error": str(e)})
-                continue
 
-    conn.commit()
-    conn.close()
+@app.get("/uploads/images/{filename}")
+async def get_image(filename: str):
+    filepath = os.path.join(IMAGE_DIR, filename)
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="이미지를 찾을 수 없습니다.")
+    return FileResponse(filepath)
 
-    if total_count == 0:
-        error_detail = "엑셀 헤더에 '위험요소 내용' 등의 컬럼이 필요합니다."
-        if error_rows:
-            error_detail += f" (처리 중 {len(error_rows)}개 행 오류)"
-        raise HTTPException(status_code=400, detail=error_detail)
 
-    message = f"{total_count}건 업로드 완료 ({channel})"
-    if error_rows:
-        message += f" (주의: {len(error_rows)}개 행 스킵됨)"
-    
-    return {"message": message, "uploaded": total_count, "skipped": len(error_rows)}
+# --- Direct Record Input ---
+@app.post("/api/record/add")
+async def add_record(request: Request):
+    verify_token(request)
+    body = await request.json()
+
+    # Required fields
+    channel = body.get("channel", "").strip()
+    month = body.get("month", "").strip()
+    person = body.get("person", "").strip()
+    date_val = body.get("date", "").strip()
+    location = body.get("location", "").strip()
+    content = body.get("content", "").strip()
+    process = body.get("process", "").strip()
+    disaster_type = body.get("disaster_type", "").strip()
+    improvement_plan = body.get("improvement_plan", "").strip()
+    completion = body.get("completion", "미완료").strip()
+    week = parse_number(body.get("week", 0))
+    image = body.get("image", "").strip()
+    image_after = body.get("image_after", "").strip()
+
+    likelihood_before = parse_number(body.get("likelihood_before", 0))
+    severity_before = parse_number(body.get("severity_before", 0))
+    risk_before = likelihood_before * severity_before
+    grade_before = "A" if risk_before <= 4 else "B" if risk_before <= 8 else "C" if risk_before <= 12 else "D" if risk_before > 0 else "-"
+
+    likelihood_after = parse_number(body.get("likelihood_after", 0))
+    severity_after = parse_number(body.get("severity_after", 0))
+    risk_after = likelihood_after * severity_after
+    grade_after = "A" if risk_after <= 4 else "B" if risk_after <= 8 else "C" if risk_after <= 12 else "D" if risk_after > 0 else "-"
+
+    if not channel or not content:
+        raise HTTPException(status_code=400, detail="구분(채널)과 위험요소 내용은 필수입니다.")
+
+    existing = load_data()
+    max_no = max((r.get("no", 0) for r in existing), default=0)
+
+    record = {
+        "_id": uuid.uuid4().hex,
+        "no": max_no + 1,
+        "month": month,
+        "department": "",
+        "person": person,
+        "date": parse_date(date_val),
+        "location": location,
+        "location_group": extract_location_group(location),
+        "content": content[:100],
+        "content_full": content,
+        "process": process,
+        "disaster_type": disaster_type,
+        "likelihood_before": likelihood_before,
+        "severity_before": severity_before,
+        "risk_before": risk_before,
+        "grade_before": grade_before,
+        "improvement_needed": "",
+        "improvement_plan": improvement_plan,
+        "improve_dept": "",
+        "planned_date": None,
+        "actual_date": None,
+        "likelihood_after": likelihood_after,
+        "severity_after": severity_after,
+        "risk_after": risk_after,
+        "grade_after": grade_after,
+        "completion": completion,
+        "note": "",
+        "tracking_manager": "",
+        "week": week,
+        "channel": channel,
+        "source": "manual",
+        "image": image,
+        "image_after": image_after,
+    }
+
+    existing.append(record)
+    save_data(existing)
+
+    return {"message": f"위험요소 1건 추가 완료 (No.{record['no']})", "record": record}
+
+
+@app.post("/api/record/update")
+async def update_record(request: Request):
+    verify_token(request)
+    body = await request.json()
+    record_id = body.get("_id", "").strip()
+    if not record_id:
+        raise HTTPException(status_code=400, detail="_id가 필요합니다.")
+
+    data = load_data()
+    target = None
+    for r in data:
+        if r.get("_id") == record_id:
+            target = r
+            break
+    if not target:
+        raise HTTPException(status_code=404, detail="레코드를 찾을 수 없습니다.")
+
+    # Update editable fields
+    for field in ("channel", "month", "person", "date", "location", "content",
+                  "process", "disaster_type", "improvement_plan", "completion", "image", "image_after"):
+        if field in body:
+            target[field] = body[field].strip() if isinstance(body[field], str) else body[field]
+
+    if "date" in body:
+        target["date"] = parse_date(body["date"])
+    if "location" in body:
+        target["location"] = body["location"].strip()
+        target["location_group"] = extract_location_group(target["location"])
+    if "content" in body:
+        target["content_full"] = body["content"].strip()
+        target["content"] = body["content"].strip()[:100]
+    if "week" in body:
+        target["week"] = parse_number(body["week"])
+
+    if "likelihood_before" in body or "severity_before" in body:
+        lh = parse_number(body.get("likelihood_before", target.get("likelihood_before", 0)))
+        sv = parse_number(body.get("severity_before", target.get("severity_before", 0)))
+        target["likelihood_before"] = lh
+        target["severity_before"] = sv
+        target["risk_before"] = lh * sv
+        risk = lh * sv
+        target["grade_before"] = "A" if risk <= 4 else "B" if risk <= 8 else "C" if risk <= 12 else "D" if risk > 0 else "-"
+
+    if "likelihood_after" in body or "severity_after" in body:
+        lh = parse_number(body.get("likelihood_after", target.get("likelihood_after", 0)))
+        sv = parse_number(body.get("severity_after", target.get("severity_after", 0)))
+        target["likelihood_after"] = lh
+        target["severity_after"] = sv
+        target["risk_after"] = lh * sv
+        risk = lh * sv
+        target["grade_after"] = "A" if risk <= 4 else "B" if risk <= 8 else "C" if risk <= 12 else "D" if risk > 0 else "-"
+
+    save_data(data)
+    return {"message": "수정 완료", "record": target}
+
+
+@app.post("/api/record/delete")
+async def delete_record(request: Request):
+    verify_token(request)
+    body = await request.json()
+    record_id = body.get("_id", "").strip()
+    if not record_id:
+        raise HTTPException(status_code=400, detail="_id가 필요합니다.")
+
+    data = load_data()
+    before = len(data)
+    data = [r for r in data if r.get("_id") != record_id]
+    if len(data) == before:
+        raise HTTPException(status_code=404, detail="레코드를 찾을 수 없습니다.")
+
+    save_data(data)
+    return {"message": "삭제 완료"}
+
+
+# --- Data API ---
+def load_data() -> list[dict]:
+    if not os.path.exists(DATA_FILE):
+        return []
+    with open(DATA_FILE, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    dirty = False
+    for r in data:
+        if "channel" not in r:
+            r["channel"] = "안전점검"
+        if "_id" not in r:
+            r["_id"] = uuid.uuid4().hex
+            dirty = True
+        if "image" not in r:
+            r["image"] = ""
+        if "image_after" not in r:
+            r["image_after"] = ""
+    if dirty:
+        with open(DATA_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    return data
+
+
+def save_data(data: list[dict]):
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+@app.get("/api/data")
+async def get_data(request: Request):
+    verify_token(request)
+    records = load_data()
+    return {"records": records, "total": len(records)}
+
 
 @app.get("/api/summary")
-async def get_summary(request: Request, _auth: bool = Depends(verify_token)):
-    params = dict(request.query_params)
-    conn = get_db()
+async def get_summary(
+    request: Request,
+    channel: Optional[str] = None,
+    year: Optional[str] = None,
+    month: Optional[str] = None,
+    location: Optional[str] = None,
+    grade: Optional[str] = None,
+    disaster_type: Optional[str] = None,
+    process: Optional[str] = None,
+    person: Optional[str] = None,
+    week: Optional[int] = None,
+    keyword: Optional[str] = None,
+    completion: Optional[str] = None,
+):
+    verify_token(request)
+    records = load_data()
 
-    where_clauses = []
-    where_params = []
+    # Apply filters
+    if channel and channel != "전체":
+        records = [r for r in records if r.get("channel") == channel]
+    if year and year != "전체":
+        records = [r for r in records if (r.get("date") or "")[:4] == year]
+    if month and month != "전체":
+        records = [r for r in records if r["month"] == month]
+    if location and location != "전체":
+        records = [r for r in records if r["location_group"] == location]
+    if grade and grade != "전체":
+        records = [r for r in records if r["grade_before"] == grade]
+    if disaster_type and disaster_type != "전체":
+        records = [r for r in records if r["disaster_type"] == disaster_type]
+    if process and process != "전체":
+        records = [r for r in records if r["process"] == process]
+    if person and person != "전체":
+        records = [r for r in records if r["person"] == person]
+    if week and week > 0:
+        records = [r for r in records if r["week"] == week]
+    if completion and completion != "전체":
+        records = [r for r in records if r["completion"] == completion]
+    if keyword:
+        kw = keyword.lower()
+        records = [r for r in records if kw in r.get("content_full", "").lower()
+                   or kw in r.get("location", "").lower()
+                   or kw in r.get("improvement_plan", "").lower()]
 
-    if params.get("channel"):
-        where_clauses.append("channel = ?")
-        where_params.append(params["channel"])
-    if params.get("year"):
-        where_clauses.append("(date LIKE ? OR month LIKE ?)")
-        where_params.extend([f"{params['year']}%", f"%{params['year']}%"])
-    if params.get("month"):
-        where_clauses.append("month = ?")
-        where_params.append(params["month"])
-    if params.get("location"):
-        where_clauses.append("location = ?")
-        where_params.append(params["location"])
-    if params.get("grade"):
-        where_clauses.append("grade_before = ?")
-        where_params.append(params["grade"])
-    if params.get("disaster_type"):
-        where_clauses.append("disaster_type = ?")
-        where_params.append(params["disaster_type"])
-    if params.get("process"):
-        where_clauses.append("process = ?")
-        where_params.append(params["process"])
-    if params.get("person"):
-        where_clauses.append("person = ?")
-        where_params.append(params["person"])
-    if params.get("week"):
-        where_clauses.append("week = ?")
-        where_params.append(int(params["week"]))
-    if params.get("completion"):
-        where_clauses.append("completion = ?")
-        where_params.append(params["completion"])
-    if params.get("keyword"):
-        where_clauses.append("content LIKE ?")
-        where_params.append(f"%{params['keyword']}%")
+    # Detect repeated risks by normalized content
+    import re
+    from collections import Counter
 
-    where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
+    def normalize_content(text):
+        if not text:
+            return ""
+        t = text.strip()
+        t = re.sub(r'[.,!?;:\-~·…\s]+', '', t)
+        return t.lower()
 
-    rows = conn.execute(
-        f"SELECT * FROM records WHERE {where_sql} ORDER BY created_at DESC",
-        where_params,
-    ).fetchall()
+    content_counts = Counter()
+    norm_map = {}
+    for r in records:
+        c = r.get("content_full", "").strip()
+        norm = normalize_content(c)
+        if norm:
+            content_counts[norm] += 1
+            norm_map[id(r)] = norm
 
-    # Also fetch ALL records (unfiltered) for filter options
-    all_rows = conn.execute("SELECT * FROM records ORDER BY created_at DESC").fetchall()
-    conn.close()
+    # Mark repeat info on each record
+    for r in records:
+        norm = norm_map.get(id(r), "")
+        cnt = content_counts.get(norm, 0)
+        r["repeat_count"] = cnt
+        r["is_repeat"] = cnt >= 2
 
-    records = [dict(r) for r in rows]
-    all_records = [dict(r) for r in all_rows]
-
-    # Stats
     total = len(records)
+    repeat_total = sum(1 for r in records if r["is_repeat"])
+
+    # Grade counts (before improvement)
     grade_a = sum(1 for r in records if r["grade_before"] == "A")
     grade_b = sum(1 for r in records if r["grade_before"] == "B")
     grade_c = sum(1 for r in records if r["grade_before"] == "C")
     grade_d = sum(1 for r in records if r["grade_before"] == "D")
+
     complete = sum(1 for r in records if r["completion"] == "완료")
-    incomplete = total - complete
+    incomplete = sum(1 for r in records if r["completion"] != "완료")
     improvement_rate = round(complete / total * 100, 1) if total > 0 else 0
 
-    # Repeat detection (by content)
-    content_count = {}
-    for r in all_records:
-        c = (r["content"] or "").strip()
-        if c:
-            content_count[c] = content_count.get(c, 0) + 1
+    # Cumulative remaining incomplete by grade per month
+    def month_sort_key(m):
+        try:
+            return int(m.replace("월", ""))
+        except (ValueError, AttributeError):
+            return 0
+    all_months = sorted(set(r["month"] for r in records), key=month_sort_key)
+    grade_cumulative = {}  # {month: {D: n, C: n, B: n, A: n, total: n}}
+    cumul = {"A": 0, "B": 0, "C": 0, "D": 0}
+    cumul_total = 0
+    cumul_complete = 0
+    for m in all_months:
+        month_recs = [r for r in records if r["month"] == m]
+        for r in month_recs:
+            g = r["grade_before"] if r["grade_before"] in ("A", "B", "C", "D") else None
+            if g and r["completion"] != "완료":
+                cumul[g] += 1
+        cumul_total += len(month_recs)
+        cumul_complete += sum(1 for r in month_recs if r["completion"] == "완료")
+        grade_cumulative[m] = {
+            "A": cumul["A"], "B": cumul["B"], "C": cumul["C"], "D": cumul["D"],
+            "total_remaining": cumul_total - cumul_complete,
+        }
 
-    repeat_total = 0
+    # By location group
+    location_stats: dict[str, dict[str, int]] = {}
     for r in records:
-        c = (r["content"] or "").strip()
-        r["is_repeat"] = content_count.get(c, 0) >= 2
-        r["repeat_count"] = content_count.get(c, 0)
-        if r["is_repeat"]:
-            repeat_total += 1
+        lg = r["location_group"]
+        if lg not in location_stats:
+            location_stats[lg] = {"A": 0, "B": 0, "C": 0, "D": 0, "-": 0}
+        g = r["grade_before"] if r["grade_before"] in ("A", "B", "C", "D") else "-"
+        location_stats[lg][g] += 1
 
-    # Location stats
-    location_stats = {}
-    location_disaster_stats = {}
+    # By location x disaster type
+    location_disaster_stats: dict[str, dict[str, int]] = {}
+    all_disaster_types_set: set[str] = set()
     for r in records:
-        loc = r["location"] or "미분류"
-        if loc not in location_stats:
-            location_stats[loc] = {"A": 0, "B": 0, "C": 0, "D": 0, "-": 0}
-        g = r["grade_before"] or "-"
-        if g in location_stats[loc]:
-            location_stats[loc][g] += 1
+        lg = r["location_group"]
+        dt = r["disaster_type"] if r["disaster_type"] else "미분류"
+        all_disaster_types_set.add(dt)
+        if lg not in location_disaster_stats:
+            location_disaster_stats[lg] = {}
+        location_disaster_stats[lg][dt] = location_disaster_stats[lg].get(dt, 0) + 1
 
-        if loc not in location_disaster_stats:
-            location_disaster_stats[loc] = {}
-        dt = r["disaster_type"] or "기타"
-        location_disaster_stats[loc][dt] = location_disaster_stats[loc].get(dt, 0) + 1
-
-    # Grade cumulative (monthly incomplete remaining)
-    grade_cumulative = {}
-    months_set = sorted(set(r["month"] or "" for r in all_records if r["month"]))
-    # Build cumulative incomplete by grade per month
-    for m in months_set:
-        if not m:
-            continue
-        cum = {"A": 0, "B": 0, "C": 0, "D": 0, "total_remaining": 0}
-        for r in all_records:
-            if not r["month"]:
-                continue
-            if r["month"] <= m and r["completion"] != "완료":
-                g = r["grade_before"] or "-"
-                if g in cum:
-                    cum[g] += 1
-                cum["total_remaining"] += 1
-        grade_cumulative[m] = cum
-
-    # Week stats
-    week_stats = {}
+    # Grade trend by month
+    grade_trend: dict[str, dict[str, int]] = {}
     for r in records:
-        w = str(r["week"] or 0)
-        if w == "0":
-            continue
-        wk = w + "주차"
-        week_stats[wk] = week_stats.get(wk, 0) + 1
+        m = r["month"]
+        if m not in grade_trend:
+            grade_trend[m] = {"A": 0, "B": 0, "C": 0, "D": 0}
+        g = r["grade_before"] if r["grade_before"] in ("A", "B", "C", "D") else None
+        if g:
+            grade_trend[m][g] += 1
+    # Sort months naturally (try numeric sort, then string)
+    def month_sort_key(m):
+        try:
+            return int(m.replace("월", ""))
+        except (ValueError, AttributeError):
+            return 999
+    grade_trend = dict(sorted(grade_trend.items(), key=lambda x: month_sort_key(x[0])))
 
-    # Disaster stats
-    disaster_stats = {}
+    # By week
+    week_stats: dict[str, int] = {}
     for r in records:
-        dt = r["disaster_type"] or "기타"
+        m = r["month"]
+        w = r["week"]
+        if w > 0:
+            key = f"{m} {w}주차"
+            week_stats[key] = week_stats.get(key, 0) + 1
+
+    # By disaster type
+    disaster_stats: dict[str, int] = {}
+    for r in records:
+        dt = r["disaster_type"] if r["disaster_type"] else "미분류"
         disaster_stats[dt] = disaster_stats.get(dt, 0) + 1
 
-    # Process stats
-    process_stats = {}
+    # By process
+    process_stats: dict[str, int] = {}
     for r in records:
-        p = r["process"] or "미분류"
+        p = r["process"] if r["process"] else "미분류"
         process_stats[p] = process_stats.get(p, 0) + 1
 
-    # Channel stats
-    channel_stats = {}
-    channel_grade_stats = {}
+    # By channel
+    channel_stats: dict[str, int] = {}
     for r in records:
-        ch = r["channel"]
+        ch = r.get("channel", "미분류")
         channel_stats[ch] = channel_stats.get(ch, 0) + 1
+
+    # Channel-grade breakdown
+    channel_grade_stats: dict[str, dict[str, int]] = {}
+    for r in records:
+        ch = r.get("channel", "미분류")
         if ch not in channel_grade_stats:
-            channel_grade_stats[ch] = {"A": 0, "B": 0, "C": 0, "D": 0, "complete": 0, "incomplete": 0}
-        g = r["grade_before"] or "-"
-        if g in channel_grade_stats[ch]:
-            channel_grade_stats[ch][g] += 1
+            channel_grade_stats[ch] = {"A": 0, "B": 0, "C": 0, "D": 0, "-": 0, "complete": 0, "incomplete": 0}
+        g = r["grade_before"] if r["grade_before"] in ("A", "B", "C", "D") else "-"
+        channel_grade_stats[ch][g] += 1
         if r["completion"] == "완료":
             channel_grade_stats[ch]["complete"] += 1
         else:
             channel_grade_stats[ch]["incomplete"] += 1
 
-    # Filter options (from all records)
-    filters = {
-        "channels": sorted(set(r["channel"] for r in all_records if r["channel"])),
-        "years": sorted(set(r["date"][:4] for r in all_records if r["date"] and len(r["date"]) >= 4)),
-        "months": sorted(set(r["month"] for r in all_records if r["month"])),
-        "locations": sorted(set(r["location"] for r in all_records if r["location"])),
-        "disaster_types": sorted(set(r["disaster_type"] for r in all_records if r["disaster_type"])),
-        "processes": sorted(set(r["process"] for r in all_records if r["process"])),
-        "persons": sorted(set(r["person"] for r in all_records if r["person"])),
-        "weeks": sorted(set(r["week"] for r in all_records if r["week"] and r["week"] > 0)),
-    }
-
-    # Format records for frontend
-    output_records = []
-    for i, r in enumerate(records, 1):
-        content_full = r["content"] or ""
-        content_short = content_full[:60] + "..." if len(content_full) > 60 else content_full
-        output_records.append({
-            "_id": r["id"],
-            "no": i,
-            "channel": r["channel"],
-            "month": r["month"] or "",
-            "person": r["person"] or "",
-            "date": r["date"] or "",
-            "location": r["location"] or "",
-            "location_group": r["location_group"] or "",
-            "content": content_short,
-            "content_full": content_full,
-            "process": r["process"] or "",
-            "disaster_type": r["disaster_type"] or "",
-            "likelihood_before": r["likelihood_before"],
-            "severity_before": r["severity_before"],
-            "risk_before": r["risk_before"],
-            "grade_before": r["grade_before"] or "-",
-            "improvement_plan": r["improvement_plan"] or "",
-            "likelihood_after": r["likelihood_after"],
-            "severity_after": r["severity_after"],
-            "risk_after": r["risk_after"],
-            "grade_after": r["grade_after"] or "-",
-            "completion": r["completion"] or "미완료",
-            "week": r["week"],
-            "image": r["image"] or "",
-            "image_after": r["image_after"] or "",
-            "is_repeat": r["is_repeat"],
-            "repeat_count": r["repeat_count"],
-        })
+    # Filter options
+    all_records = load_data()
+    channels = sorted(set(r.get("channel", "미분류") for r in all_records))
+    years = sorted(set(r["date"][:4] for r in all_records if r.get("date") and len(r["date"]) >= 4))
+    months = sorted(set(r["month"] for r in all_records))
+    locations = sorted(set(r["location_group"] for r in all_records))
+    disaster_types = sorted(set(r["disaster_type"] for r in all_records if r["disaster_type"]))
+    processes = sorted(set(r["process"] for r in all_records if r["process"]))
+    persons = sorted(set(r["person"] for r in all_records if r["person"]))
+    weeks = sorted(set(r["week"] for r in all_records if r["week"] > 0))
 
     return {
         "total": total,
+        "improvement_rate": improvement_rate,
+        "repeat_total": repeat_total,
         "grade_a": grade_a,
         "grade_b": grade_b,
         "grade_c": grade_c,
         "grade_d": grade_d,
+        "grade_cumulative": grade_cumulative,
         "complete": complete,
         "incomplete": incomplete,
-        "improvement_rate": improvement_rate,
-        "repeat_total": repeat_total,
-        "records": output_records,
         "location_stats": location_stats,
         "location_disaster_stats": location_disaster_stats,
-        "grade_cumulative": grade_cumulative,
+        "grade_trend": grade_trend,
         "week_stats": week_stats,
         "disaster_stats": disaster_stats,
         "process_stats": process_stats,
         "channel_stats": channel_stats,
         "channel_grade_stats": channel_grade_stats,
-        "filters": filters,
+        "records": records,
+        "filters": {
+            "channels": channels,
+            "years": years,
+            "months": months,
+            "locations": locations,
+            "disaster_types": disaster_types,
+            "processes": processes,
+            "persons": persons,
+            "weeks": weeks,
+        },
     }
 
-@app.get("/api/channels/status")
-async def channels_status(_auth: bool = Depends(verify_token)):
-    conn = get_db()
-    counts = {}
-    total = 0
-    for ch in CHANNELS:
-        row = conn.execute("SELECT COUNT(*) as cnt FROM records WHERE channel = ?", (ch,)).fetchone()
-        cnt = row["cnt"]
-        counts[ch] = cnt
-        total += cnt
-    conn.close()
-    return {"channels": CHANNELS, "counts": counts, "total": total}
 
-@app.post("/api/channels/delete")
-async def delete_channel(request: Request, _auth: bool = Depends(verify_token)):
-    body = await request.json()
-    channel = body.get("channel", "")
-    if not channel:
-        raise HTTPException(status_code=400, detail="채널명이 필요합니다.")
-    conn = get_db()
-    cur = conn.execute("DELETE FROM records WHERE channel = ?", (channel,))
-    conn.commit()
-    deleted = cur.rowcount
-    conn.close()
-    return {"message": f"[{channel}] {deleted}건 삭제 완료"}
+# --- Static Files ---
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
-@app.post("/api/record/add")
-async def add_record(request: Request, _auth: bool = Depends(verify_token)):
-    body = await request.json()
-    lh_b = body.get("likelihood_before", 0) or 0
-    sv_b = body.get("severity_before", 0) or 0
-    lh_a = body.get("likelihood_after", 0) or 0
-    sv_a = body.get("severity_after", 0) or 0
-    risk_b, grade_b = calc_grade(lh_b, sv_b)
-    risk_a, grade_a = calc_grade(lh_a, sv_a)
 
-    record_id = str(uuid.uuid4())
-    conn = get_db()
-    conn.execute(
-        """INSERT INTO records (id, channel, month, person, date, location, location_group,
-           content, process, disaster_type, likelihood_before, severity_before,
-           risk_before, grade_before, improvement_plan, likelihood_after, severity_after,
-           risk_after, grade_after, completion, week, image, image_after, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (record_id, body.get("channel", "안전점검"), body.get("month", ""),
-         body.get("person", ""), body.get("date", ""), body.get("location", ""),
-         extract_location_group(body.get("location", "")),
-         body.get("content", ""), body.get("process", ""),
-         body.get("disaster_type", ""), lh_b, sv_b, risk_b, grade_b,
-         body.get("improvement_plan", ""), lh_a, sv_a, risk_a, grade_a,
-         body.get("completion", "미완료"), body.get("week", 0),
-         body.get("image", ""), body.get("image_after", ""),
-         datetime.utcnow().isoformat()),
-    )
-    conn.commit()
-    conn.close()
-    return {"message": "등록 완료"}
+@app.get("/")
+async def root():
+    return FileResponse("static/index.html")
 
-@app.post("/api/record/update")
-async def update_record(request: Request, _auth: bool = Depends(verify_token)):
-    body = await request.json()
-    record_id = body.get("_id", "")
-    if not record_id:
-        raise HTTPException(status_code=400, detail="레코드 ID가 필요합니다.")
-
-    lh_b = body.get("likelihood_before", 0) or 0
-    sv_b = body.get("severity_before", 0) or 0
-    lh_a = body.get("likelihood_after", 0) or 0
-    sv_a = body.get("severity_after", 0) or 0
-    risk_b, grade_b = calc_grade(lh_b, sv_b)
-    risk_a, grade_a = calc_grade(lh_a, sv_a)
-
-    conn = get_db()
-    conn.execute(
-        """UPDATE records SET channel=?, month=?, person=?, date=?, location=?,
-           location_group=?, content=?, process=?, disaster_type=?,
-           likelihood_before=?, severity_before=?, risk_before=?, grade_before=?,
-           improvement_plan=?, likelihood_after=?, severity_after=?, risk_after=?,
-           grade_after=?, completion=?, week=?, image=?, image_after=?
-           WHERE id=?""",
-        (body.get("channel", "안전점검"), body.get("month", ""),
-         body.get("person", ""), body.get("date", ""), body.get("location", ""),
-         extract_location_group(body.get("location", "")),
-         body.get("content", ""), body.get("process", ""),
-         body.get("disaster_type", ""), lh_b, sv_b, risk_b, grade_b,
-         body.get("improvement_plan", ""), lh_a, sv_a, risk_a, grade_a,
-         body.get("completion", "미완료"), body.get("week", 0),
-         body.get("image", ""), body.get("image_after", ""),
-         record_id),
-    )
-    conn.commit()
-    conn.close()
-    return {"message": "수정 완료"}
-
-@app.post("/api/record/delete")
-async def delete_record(request: Request, _auth: bool = Depends(verify_token)):
-    body = await request.json()
-    record_id = body.get("_id", "")
-    if not record_id:
-        raise HTTPException(status_code=400, detail="레코드 ID가 필요합니다.")
-    conn = get_db()
-    conn.execute("DELETE FROM records WHERE id = ?", (record_id,))
-    conn.commit()
-    conn.close()
-    return {"message": "삭제 완료"}
-
-@app.post("/api/image/upload")
-async def upload_image(
-    file: UploadFile = File(...),
-    _auth: bool = Depends(verify_token),
-):
-    ext = os.path.splitext(file.filename)[1].lower()
-    if ext not in (".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"):
-        raise HTTPException(status_code=400, detail="이미지 파일만 업로드 가능합니다.")
-
-    filename = f"{uuid.uuid4().hex}{ext}"
-    filepath = os.path.join(UPLOAD_DIR, filename)
-    content = await file.read()
-    with open(filepath, "wb") as f:
-        f.write(content)
-
-    return {"url": f"/uploads/{filename}"}
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)

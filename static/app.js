@@ -230,6 +230,7 @@ function renderLocationChart(data) {
     const locLabels = Object.keys(data.location_stats);
 
     if (locationViewMode === "disaster") {
+        // Disaster type view
         const locDisaster = data.location_disaster_stats || {};
         const allTypes = new Set();
         Object.values(locDisaster).forEach(obj => Object.keys(obj).forEach(k => allTypes.add(k)));
@@ -262,6 +263,7 @@ function renderLocationChart(data) {
             }
         );
     } else {
+        // Grade view (default)
         const locDatasets = ["A", "B", "C", "D"].map(g => ({
             label: g + "등급",
             data: locLabels.map(l => data.location_stats[l][g] || 0),
@@ -290,7 +292,7 @@ function updateCharts(data) {
     // 1. Location bar chart
     renderLocationChart(data);
 
-    // 2. Cumulative remaining incomplete by grade
+    // 2. Cumulative remaining incomplete by grade (bar + trend lines)
     destroyChart("chart-grade");
     const gradeCumul = data.grade_cumulative || {};
     const cumulMonths = Object.keys(gradeCumul);
@@ -307,10 +309,12 @@ function updateCharts(data) {
             data: {
                 labels: cumulLabels,
                 datasets: [
+                    // Stacked bars
                     { label: "D등급", data: dData, backgroundColor: GRADE_COLORS.D + "66", borderRadius: 2, stack: "bar", order: 2 },
                     { label: "C등급", data: cData, backgroundColor: GRADE_COLORS.C + "66", borderRadius: 2, stack: "bar", order: 2 },
                     { label: "B등급", data: bData, backgroundColor: GRADE_COLORS.B + "66", borderRadius: 2, stack: "bar", order: 2 },
                     { label: "A등급", data: aData, backgroundColor: GRADE_COLORS.A + "66", borderRadius: 2, stack: "bar", order: 2 },
+                    // Trend lines
                     { label: "D추세", data: dData, type: "line", borderColor: GRADE_COLORS.D, borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: GRADE_COLORS.D, tension: 0.3, fill: false, order: 1 },
                     { label: "C추세", data: cData, type: "line", borderColor: GRADE_COLORS.C, borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: GRADE_COLORS.C, tension: 0.3, fill: false, order: 1 },
                     { label: "B추세", data: bData, type: "line", borderColor: GRADE_COLORS.B, borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: GRADE_COLORS.B, tension: 0.3, fill: false, order: 1 },
@@ -398,7 +402,7 @@ function updateCharts(data) {
         }
     );
 
-    // 5. Disaster type chart
+    // 5. Disaster type chart (category tab)
     destroyChart("chart-disaster");
     const disLabels = Object.keys(data.disaster_stats);
     const disData = disLabels.map(k => data.disaster_stats[k]);
@@ -425,7 +429,7 @@ function updateCharts(data) {
         }
     );
 
-    // 6. Process chart
+    // 6. Process chart (category tab)
     destroyChart("chart-process");
     const procLabels = Object.keys(data.process_stats);
     const procData = procLabels.map(k => data.process_stats[k]);
@@ -457,7 +461,7 @@ function updateCharts(data) {
         }
     );
 
-    // 7. Channel charts
+    // 7. Channel charts (visible only with multi-channel data)
     destroyChart("chart-channel");
     destroyChart("chart-channel-grade");
     const channelRow = document.getElementById("channel-chart-row");
@@ -520,7 +524,6 @@ function updateCharts(data) {
                 },
             }
         );
-
         // Channel summary table
         const tableWrap = document.getElementById("channel-table-wrap");
         tableWrap.style.display = "";
@@ -548,6 +551,7 @@ function updateCharts(data) {
                 '<td style="font-weight:600;color:' + (chRate >= 80 ? '#27ae60' : chRate >= 50 ? '#f39c12' : '#e74c3c') + '">' + chRate + '%</td>';
             tbody.appendChild(tr);
         });
+        // Total row
         const totalRate = totalRow.count > 0 ? (totalRow.comp / totalRow.count * 100).toFixed(1) : 0;
         const totalTr = document.createElement("tr");
         totalTr.style.background = "#f0f4ff";
@@ -873,6 +877,7 @@ function editRecord(id) {
     calcGrade("before");
     calcGrade("after");
 
+    // Image (before)
     if (r.image) {
         document.getElementById("ar-image-url").value = r.image;
         document.getElementById("ar-image-name").textContent = "기존 사진";
@@ -883,6 +888,7 @@ function editRecord(id) {
         document.getElementById("ar-image-name").textContent = "선택된 파일 없음";
         document.getElementById("ar-image-preview").style.display = "none";
     }
+    // Image (after)
     if (r.image_after) {
         document.getElementById("ar-image-after-url").value = r.image_after;
         document.getElementById("ar-image-after-name").textContent = "기존 사진";

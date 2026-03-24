@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Safety Risk Dashboard</title>
-    <link rel="stylesheet" href="/static/style.css?v=1">
+    <link rel="stylesheet" href="/static/style.css?v=6">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -127,6 +127,7 @@
 
         <!-- Overview Tab -->
         <div id="tab-overview" class="tab-content">
+            <!-- Stats Cards -->
             <div class="stats-cards">
                 <div class="stat-card">
                     <div class="stat-label">TOTAL</div>
@@ -166,6 +167,7 @@
                 </div>
             </div>
 
+            <!-- Charts Row 1 -->
             <div class="chart-row">
                 <div class="chart-box wide">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
@@ -180,6 +182,7 @@
                 </div>
             </div>
 
+            <!-- Charts Row 2 -->
             <div class="chart-row">
                 <div class="chart-box">
                     <h3>완료 / 미완료</h3>
@@ -191,6 +194,7 @@
                 </div>
             </div>
 
+            <!-- Charts Row 3: Channel (only visible with multi-channel data) -->
             <div class="chart-row" id="channel-chart-row" style="display:none;">
                 <div class="chart-box wide">
                     <h3>채널별 위험요소 발굴현황</h3>
@@ -202,6 +206,7 @@
                 </div>
             </div>
 
+            <!-- Channel Summary Table -->
             <div class="table-container" id="channel-table-wrap" style="display:none;">
                 <h3 class="table-title">채널별 현황 요약</h3>
                 <table id="channel-summary-table">
@@ -265,6 +270,7 @@
             </div>
         </div>
 
+        <!-- No Data Message -->
         <div id="no-data" class="no-data" style="display:none;">
             <p>데이터가 없습니다. 엑셀 파일을 업로드해주세요.</p>
         </div>
@@ -406,6 +412,6 @@
         </div>
     </div>
 
-    <script src="/static/app.js?v=1"></script>
+    <script src="/static/app.js?v=11"></script>
 </body>
 </html>

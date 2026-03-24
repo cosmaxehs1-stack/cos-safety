@@ -67,6 +67,7 @@
     </div>
     <script>
     (async function() {
+        // --- Get Data ---
         let data = null;
         if (window.opener && window.opener.__reportData) {
             data = window.opener.__reportData;
@@ -96,13 +97,16 @@
         const today = new Date().toLocaleDateString('ko-KR');
         function esc(s) { return s ? String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') : ''; }
 
+        // --- Compute Analytics ---
         const gA = data.grade_a, gB = data.grade_b, gC = data.grade_c, gD = data.grade_d;
         const gE = records.filter(r => r.grade_before === 'E' || r.grade_before === 'F').length;
 
+        // Channel stats
         const channelStats = data.channel_stats || {};
         const channelGradeStats = data.channel_grade_stats || {};
         const channelList = Object.entries(channelStats).sort((a, b) => b[1] - a[1]);
 
+        // Company stats
         const companies = Object.entries(data.location_stats)
             .map(([name, g]) => ({
                 name,
@@ -112,8 +116,10 @@
             .sort((a, b) => b.total - a.total);
         const maxComp = companies[0]?.total || 1;
 
+        // Weekly stats
         const weeks = Object.entries(data.week_stats).sort((a, b) => a[0].localeCompare(b[0]));
 
+        // Category (disaster_type > process)
         const catMap = {};
         records.forEach(r => {
             const m = r.disaster_type || '기타';
@@ -125,12 +131,15 @@
             .map(([k, c]) => { const [m, s] = k.split('||'); return { m, s, c, p: total ? (c / total * 100).toFixed(1) : '0' }; })
             .sort((a, b) => b.c - a.c);
 
+        // Main category aggregation
         const mainCatMap = {};
         cats.forEach(c => { mainCatMap[c.m] = (mainCatMap[c.m] || 0) + c.c; });
         const mainCats = Object.entries(mainCatMap).sort((a, b) => b[1] - a[1]);
 
+        // High risk items (D/E)
         const highRisk = records.filter(r => r.grade_before === 'D' || r.grade_before === 'E' || r.grade_before === 'F');
 
+        // Repeated risks
         const contentGroups = {};
         records.forEach(r => {
             const c = (r.content_full || '').trim();
@@ -145,13 +154,16 @@
             .sort((a, b) => b.count - a.count)
             .slice(0, 10);
 
+        // --- Build HTML ---
         let html = '';
 
+        // Header
         html += '<header class="report-header"><div>';
         html += '<h1>COSMAX 안전 위험요소 분석 리포트</h1>';
         html += '<p>생성일: ' + today + ' | 총 ' + total + '건</p>';
         html += '</div><button class="print-btn" onclick="window.print()">인쇄 / PDF 저장</button></header>';
 
+        // Section 1: Summary
         html += '<h2 class="section-title">1. 전체 현황 요약</h2>';
         html += '<div class="summary-cards">';
         html += '<div class="s-card"><div class="s-label">전체 건수</div><div class="s-value">' + total + '</div></div>';
@@ -164,6 +176,7 @@
         html += '<div class="s-card"><div class="s-label">미완료</div><div class="s-value red">' + data.incomplete + '</div></div>';
         html += '</div>';
 
+        // Section 2: Channel Analysis
         html += '<h2 class="section-title">2. 채널별 분석</h2>';
         html += '<div class="chart-grid">';
         html += '<div class="chart-box"><h3>채널별 위험요소 건수</h3><canvas id="c-channel"></canvas></div>';
@@ -177,6 +190,7 @@
         });
         html += '</tbody></table>';
 
+        // Section 3: Company Analysis
         html += '<h2 class="section-title">3. 구분별 위험요소 현황</h2>';
         html += '<div class="chart-box"><h3>구분별 위험요소 건수</h3><div class="bar-chart">';
         companies.forEach(c => {
@@ -193,6 +207,7 @@
         });
         html += '</tbody></table>';
 
+        // Section 3: Grade & Weekly
         html += '<h2 class="section-title">4. 위험등급 및 주차별 분석</h2>';
         html += '<div class="chart-grid">';
         html += '<div class="chart-box"><h3>위험등급별 분포</h3><canvas id="c-grade"></canvas></div>';
@@ -200,6 +215,7 @@
         html += '</div>';
         html += '<div class="chart-box"><h3>구분별 위험등급별 현황</h3><canvas id="c-stacked"></canvas></div>';
 
+        // Section 4: Category Analysis
         html += '<h2 class="section-title">5. 유형별 위험요소 분석</h2>';
         html += '<div class="chart-grid">';
         html += '<div class="chart-box"><h3>대분류별 위험요소 분포</h3><canvas id="c-catpie"></canvas></div>';
@@ -211,7 +227,8 @@
         });
         html += '</tbody></table>';
 
-        html += '<h2 class="section-title">6. 고위험 항목 (D/E/F등급) - ' + highRisk.length + '건</h2>';
+        // Section 5: High Risk Items
+        html += '<h2 class="section-title">6. 고위험 항목 (D/E/F등급) -' + highRisk.length + '건</h2>';
         html += '<table class="rtable"><thead><tr><th>구분</th><th>발견일</th><th>장소</th><th>위험요소 내용</th><th>등급</th><th>점수</th><th>완료</th></tr></thead><tbody>';
         highRisk.forEach(r => {
             html += '<tr>';
@@ -226,6 +243,7 @@
         });
         html += '</tbody></table>';
 
+        // Section 6: Repeated Risks
         html += '<h2 class="section-title">7. 반복 출현 위험요소 TOP 10</h2>';
         html += '<table class="rtable"><thead><tr><th>위험요소 내용</th><th>반복 횟수</th><th>해당 구분</th></tr></thead><tbody>';
         repeats.forEach(r => {
@@ -240,12 +258,15 @@
         }
         html += '</tbody></table>';
 
+        // Render
         document.getElementById('report').innerHTML = html;
 
+        // --- Create Charts ---
         Chart.register(ChartDataLabels);
         Chart.defaults.set('plugins.datalabels', { display: false });
         const COLORS = ['#e74c3c', '#3498db', '#f39c12', '#27ae60', '#9b59b6', '#1abc9c', '#e67e22', '#34495e', '#e91e63', '#00bcd4'];
 
+        // Channel Bar
         if (channelList.length > 0) {
             new Chart(document.getElementById('c-channel'), {
                 type: 'bar',
@@ -280,6 +301,7 @@
             });
         }
 
+        // Grade Pie
         new Chart(document.getElementById('c-grade'), {
             type: 'pie',
             data: {
@@ -306,6 +328,7 @@
             }
         });
 
+        // Weekly Bar
         if (weeks.length > 0) {
             new Chart(document.getElementById('c-weekly'), {
                 type: 'bar',
@@ -324,6 +347,7 @@
             });
         }
 
+        // Company Stacked Bar
         new Chart(document.getElementById('c-stacked'), {
             type: 'bar',
             data: {
@@ -342,6 +366,7 @@
             }
         });
 
+        // Category Pie
         new Chart(document.getElementById('c-catpie'), {
             type: 'pie',
             data: {
@@ -369,6 +394,7 @@
             }
         });
 
+        // Category TOP 10 Horizontal Bar
         var top10 = cats.slice(0, 10);
         new Chart(document.getElementById('c-cattop'), {
             type: 'bar',
