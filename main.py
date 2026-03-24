@@ -268,6 +268,12 @@ def parse_excel(file_path: str) -> list[dict]:
                 continue
 
             date_val = parse_date(row[3])
+            # 월을 date에서 추출 (예: "2025-08-31" → "8월")
+            if date_val and len(date_val) >= 7:
+                try:
+                    month_label = str(int(date_val[5:7])) + "월"
+                except ValueError:
+                    pass
             location = str(row[4] or "").strip()
             content = str(row[5] or "").strip()
             process = str(row[6] or "").strip()
