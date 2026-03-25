@@ -20,7 +20,8 @@ body {
     border-radius: 16px;
     text-align: center;
     box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-    min-width: 380px;
+    min-width: 300px;
+    max-width: 90vw;
 }
 .login-box h1 { font-size: 24px; color: #1a1a2e; margin-bottom: 8px; }
 .login-box p { color: #666; margin-bottom: 24px; font-size: 14px; }
@@ -593,16 +594,72 @@ td.red { color: #e74c3c; font-weight: 600; }
 
 /* Responsive */
 @media (max-width: 1200px) {
-    .stats-groups { grid-template-columns: 1fr; }
+    .stats-groups { grid-template-columns: 1fr 1fr; }
     .chart-row { grid-template-columns: 1fr; }
     .chart-row:last-child { grid-template-columns: 1fr; }
 }
 @media (max-width: 768px) {
-    .stats-groups { grid-template-columns: 1fr; }
-    .stat-group-cards { flex-wrap: wrap; }
-    .header { flex-direction: column; gap: 12px; }
-    .filter-bar { padding: 12px 16px; }
-    .tab-content { padding: 0 16px 16px; }
+    .header {
+        flex-direction: column;
+        gap: 8px;
+        padding: 12px 16px;
+    }
+    .header-left h1 { font-size: 16px; }
+    .header-subtitle { font-size: 12px; }
+    .header-right {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
+    }
+    .header-right .btn-pdf,
+    .header-right .btn-upload,
+    .header-right .btn-direct-input,
+    .header-right .btn-logout {
+        padding: 6px 10px;
+        font-size: 11px;
+    }
+    .total-badge { font-size: 12px; padding: 4px 10px; }
+
+    .filter-bar {
+        padding: 10px 12px;
+        gap: 8px;
+    }
+    .filter-item select, .filter-item input {
+        min-width: 70px;
+        padding: 6px 8px;
+        font-size: 12px;
+    }
+    .filter-item label { font-size: 10px; }
+    .btn-search, .btn-reset { padding: 6px 12px; font-size: 12px; height: 32px; }
+
+    .tabs { padding: 0 12px; padding-top: 12px; overflow-x: auto; }
+    .tab { padding: 8px 14px; font-size: 12px; white-space: nowrap; }
+
+    .stats-groups {
+        grid-template-columns: 1fr;
+        padding: 12px;
+        gap: 10px;
+    }
+    .stat-group { padding: 12px 10px; }
+    .stat-group-cards { flex-wrap: wrap; gap: 8px; }
+    .stat-card { min-width: 60px; padding: 6px 2px; }
+    .stat-value { font-size: 22px; }
+    .stat-value.improvement-rate { font-size: 20px; }
+    .stat-label { font-size: 10px; letter-spacing: 0.5px; margin-bottom: 4px; }
+
+    .tab-content { padding: 0 12px 16px; }
+    .chart-row {
+        grid-template-columns: 1fr !important;
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+    .chart-box { padding: 14px; }
+    .chart-box h3 { font-size: 13px; margin-bottom: 10px; }
+
+    .table-container { margin-top: 12px; }
+    #data-table, #channel-summary-table { font-size: 11px; }
+    #data-table th, #channel-summary-table th { padding: 8px 6px; font-size: 10px; }
+    #data-table td, #channel-summary-table td { padding: 8px 6px; }
 }
 
 /* Print Styles */
