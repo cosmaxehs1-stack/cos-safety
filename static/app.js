@@ -227,65 +227,168 @@ function toggleLocationView() {
 
 function renderLocationChart(data) {
     destroyChart("chart-location");
-    const locLabels = Object.keys(data.location_stats);
+
+    const MAJOR_ORDER = ["화성", "평택", "고렴", "판교", "기타"];
+    const hierarchy = data.location_hierarchy || {};
+    const subStats = data.location_stats || {};
+    const subDisaster = data.location_disaster_stats || {};
+
+    // Build flat list of all sub-locations, ordered by major category
+    const locLabels = [];
+    const majorGroupMap = []; // tracks which major group each label belongs to
+    MAJOR_ORDER.forEach(major => {
+        const subs = hierarchy[major] || [];
+        subs.forEach(sub => {
+            locLabels.push(sub);
+            majorGroupMap.push(major);
+        });
+    });
+
+    if (locLabels.length === 0) return;
+
+    let datasets;
+    let stacked = false;
 
     if (locationViewMode === "disaster") {
-        // Disaster type view
-        const locDisaster = data.location_disaster_stats || {};
+        stacked = true;
         const allTypes = new Set();
-        Object.values(locDisaster).forEach(obj => Object.keys(obj).forEach(k => allTypes.add(k)));
+        locLabels.forEach(l => {
+            const obj = subDisaster[l] || {};
+            Object.keys(obj).forEach(k => allTypes.add(k));
+        });
         const typeList = [...allTypes].sort((a, b) => {
-            const totalA = locLabels.reduce((s, l) => s + ((locDisaster[l] || {})[a] || 0), 0);
-            const totalB = locLabels.reduce((s, l) => s + ((locDisaster[l] || {})[b] || 0), 0);
+            const totalA = locLabels.reduce((s, l) => s + ((subDisaster[l] || {})[a] || 0), 0);
+            const totalB = locLabels.reduce((s, l) => s + ((subDisaster[l] || {})[b] || 0), 0);
             return totalB - totalA;
         });
-
-        const datasets = typeList.map((dt, i) => ({
+        datasets = typeList.map((dt, i) => ({
             label: dt,
-            data: locLabels.map(l => (locDisaster[l] || {})[dt] || 0),
+            data: locLabels.map(l => (subDisaster[l] || {})[dt] || 0),
             backgroundColor: DISASTER_COLORS[i % DISASTER_COLORS.length],
             borderRadius: 4,
         }));
-
-        chartInstances["chart-location"] = new Chart(
-            document.getElementById("chart-location"),
-            {
-                type: "bar",
-                data: { labels: locLabels, datasets },
-                options: {
-                    responsive: true,
-                    plugins: { legend: { display: true, position: "top" } },
-                    scales: {
-                        x: { stacked: true, grid: { display: false } },
-                        y: { stacked: true, beginAtZero: true, ticks: { stepSize: 5 } },
-                    },
-                },
-            }
-        );
     } else {
-        // Grade view (default)
-        const locDatasets = ["A", "B", "C", "D"].map(g => ({
+        datasets = ["A", "B", "C", "D"].map(g => ({
             label: g + "등급",
-            data: locLabels.map(l => data.location_stats[l][g] || 0),
+            data: locLabels.map(l => (subStats[l] || {})[g] || 0),
             backgroundColor: GRADE_COLORS[g],
             borderRadius: 4,
         }));
-        chartInstances["chart-location"] = new Chart(
-            document.getElementById("chart-location"),
-            {
-                type: "bar",
-                data: { labels: locLabels, datasets: locDatasets },
-                options: {
-                    responsive: true,
-                    plugins: { legend: { display: true, position: "top" } },
-                    scales: {
-                        x: { grid: { display: false } },
-                        y: { beginAtZero: true, ticks: { stepSize: 5 } },
-                    },
-                },
-            }
-        );
     }
+
+    // Build short sub-location labels (strip major prefix for readability)
+    const displayLabels = locLabels.map((sub, i) => {
+        const major = majorGroupMap[i];
+        return sub.startsWith(major) ? sub.slice(major.length) || sub : sub;
+    });
+
+    // Compute group ranges for background bands and major labels
+    const majorGroups = [];
+    let groupStart = 0;
+    for (let i = 1; i <= majorGroupMap.length; i++) {
+        if (i === majorGroupMap.length || majorGroupMap[i] !== majorGroupMap[i - 1]) {
+            majorGroups.push({ major: majorGroupMap[groupStart], start: groupStart, end: i - 1 });
+            groupStart = i;
+        }
+    }
+
+    const BAND_COLORS = ["rgba(59,130,246,0.06)", "rgba(16,185,129,0.06)", "rgba(245,158,11,0.06)", "rgba(139,92,246,0.06)", "rgba(107,114,128,0.06)"];
+
+    const groupPlugin = {
+        id: "locationGroupBands",
+        beforeDraw(chart) {
+            const ctx = chart.ctx;
+            const xScale = chart.scales.x;
+            const yScale = chart.scales.y;
+            const chartArea = chart.chartArea;
+            ctx.save();
+
+            // Draw alternating background bands
+            majorGroups.forEach((g, gi) => {
+                const x1 = xScale.getPixelForValue(g.start) - (xScale.getPixelForValue(1) - xScale.getPixelForValue(0)) / 2;
+                const x2 = xScale.getPixelForValue(g.end) + (xScale.getPixelForValue(1) - xScale.getPixelForValue(0)) / 2;
+                ctx.fillStyle = BAND_COLORS[gi % BAND_COLORS.length];
+                ctx.fillRect(x1, chartArea.top, x2 - x1, chartArea.bottom - chartArea.top);
+            });
+
+            ctx.restore();
+        },
+        afterDraw(chart) {
+            const ctx = chart.ctx;
+            const xScale = chart.scales.x;
+            const chartArea = chart.chartArea;
+            ctx.save();
+
+            // Draw major category label below the x-axis ticks
+            const labelY = chartArea.bottom + 38;
+            majorGroups.forEach((g, gi) => {
+                const x1 = xScale.getPixelForValue(g.start);
+                const x2 = xScale.getPixelForValue(g.end);
+                const cx = (x1 + x2) / 2;
+
+                // Draw bracket line
+                const bracketY = chartArea.bottom + 24;
+                const bx1 = x1 - 4;
+                const bx2 = x2 + 4;
+                ctx.strokeStyle = "#999";
+                ctx.lineWidth = 1;
+                ctx.setLineDash([]);
+                ctx.beginPath();
+                ctx.moveTo(bx1, bracketY);
+                ctx.lineTo(bx1, bracketY + 4);
+                ctx.lineTo(bx2, bracketY + 4);
+                ctx.lineTo(bx2, bracketY);
+                ctx.stroke();
+
+                // Draw major label
+                ctx.fillStyle = "#374151";
+                ctx.font = "bold 12px sans-serif";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "top";
+                ctx.fillText(g.major, cx, labelY);
+            });
+
+            ctx.restore();
+        }
+    };
+
+    chartInstances["chart-location"] = new Chart(
+        document.getElementById("chart-location"),
+        {
+            type: "bar",
+            data: { labels: displayLabels, datasets },
+            plugins: [groupPlugin],
+            options: {
+                responsive: true,
+                layout: {
+                    padding: { bottom: 30 }
+                },
+                plugins: {
+                    legend: { display: true, position: "top" },
+                    tooltip: {
+                        callbacks: {
+                            title: function(items) {
+                                const idx = items[0].dataIndex;
+                                return locLabels[idx];
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        stacked: stacked,
+                        grid: { display: false },
+                        ticks: {
+                            autoSkip: false,
+                            maxRotation: 0,
+                            font: { size: 11 },
+                        }
+                    },
+                    y: { stacked: stacked, beginAtZero: true, ticks: { stepSize: 5 } },
+                },
+            },
+        }
+    );
 }
 
 function updateCharts(data) {

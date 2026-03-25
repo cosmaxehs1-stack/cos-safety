@@ -79,22 +79,38 @@ def parse_number(val) -> int:
 
 
 def extract_location_group(location: str) -> str:
+    """소분류 장소 그룹을 반환"""
     if not location:
         return "기타"
     loc = location.strip()
     if "화성" in loc:
-        for i in range(1, 10):
+        for i in [1, 2, 3, 5]:
             if f"{i}공장" in loc or f"{i} 공장" in loc:
                 return f"화성{i}공장"
-        return "화성(기타)"
+        return "기타"
     if "평택" in loc:
-        for i in range(1, 10):
+        for i in [1, 2]:
             if f"{i}공장" in loc or f"{i} 공장" in loc:
                 return f"평택{i}공장"
-        return "평택(기타)"
+        return "기타"
     if "고렴" in loc:
-        return "고렴리 창고"
-    return loc[:10] if len(loc) > 10 else loc
+        return "고렴창고"
+    if "판교" in loc:
+        return "판교연구소"
+    return "기타"
+
+
+def extract_location_major(location_group: str) -> str:
+    """소분류 장소 그룹에서 대분류를 반환"""
+    if location_group.startswith("화성"):
+        return "화성"
+    if location_group.startswith("평택"):
+        return "평택"
+    if location_group.startswith("고렴"):
+        return "고렴"
+    if location_group.startswith("판교"):
+        return "판교"
+    return "기타"
 
 
 
@@ -311,6 +327,7 @@ def parse_excel(file_path: str) -> list[dict]:
                 "date": date_val,
                 "location": location,
                 "location_group": extract_location_group(location),
+                "location_major": extract_location_major(extract_location_group(location)),
                 "content": content[:100],
                 "content_full": content,
                 "process": process,
@@ -491,6 +508,7 @@ async def add_record(request: Request):
         "date": parse_date(date_val),
         "location": location,
         "location_group": extract_location_group(location),
+        "location_major": extract_location_major(extract_location_group(location)),
         "content": content[:100],
         "content_full": content,
         "process": process,
@@ -552,6 +570,7 @@ async def update_record(request: Request):
     if "location" in body:
         target["location"] = body["location"].strip()
         target["location_group"] = extract_location_group(target["location"])
+        target["location_major"] = extract_location_major(target["location_group"])
     if "content" in body:
         target["content_full"] = body["content"].strip()
         target["content"] = body["content"].strip()[:100]
@@ -742,7 +761,7 @@ async def get_summary(
             "total_remaining": cumul_total - cumul_complete,
         }
 
-    # By location group
+    # By location group (소분류)
     location_stats: dict[str, dict[str, int]] = {}
     for r in records:
         lg = r["location_group"]
@@ -751,7 +770,7 @@ async def get_summary(
         g = r["grade_before"] if r["grade_before"] in ("A", "B", "C", "D") else "-"
         location_stats[lg][g] += 1
 
-    # By location x disaster type
+    # By location x disaster type (소분류)
     location_disaster_stats: dict[str, dict[str, int]] = {}
     all_disaster_types_set: set[str] = set()
     for r in records:
@@ -761,6 +780,30 @@ async def get_summary(
         if lg not in location_disaster_stats:
             location_disaster_stats[lg] = {}
         location_disaster_stats[lg][dt] = location_disaster_stats[lg].get(dt, 0) + 1
+
+    # By location major (대분류)
+    MAJOR_ORDER = ["화성", "평택", "고렴", "판교", "기타"]
+    location_major_stats: dict[str, dict[str, int]] = {}
+    location_major_disaster_stats: dict[str, dict[str, int]] = {}
+    location_hierarchy: dict[str, list[str]] = {m: [] for m in MAJOR_ORDER}
+    for r in records:
+        lg = r["location_group"]
+        lm = r.get("location_major") or extract_location_major(lg)
+        if lm not in location_major_stats:
+            location_major_stats[lm] = {"A": 0, "B": 0, "C": 0, "D": 0, "-": 0}
+        g = r["grade_before"] if r["grade_before"] in ("A", "B", "C", "D") else "-"
+        location_major_stats[lm][g] += 1
+        # disaster
+        dt = r["disaster_type"] if r["disaster_type"] else "미분류"
+        if lm not in location_major_disaster_stats:
+            location_major_disaster_stats[lm] = {}
+        location_major_disaster_stats[lm][dt] = location_major_disaster_stats[lm].get(dt, 0) + 1
+        # hierarchy
+        if lm in location_hierarchy and lg not in location_hierarchy[lm]:
+            location_hierarchy[lm].append(lg)
+    # Sort sub-locations
+    for m in location_hierarchy:
+        location_hierarchy[m].sort()
 
     # Grade trend by month
     grade_trend: dict[str, dict[str, int]] = {}
@@ -843,6 +886,9 @@ async def get_summary(
         "incomplete": incomplete,
         "location_stats": location_stats,
         "location_disaster_stats": location_disaster_stats,
+        "location_major_stats": location_major_stats,
+        "location_major_disaster_stats": location_major_disaster_stats,
+        "location_hierarchy": location_hierarchy,
         "grade_trend": grade_trend,
         "week_stats": week_stats,
         "disaster_stats": disaster_stats,
