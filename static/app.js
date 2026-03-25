@@ -34,9 +34,11 @@ function logout() {
     document.getElementById("dashboard").style.display = "none";
 }
 
+let initialLoad = true;
 function showDashboard() {
     document.getElementById("login-screen").style.display = "none";
     document.getElementById("dashboard").style.display = "block";
+    initialLoad = true;
     fetchSummary();
 }
 
@@ -395,33 +397,37 @@ function updateCharts(data) {
     // 1. Location bar chart
     renderLocationChart(data);
 
-    // 2. Cumulative remaining incomplete by grade (bar + trend lines)
+    // 2. D-grade: 개선 전 (all D) vs 개선 후 (stacked A/B/C/D) + declining D line
     destroyChart("chart-grade");
-    const gradeCumul = data.grade_cumulative || {};
-    const cumulMonths = Object.keys(gradeCumul);
-    const cumulLabels = cumulMonths.map(m => m + (m.endsWith("월") ? "" : "월"));
-    const dData = cumulMonths.map(m => gradeCumul[m].D || 0);
-    const cData = cumulMonths.map(m => gradeCumul[m].C || 0);
-    const bData = cumulMonths.map(m => gradeCumul[m].B || 0);
-    const aData = cumulMonths.map(m => gradeCumul[m].A || 0);
+    const dTotal = data.d_grade_total || 0;
+    const dAfter = data.d_after || {};
+    const dRemain = (dAfter.D || 0) + (dAfter["미완료"] || 0);
 
     chartInstances["chart-grade"] = new Chart(
         document.getElementById("chart-grade"),
         {
             type: "bar",
             data: {
-                labels: cumulLabels,
+                labels: ["개선 전", "개선 후"],
                 datasets: [
-                    // Stacked bars
-                    { label: "D등급", data: dData, backgroundColor: GRADE_COLORS.D + "66", borderRadius: 2, stack: "bar", order: 2 },
-                    { label: "C등급", data: cData, backgroundColor: GRADE_COLORS.C + "66", borderRadius: 2, stack: "bar", order: 2 },
-                    { label: "B등급", data: bData, backgroundColor: GRADE_COLORS.B + "66", borderRadius: 2, stack: "bar", order: 2 },
-                    { label: "A등급", data: aData, backgroundColor: GRADE_COLORS.A + "66", borderRadius: 2, stack: "bar", order: 2 },
-                    // Trend lines
-                    { label: "D추세", data: dData, type: "line", borderColor: GRADE_COLORS.D, borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: GRADE_COLORS.D, tension: 0.3, fill: false, order: 1 },
-                    { label: "C추세", data: cData, type: "line", borderColor: GRADE_COLORS.C, borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: GRADE_COLORS.C, tension: 0.3, fill: false, order: 1 },
-                    { label: "B추세", data: bData, type: "line", borderColor: GRADE_COLORS.B, borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: GRADE_COLORS.B, tension: 0.3, fill: false, order: 1 },
-                    { label: "A추세", data: aData, type: "line", borderColor: GRADE_COLORS.A, borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: GRADE_COLORS.A, tension: 0.3, fill: false, order: 1 },
+                    { label: "D등급", data: [dTotal, 0], backgroundColor: GRADE_COLORS.D, borderRadius: 4, stack: "stack", order: 4 },
+                    { label: "C등급", data: [0, dAfter.C || 0], backgroundColor: GRADE_COLORS.C, borderRadius: 4, stack: "stack", order: 3 },
+                    { label: "B등급", data: [0, dAfter.B || 0], backgroundColor: GRADE_COLORS.B, borderRadius: 4, stack: "stack", order: 2 },
+                    { label: "A등급", data: [0, dAfter.A || 0], backgroundColor: GRADE_COLORS.A, borderRadius: 4, stack: "stack", order: 2 },
+                    {
+                        label: "D등급 추이",
+                        data: [dTotal, 0],
+                        type: "line",
+                        borderColor: "#e74c3c",
+                        borderWidth: 3,
+                        borderDash: [6, 4],
+                        pointRadius: 7,
+                        pointBackgroundColor: GRADE_COLORS.D,
+                        pointBorderColor: "#fff",
+                        pointBorderWidth: 2,
+                        fill: false,
+                        order: 1,
+                    },
                 ],
             },
             options: {
@@ -430,24 +436,29 @@ function updateCharts(data) {
                     legend: {
                         position: "top",
                         labels: {
-                            filter: function(item) {
-                                return !item.text.includes("추세");
-                            },
+                            filter: function(item) { return item.text !== "D등급 추이"; },
                         },
+                    },
+                    title: {
+                        display: true,
+                        text: "D등급 발굴 " + dTotal + "건 → 개선 후 현황",
+                        font: { size: 13, weight: "bold" },
+                        color: "#374151",
+                        padding: { bottom: 8 },
                     },
                     tooltip: {
                         callbacks: {
-                            footer: function(items) {
-                                const idx = items[0].dataIndex;
-                                const m = cumulMonths[idx];
-                                return "잔여 합계: " + gradeCumul[m].total_remaining + "건";
-                            },
-                        },
-                    },
+                            label: function(ctx) {
+                                if (ctx.dataset.label === "D등급 추이") return null;
+                                const val = ctx.parsed.y;
+                                return ctx.dataset.label + ": " + val + "건";
+                            }
+                        }
+                    }
                 },
                 scales: {
                     x: { stacked: true, grid: { display: false } },
-                    y: { stacked: true, beginAtZero: true, ticks: { stepSize: 5 } },
+                    y: { stacked: true, beginAtZero: true, title: { display: true, text: "건수" } },
                 },
             },
         }
@@ -737,6 +748,13 @@ function updateFilters(filters) {
         weekSel.appendChild(o);
     });
     if (prevWeek !== "0") weekSel.value = prevWeek;
+
+    // 첫 로드 시 2026년 기본 선택 후 재조회
+    if (initialLoad && filters.years && filters.years.includes("2026")) {
+        initialLoad = false;
+        setFilterValue("f-year", "2026");
+        fetchSummary();
+    }
 }
 
 // --- Tabs ---

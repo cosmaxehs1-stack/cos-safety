@@ -770,6 +770,29 @@ async def get_summary(
             "total_remaining": cumul_total - cumul_complete,
         }
 
+    # D-grade breakdown: what happened to D-grade items after improvement
+    d_grade_total = 0
+    d_after = {"A": 0, "B": 0, "C": 0, "D": 0, "미완료": 0}
+    for r in records:
+        if r["grade_before"] == "D":
+            d_grade_total += 1
+            ga = r.get("grade_after")
+            if ga in ("A", "B", "C", "D"):
+                d_after[ga] += 1
+            else:
+                d_after["미완료"] += 1
+
+    # Monthly average risk score (before vs after)
+    risk_trend: dict[str, dict[str, float]] = {}
+    for m in all_months:
+        month_recs = [r for r in records if r["month"] == m]
+        before_scores = [r["risk_before"] for r in month_recs if r["risk_before"] and r["risk_before"] > 0]
+        after_scores = [r["risk_after"] for r in month_recs if r["risk_after"] and r["risk_after"] > 0]
+        risk_trend[m] = {
+            "avg_before": round(sum(before_scores) / len(before_scores), 1) if before_scores else 0,
+            "avg_after": round(sum(after_scores) / len(after_scores), 1) if after_scores else 0,
+        }
+
     # By location group (소분류)
     location_stats: dict[str, dict[str, int]] = {}
     for r in records:
@@ -814,8 +837,9 @@ async def get_summary(
     for m in location_hierarchy:
         location_hierarchy[m].sort()
 
-    # Grade trend by month
+    # Grade trend by month (before & after)
     grade_trend: dict[str, dict[str, int]] = {}
+    grade_trend_after: dict[str, dict[str, int]] = {}
     for r in records:
         m = r["month"]
         if m not in grade_trend:
@@ -823,6 +847,11 @@ async def get_summary(
         g = r["grade_before"] if r["grade_before"] in ("A", "B", "C", "D") else None
         if g:
             grade_trend[m][g] += 1
+        if m not in grade_trend_after:
+            grade_trend_after[m] = {"A": 0, "B": 0, "C": 0, "D": 0}
+        ga = r["grade_after"] if r.get("grade_after") in ("A", "B", "C", "D") else None
+        if ga:
+            grade_trend_after[m][ga] += 1
     # Sort months naturally (try numeric sort, then string)
     def month_sort_key(m):
         try:
@@ -891,6 +920,9 @@ async def get_summary(
         "grade_c": grade_c,
         "grade_d": grade_d,
         "grade_cumulative": grade_cumulative,
+        "risk_trend": risk_trend,
+        "d_grade_total": d_grade_total,
+        "d_after": d_after,
         "complete": complete,
         "incomplete": incomplete,
         "location_stats": location_stats,
@@ -899,6 +931,7 @@ async def get_summary(
         "location_major_disaster_stats": location_major_disaster_stats,
         "location_hierarchy": location_hierarchy,
         "grade_trend": grade_trend,
+        "grade_trend_after": grade_trend_after,
         "week_stats": week_stats,
         "disaster_stats": disaster_stats,
         "process_stats": process_stats,
