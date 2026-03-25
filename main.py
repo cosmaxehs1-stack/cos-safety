@@ -634,6 +634,15 @@ def load_data() -> list[dict]:
             r["image"] = ""
         if "image_after" not in r:
             r["image_after"] = ""
+        # Re-compute location_group and location_major from raw location
+        new_lg = extract_location_group(r.get("location", ""))
+        if r.get("location_group") != new_lg:
+            r["location_group"] = new_lg
+            dirty = True
+        new_lm = extract_location_major(new_lg)
+        if r.get("location_major") != new_lm:
+            r["location_major"] = new_lm
+            dirty = True
     if dirty:
         with open(DATA_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
