@@ -128,42 +128,57 @@
         <!-- Overview Tab -->
         <div id="tab-overview" class="tab-content">
             <!-- Stats Cards -->
-            <div class="stats-cards">
-                <div class="stat-card">
-                    <div class="stat-label">TOTAL</div>
-                    <div class="stat-value" id="s-total">0</div>
+            <div class="stats-groups">
+                <div class="stat-group">
+                    <div class="stat-group-title">등급 현황</div>
+                    <div class="stat-group-cards">
+                        <div class="stat-card">
+                            <div class="stat-label">TOTAL</div>
+                            <div class="stat-value" id="s-total">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">A</div>
+                            <div class="stat-value green" id="s-a">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">B</div>
+                            <div class="stat-value blue" id="s-b">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">C</div>
+                            <div class="stat-value orange" id="s-c">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">D</div>
+                            <div class="stat-value red" id="s-d">0</div>
+                        </div>
+                    </div>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-label">A GRADE</div>
-                    <div class="stat-value green" id="s-a">0</div>
+                <div class="stat-group">
+                    <div class="stat-group-title">개선 현황</div>
+                    <div class="stat-group-cards">
+                        <div class="stat-card">
+                            <div class="stat-label">개선</div>
+                            <div class="stat-value teal" id="s-complete">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">미개선</div>
+                            <div class="stat-value red" id="s-pending">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">개선률</div>
+                            <div class="stat-value improvement-rate" id="s-improvement">0%</div>
+                        </div>
+                    </div>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-label">B GRADE</div>
-                    <div class="stat-value blue" id="s-b">0</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">C GRADE</div>
-                    <div class="stat-value orange" id="s-c">0</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">D GRADE</div>
-                    <div class="stat-value red" id="s-d">0</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">COMPLETE</div>
-                    <div class="stat-value teal" id="s-complete">0</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">PENDING</div>
-                    <div class="stat-value red" id="s-pending">0</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">REPEAT</div>
-                    <div class="stat-value purple" id="s-repeat">0</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">개선률</div>
-                    <div class="stat-value improvement-rate" id="s-improvement">0%</div>
+                <div class="stat-group">
+                    <div class="stat-group-title">반복 현황</div>
+                    <div class="stat-group-cards">
+                        <div class="stat-card">
+                            <div class="stat-label">반복 건수</div>
+                            <div class="stat-value purple" id="s-repeat">0</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
