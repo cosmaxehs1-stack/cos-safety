@@ -321,6 +321,20 @@ function renderLocationChart(data) {
             const chartArea = chart.chartArea;
             ctx.save();
 
+            // Draw vertical separator lines between major groups
+            for (let i = 1; i < majorGroups.length; i++) {
+                const prevEnd = majorGroups[i - 1].end;
+                const currStart = majorGroups[i].start;
+                const x = (xScale.getPixelForValue(prevEnd) + xScale.getPixelForValue(currStart)) / 2;
+                ctx.strokeStyle = "#d1d5db";
+                ctx.lineWidth = 1;
+                ctx.setLineDash([]);
+                ctx.beginPath();
+                ctx.moveTo(x, chartArea.top);
+                ctx.lineTo(x, chartArea.bottom + 20);
+                ctx.stroke();
+            }
+
             // Draw major category label below the x-axis ticks
             const labelY = chartArea.bottom + 38;
             majorGroups.forEach((g, gi) => {
@@ -414,31 +428,12 @@ function updateCharts(data) {
                     { label: "C등급", data: [0, dAfter.C || 0], backgroundColor: GRADE_COLORS.C, borderRadius: 4, stack: "stack", order: 3 },
                     { label: "B등급", data: [0, dAfter.B || 0], backgroundColor: GRADE_COLORS.B, borderRadius: 4, stack: "stack", order: 2 },
                     { label: "A등급", data: [0, dAfter.A || 0], backgroundColor: GRADE_COLORS.A, borderRadius: 4, stack: "stack", order: 2 },
-                    {
-                        label: "D등급 추이",
-                        data: [dTotal, 0],
-                        type: "line",
-                        borderColor: "#e74c3c",
-                        borderWidth: 3,
-                        borderDash: [6, 4],
-                        pointRadius: 7,
-                        pointBackgroundColor: GRADE_COLORS.D,
-                        pointBorderColor: "#fff",
-                        pointBorderWidth: 2,
-                        fill: false,
-                        order: 1,
-                    },
                 ],
             },
             options: {
                 responsive: true,
                 plugins: {
-                    legend: {
-                        position: "top",
-                        labels: {
-                            filter: function(item) { return item.text !== "D등급 추이"; },
-                        },
-                    },
+                    legend: { position: "top" },
                     title: {
                         display: true,
                         text: "D등급 발굴 " + dTotal + "건 → 개선 후 현황",
@@ -449,7 +444,6 @@ function updateCharts(data) {
                     tooltip: {
                         callbacks: {
                             label: function(ctx) {
-                                if (ctx.dataset.label === "D등급 추이") return null;
                                 const val = ctx.parsed.y;
                                 return ctx.dataset.label + ": " + val + "건";
                             }
@@ -466,51 +460,129 @@ function updateCharts(data) {
 
     // 3. Completion donut
     destroyChart("chart-completion");
+    const compTotal = data.complete + data.incomplete;
+    const compPct = compTotal > 0 ? Math.round(data.complete / compTotal * 100) : 0;
+    const incompPct = compTotal > 0 ? 100 - compPct : 0;
+
+    const completionCenterPlugin = {
+        id: "completionCenter",
+        afterDraw(chart) {
+            const ctx = chart.ctx;
+            const { top, bottom, left, right } = chart.chartArea;
+            const cx = (left + right) / 2;
+            const cy = (top + bottom) / 2;
+            ctx.save();
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillStyle = "#27ae60";
+            ctx.font = "bold 20px sans-serif";
+            ctx.fillText(compPct + "%", cx, cy);
+            ctx.restore();
+        }
+    };
+
     chartInstances["chart-completion"] = new Chart(
         document.getElementById("chart-completion"),
         {
             type: "doughnut",
             data: {
-                labels: ["완료", "미완료"],
+                labels: ["완료 " + compPct + "%", "미완료 " + incompPct + "%"],
                 datasets: [{
                     data: [data.complete, data.incomplete],
                     backgroundColor: ["#27ae60", "#f39c12"],
                     borderWidth: 0,
                 }],
             },
+            plugins: [completionCenterPlugin],
             options: {
                 responsive: true,
                 cutout: "60%",
                 plugins: {
                     legend: { position: "top" },
+                    tooltip: {
+                        callbacks: {
+                            label: function(ctx) {
+                                const val = ctx.parsed;
+                                const pct = compTotal > 0 ? Math.round(val / compTotal * 100) : 0;
+                                return ctx.label + ": " + val + "건";
+                            }
+                        }
+                    }
                 },
             },
         }
     );
 
-    // 4. Weekly bar chart
+    // 4. Weekly bar chart with cumulative target line (recent 3 months)
     destroyChart("chart-week");
-    const weekLabels = Object.keys(data.week_stats);
-    const weekData = weekLabels.map(k => data.week_stats[k]);
+    const allWeekLabels = Object.keys(data.week_stats);
+    const allWeekData = allWeekLabels.map(k => data.week_stats[k]);
+    const weeklyTarget = Math.ceil(2000 / 52);
+
+    // Cumulative over all weeks
+    let cumulAll = 0;
+    const allCumulData = allWeekData.map(v => { cumulAll += v; return cumulAll; });
+    const allCumulTarget = allWeekLabels.map((_, i) => weeklyTarget * (i + 1));
+
+    // Slice to recent 3 months (~13 weeks)
+    const recent3m = 13;
+    const startIdx = Math.max(0, allWeekLabels.length - recent3m);
+    const weekLabels = allWeekLabels.slice(startIdx);
+    const weekData = allWeekData.slice(startIdx);
+    const cumulData = allCumulData.slice(startIdx);
+    const cumulTarget = allCumulTarget.slice(startIdx);
+
     chartInstances["chart-week"] = new Chart(
         document.getElementById("chart-week"),
         {
             type: "bar",
             data: {
                 labels: weekLabels,
-                datasets: [{
-                    label: "발굴 건수",
-                    data: weekData,
-                    backgroundColor: "#e74c3c",
-                    borderRadius: 4,
-                }],
+                datasets: [
+                    {
+                        label: "주간 발굴",
+                        data: weekData,
+                        backgroundColor: "#3498db",
+                        borderRadius: 4,
+                        order: 3,
+                        yAxisID: "y",
+                    },
+                    {
+                        label: "누적 발굴",
+                        data: cumulData,
+                        type: "line",
+                        borderColor: "#27ae60",
+                        borderWidth: 2.5,
+                        pointRadius: 4,
+                        pointBackgroundColor: "#27ae60",
+                        tension: 0.3,
+                        fill: false,
+                        order: 1,
+                        yAxisID: "y1",
+                    },
+                    {
+                        label: "누적 목표 (연 2,000건)",
+                        data: cumulTarget,
+                        type: "line",
+                        borderColor: "#95a5a6",
+                        borderWidth: 2,
+                        borderDash: [6, 4],
+                        pointRadius: 0,
+                        fill: false,
+                        order: 2,
+                        yAxisID: "y1",
+                    },
+                ],
             },
             options: {
                 responsive: true,
-                plugins: { legend: { display: false } },
+                plugins: {
+                    legend: { position: "top", labels: { font: { size: 11 } } },
+                },
                 scales: {
                     x: { grid: { display: false } },
-                    y: { beginAtZero: true },
+                    y: { beginAtZero: true, position: "left", title: { display: true, text: "주간 건수" } },
+                    y1: { beginAtZero: true, position: "right", title: { display: true, text: "누적 건수" }, grid: { display: false } },
                 },
             },
         }

@@ -868,6 +868,19 @@ async def get_summary(
         if w > 0:
             key = f"{m} {w}주차"
             week_stats[key] = week_stats.get(key, 0) + 1
+    # Sort by month then week
+    def week_sort_key(k):
+        parts = k.split()
+        try:
+            mon = int(parts[0].replace("월", ""))
+        except (ValueError, IndexError):
+            mon = 999
+        try:
+            wk = int(parts[1].replace("주차", ""))
+        except (ValueError, IndexError):
+            wk = 999
+        return (mon, wk)
+    week_stats = dict(sorted(week_stats.items(), key=lambda x: week_sort_key(x[0])))
 
     # By disaster type
     disaster_stats: dict[str, int] = {}
