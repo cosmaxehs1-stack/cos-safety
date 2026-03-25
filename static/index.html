@@ -53,6 +53,14 @@
         <!-- Filters -->
         <div class="filter-bar">
             <div class="filter-item">
+                <label>팀</label>
+                <select id="f-team" onchange="fetchSummary()">
+                    <option value="전체">전체</option>
+                    <option value="환경안전1팀">환경안전1팀</option>
+                    <option value="환경안전2팀">환경안전2팀</option>
+                </select>
+            </div>
+            <div class="filter-item">
                 <label>채널</label>
                 <select id="f-channel" onchange="fetchSummary()"><option value="전체">전체</option></select>
             </div>
@@ -208,18 +216,6 @@
                 <div class="chart-box">
                     <h3>주차별 발굴 현황</h3>
                     <canvas id="chart-week"></canvas>
-                </div>
-            </div>
-
-            <!-- Charts Row 3: Channel (only visible with multi-channel data) -->
-            <div class="chart-row" id="channel-chart-row" style="display:none;">
-                <div class="chart-box wide">
-                    <h3>채널별 위험요소 발굴현황</h3>
-                    <canvas id="chart-channel"></canvas>
-                </div>
-                <div class="chart-box">
-                    <h3>채널별 등급 분포</h3>
-                    <canvas id="chart-channel-grade"></canvas>
                 </div>
             </div>
 

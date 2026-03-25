@@ -100,6 +100,13 @@ def extract_location_group(location: str) -> str:
     return "기타"
 
 
+def extract_team(location_group: str) -> str:
+    """소분류 장소 그룹에서 담당 팀을 반환"""
+    if location_group in ("평택1공장", "평택2공장", "고렴창고"):
+        return "환경안전2팀"
+    return "환경안전1팀"
+
+
 def extract_location_major(location_group: str) -> str:
     """소분류 장소 그룹에서 대분류를 반환"""
     if location_group.startswith("화성"):
@@ -675,11 +682,14 @@ async def get_summary(
     week: Optional[int] = None,
     keyword: Optional[str] = None,
     completion: Optional[str] = None,
+    team: Optional[str] = None,
 ):
     verify_token(request)
     records = load_data()
 
     # Apply filters
+    if team and team != "전체":
+        records = [r for r in records if extract_team(r.get("location_group", "")) == team]
     if channel and channel != "전체":
         records = [r for r in records if r.get("channel") == channel]
     if year and year != "전체":
