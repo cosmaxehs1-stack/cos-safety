@@ -1054,8 +1054,10 @@ async def get_summary(
 
 @app.get("/api/health")
 async def health_check():
-    result = {"database_url_set": bool(DATABASE_URL), "db_connected": False, "table_exists": False}
-    if DATABASE_URL:
+    db_url = os.environ.get("DATABASE_URL")
+    all_db_vars = {k: v[:20] + "..." for k, v in os.environ.items() if "DATABASE" in k.upper() or "POSTGRES" in k.upper() or "PG" in k.upper()}
+    result = {"database_url_set": bool(db_url), "db_connected": False, "table_exists": False, "env_vars": all_db_vars}
+    if db_url:
         try:
             conn = get_db()
             cur = conn.cursor()
