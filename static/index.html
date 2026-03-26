@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Safety Risk Dashboard</title>
+    <title>COS-Safety Dashboard</title>
     <link rel="stylesheet" href="/static/style.css?v=8">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
@@ -11,7 +11,7 @@
     <!-- Login Screen -->
     <div id="login-screen" class="login-screen">
         <div class="login-box">
-            <h1>Safety Risk Dashboard</h1>
+            <h1>COS-Safety Dashboard</h1>
             <p>위험요소 관리대장 - 안전점검</p>
             <div class="login-form">
                 <input type="password" id="password-input" placeholder="비밀번호를 입력하세요" onkeydown="if(event.key==='Enter') login()">
@@ -28,7 +28,7 @@
             <div class="header-left">
                 <h1>COSMAX</h1>
                 <span class="header-divider">|</span>
-                <span class="header-subtitle">Safety Risk Dashboard</span>
+                <span class="header-subtitle">COS-Safety Dashboard</span>
             </div>
             <div class="header-right">
                 <span id="total-badge" class="total-badge">0 cases</span>
@@ -93,14 +93,6 @@
             <div class="filter-item">
                 <label>공정</label>
                 <select id="f-process" onchange="fetchSummary()"><option value="전체">전체</option></select>
-            </div>
-            <div class="filter-item">
-                <label>담당자</label>
-                <select id="f-person" onchange="fetchSummary()"><option value="전체">전체</option></select>
-            </div>
-            <div class="filter-item">
-                <label>주차</label>
-                <select id="f-week" onchange="fetchSummary()"><option value="0">전체</option></select>
             </div>
             <div class="filter-item">
                 <label>완료여부</label>

@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import openpyxl
 
-app = FastAPI(title="Safety Risk Dashboard")
+app = FastAPI(title="COS-Safety Dashboard")
 
 app.add_middleware(
     CORSMiddleware,
