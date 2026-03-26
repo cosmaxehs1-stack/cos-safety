@@ -60,7 +60,12 @@ def init_db():
 
 @app.on_event("startup")
 def on_startup():
-    init_db()
+    print(f"[DB] DATABASE_URL set: {bool(DATABASE_URL)}")
+    try:
+        init_db()
+        print("[DB] init_db completed successfully")
+    except Exception as e:
+        print(f"[DB] init_db error: {e}")
 
 
 # --- Auth ---
