@@ -1052,6 +1052,25 @@ async def get_summary(
     }
 
 
+@app.get("/api/health")
+async def health_check():
+    result = {"database_url_set": bool(DATABASE_URL), "db_connected": False, "table_exists": False}
+    if DATABASE_URL:
+        try:
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute("SELECT COUNT(*) FROM records")
+            count = cur.fetchone()[0]
+            result["db_connected"] = True
+            result["table_exists"] = True
+            result["record_count"] = count
+            cur.close()
+            conn.close()
+        except Exception as e:
+            result["error"] = str(e)
+    return result
+
+
 # --- Static Files ---
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
