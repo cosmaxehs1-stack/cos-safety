@@ -131,43 +131,57 @@
             <div class="stats-groups">
                 <div class="stat-group">
                     <div class="stat-group-title">등급 현황</div>
-                    <div class="stat-group-cards">
-                        <div class="stat-card">
+                    <div class="stat-group-cards" style="align-items:center;">
+                        <div class="stat-card" style="padding:8px 4px;">
                             <div class="stat-label">TOTAL</div>
                             <div class="stat-value" id="s-total">0</div>
                         </div>
-                        <div class="stat-card">
-                            <div class="stat-label">A</div>
-                            <div class="stat-value green" id="s-a">0</div>
+                        <div class="stat-card" style="padding:8px 4px;">
+                            <div class="stat-label" style="margin-bottom:4px;">개선 전</div>
+                            <canvas id="chart-grade-before" style="width:120px;height:120px;margin:0 auto;"></canvas>
                         </div>
-                        <div class="stat-card">
-                            <div class="stat-label">B</div>
-                            <div class="stat-value blue" id="s-b">0</div>
+                        <div style="font-size:28px;color:#9ca3af;padding:0 4px;align-self:center;">→</div>
+                        <div class="stat-card" style="padding:8px 4px;">
+                            <div class="stat-label" style="margin-bottom:4px;">개선 후</div>
+                            <canvas id="chart-grade-after" style="width:120px;height:120px;margin:0 auto;"></canvas>
                         </div>
-                        <div class="stat-card">
-                            <div class="stat-label">C</div>
-                            <div class="stat-value orange" id="s-c">0</div>
+                    </div>
+                    <div class="stat-group-cards grade-detail-row" style="align-items:center;padding-top:6px;border-top:1px solid #f0f0f0;margin-top:4px;">
+                        <div class="stat-card" style="padding:0;"></div>
+                        <div class="stat-card" style="padding:2px 4px;">
+                            <div class="grade-detail-cols">
+                                <div class="grade-detail-item green"><div class="grade-detail-label">A</div><div class="grade-detail-val" id="s-a">0</div></div>
+                                <div class="grade-detail-item blue"><div class="grade-detail-label">B</div><div class="grade-detail-val" id="s-b">0</div></div>
+                                <div class="grade-detail-item orange"><div class="grade-detail-label">C</div><div class="grade-detail-val" id="s-c">0</div></div>
+                                <div class="grade-detail-item red"><div class="grade-detail-label">D</div><div class="grade-detail-val" id="s-d">0</div></div>
+                            </div>
                         </div>
-                        <div class="stat-card">
-                            <div class="stat-label">D</div>
-                            <div class="stat-value red" id="s-d">0</div>
+                        <div style="font-size:18px;color:#9ca3af;padding:0 4px;">→</div>
+                        <div class="stat-card" style="padding:2px 4px;">
+                            <div class="grade-detail-cols">
+                                <div class="grade-detail-item green"><div class="grade-detail-label">A</div><div class="grade-detail-val" id="s-a-after">0</div></div>
+                                <div class="grade-detail-item blue"><div class="grade-detail-label">B</div><div class="grade-detail-val" id="s-b-after">0</div></div>
+                                <div class="grade-detail-item orange"><div class="grade-detail-label">C</div><div class="grade-detail-val" id="s-c-after">0</div></div>
+                                <div class="grade-detail-item red"><div class="grade-detail-label">D</div><div class="grade-detail-val" id="s-d-after">0</div></div>
+                            </div>
                         </div>
                     </div>
                 </div>
                 <div class="stat-group">
                     <div class="stat-group-title">개선 현황</div>
-                    <div class="stat-group-cards">
-                        <div class="stat-card">
-                            <div class="stat-label">개선</div>
-                            <div class="stat-value teal" id="s-complete">0</div>
+                    <div class="stat-group-cards" style="align-items:center;">
+                        <div class="stat-card" style="padding:8px 4px;">
+                            <div class="stat-label" style="margin-bottom:4px;">개선률</div>
+                            <canvas id="chart-completion" style="width:120px;height:120px;margin:0 auto;"></canvas>
                         </div>
-                        <div class="stat-card">
-                            <div class="stat-label">미개선</div>
-                            <div class="stat-value red" id="s-pending">0</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">개선률</div>
-                            <div class="stat-value improvement-rate" id="s-improvement">0%</div>
+                    </div>
+                    <div class="stat-group-cards grade-detail-row" style="align-items:center;padding-top:6px;border-top:1px solid #f0f0f0;margin-top:4px;">
+                        <div class="stat-card" style="padding:2px 4px;">
+                            <div class="grade-detail-cols">
+                                <div class="grade-detail-item teal"><div class="grade-detail-label">개선</div><div class="grade-detail-val" id="s-complete">0</div></div>
+                                <div class="grade-detail-item red"><div class="grade-detail-label">미개선</div><div class="grade-detail-val" id="s-pending">0</div></div>
+                                <div class="grade-detail-item rate"><div class="grade-detail-label">개선률</div><div class="grade-detail-val" id="s-improvement">0%</div></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -184,7 +198,7 @@
 
             <!-- Charts Row 1 -->
             <div class="chart-row">
-                <div class="chart-box wide">
+                <div class="chart-box">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
                         <h3 style="margin:0;">장소별 위험요소 현황</h3>
                         <button id="btn-loc-toggle" class="btn-toggle" onclick="toggleLocationView()">재해유형별</button>
@@ -192,22 +206,24 @@
                     <canvas id="chart-location"></canvas>
                 </div>
                 <div class="chart-box">
-                    <h3>D등급 개선현황</h3>
-                    <canvas id="chart-grade"></canvas>
+                    <h3>주차별 발굴 현황</h3>
+                    <canvas id="chart-week"></canvas>
                 </div>
             </div>
 
-            <!-- Charts Row 2 -->
-            <div class="chart-row">
-                <div class="chart-box">
-                    <h3>완료 / 미완료</h3>
-                    <div style="max-width:200px;margin:0 auto;">
-                        <canvas id="chart-completion"></canvas>
-                    </div>
+            <!-- 월별 개선 실적 -->
+            <div class="chart-box" style="margin-bottom:16px;">
+                <h3>월별 개선 실적</h3>
+                <div style="height:240px;">
+                    <canvas id="chart-monthly-effort"></canvas>
                 </div>
-                <div class="chart-box">
-                    <h3>주차별 발굴 현황</h3>
-                    <canvas id="chart-week"></canvas>
+            </div>
+
+            <!-- 월별 등급 현황 -->
+            <div class="chart-box" style="margin-bottom:16px;">
+                <h3>월별 등급 현황</h3>
+                <div style="height:220px;">
+                    <canvas id="chart-grade-monthly"></canvas>
                 </div>
             </div>
 

@@ -180,6 +180,10 @@ function updateStats(data) {
     document.getElementById("s-b").textContent = data.grade_b;
     document.getElementById("s-c").textContent = data.grade_c;
     document.getElementById("s-d").textContent = data.grade_d;
+    document.getElementById("s-a-after").textContent = data.grade_a_after || 0;
+    document.getElementById("s-b-after").textContent = data.grade_b_after || 0;
+    document.getElementById("s-c-after").textContent = data.grade_c_after || 0;
+    document.getElementById("s-d-after").textContent = data.grade_d_after || 0;
     document.getElementById("s-complete").textContent = data.complete;
     document.getElementById("s-pending").textContent = data.incomplete;
     document.getElementById("s-repeat").textContent = data.repeat_total || 0;
@@ -187,10 +191,6 @@ function updateStats(data) {
     const rateEl = document.getElementById("s-improvement");
     if (rateEl) {
         rateEl.textContent = rate + "%";
-        rateEl.className = "stat-value improvement-rate";
-        if (rate >= 80) rateEl.classList.add("high");
-        else if (rate >= 50) rateEl.classList.add("mid");
-        else rateEl.classList.add("low");
     }
 }
 
@@ -413,51 +413,187 @@ function updateCharts(data) {
     // 1. Location bar chart
     renderLocationChart(data);
 
-    // 2. D-grade: 개선 전 (all D) vs 개선 후 (stacked A/B/C/D) + declining D line
-    destroyChart("chart-grade");
-    const dTotal = data.d_grade_total || 0;
-    const dAfter = data.d_after || {};
-    const dRemain = (dAfter.D || 0) + (dAfter["미완료"] || 0);
 
-    chartInstances["chart-grade"] = new Chart(
-        document.getElementById("chart-grade"),
+    // 2. Monthly effort chart (발굴 vs 개선 + 개선률 line)
+    destroyChart("chart-monthly-effort");
+    const effort = data.monthly_effort || {};
+    const currentMonth = new Date().getMonth() + 1;
+    const effortStart = currentMonth <= 6 ? 1 : currentMonth - 5;
+    const effortMonths = [];
+    for (let i = effortStart; i <= effortStart + 5; i++) effortMonths.push(i + "월");
+
+    const riskTrend = data.risk_trend || {};
+    const riskBefore = effortMonths.map(m => (riskTrend[m] || {}).avg_grade_before || null);
+    const riskAfter = effortMonths.map(m => (riskTrend[m] || {}).avg_grade_after || null);
+
+    chartInstances["chart-monthly-effort"] = new Chart(
+        document.getElementById("chart-monthly-effort"),
         {
             type: "bar",
             data: {
-                labels: ["개선 전", "개선 후"],
+                labels: effortMonths,
                 datasets: [
-                    { label: "D등급", data: [dTotal, 0], backgroundColor: GRADE_COLORS.D, borderRadius: 4, stack: "stack", order: 4 },
-                    { label: "C등급", data: [0, dAfter.C || 0], backgroundColor: GRADE_COLORS.C, borderRadius: 4, stack: "stack", order: 3 },
-                    { label: "B등급", data: [0, dAfter.B || 0], backgroundColor: GRADE_COLORS.B, borderRadius: 4, stack: "stack", order: 2 },
-                    { label: "A등급", data: [0, dAfter.A || 0], backgroundColor: GRADE_COLORS.A, borderRadius: 4, stack: "stack", order: 2 },
+                    {
+                        label: "개선 전",
+                        data: riskBefore,
+                        backgroundColor: "#e74c3c",
+                        borderRadius: 4,
+                    },
+                    {
+                        label: "개선 후",
+                        data: riskAfter,
+                        backgroundColor: "#27ae60",
+                        borderRadius: 4,
+                    },
                 ],
             },
             options: {
                 responsive: true,
+                maintainAspectRatio: false,
                 plugins: {
                     legend: { position: "top" },
-                    title: {
-                        display: true,
-                        text: "D등급 발굴 " + dTotal + "건 → 개선 후 현황",
-                        font: { size: 13, weight: "bold" },
-                        color: "#374151",
-                        padding: { bottom: 8 },
-                    },
                     tooltip: {
                         callbacks: {
                             label: function(ctx) {
-                                const val = ctx.parsed.y;
-                                return ctx.dataset.label + ": " + val + "건";
+                                const v = ctx.parsed.y;
+                                if (v === null) return null;
+                                const grade = v <= 1.5 ? "A" : v <= 2.5 ? "B" : v <= 3.5 ? "C" : "D";
+                                return ctx.dataset.label + ": " + v.toFixed(1) + " (" + grade + "급)";
                             }
                         }
                     }
                 },
                 scales: {
-                    x: { stacked: true, grid: { display: false } },
-                    y: { stacked: true, beginAtZero: true, title: { display: true, text: "건수" } },
+                    x: { grid: { display: false } },
+                    y: {
+                        min: 0, max: 4,
+                        title: { display: true, text: "평균 등급" },
+                        ticks: {
+                            stepSize: 1,
+                            callback: function(v) {
+                                return {1: "A", 2: "B", 3: "C", 4: "D"}[v] || "";
+                            }
+                        },
+                    },
                 },
             },
         }
+    );
+
+    // 2a. Monthly grade stacked bar chart (6-month rolling window)
+    destroyChart("chart-grade-monthly");
+    const gradeTrend = data.grade_trend || {};
+    const gradeTrendAfter = data.grade_trend_after || {};
+    const gmMonths = effortMonths;
+
+    // Build labels: ["1월 전", "1월 후", "2월 전", "2월 후", ...]
+    const gmLabels = [];
+    const gmData = { dB: [], cB: [], bB: [], aB: [], dA: [], cA: [], bA: [], aA: [] };
+    for (const m of gmMonths) {
+        gmLabels.push(m + " 전");
+        gmLabels.push(m + " 후");
+        const b = gradeTrend[m] || {};
+        const a = gradeTrendAfter[m] || {};
+        gmData.dB.push(b.D || 0); gmData.dB.push(null);
+        gmData.cB.push(b.C || 0); gmData.cB.push(null);
+        gmData.bB.push(b.B || 0); gmData.bB.push(null);
+        gmData.aB.push(b.A || 0); gmData.aB.push(null);
+        gmData.dA.push(null); gmData.dA.push(a.D || 0);
+        gmData.cA.push(null); gmData.cA.push(a.C || 0);
+        gmData.bA.push(null); gmData.bA.push(a.B || 0);
+        gmData.aA.push(null); gmData.aA.push(a.A || 0);
+    }
+
+    chartInstances["chart-grade-monthly"] = new Chart(
+        document.getElementById("chart-grade-monthly"),
+        {
+            type: "bar",
+            data: {
+                labels: gmLabels,
+                datasets: [
+                    { label: "D등급", data: gmData.dB, backgroundColor: GRADE_COLORS.D, borderRadius: 3, stack: "before", skipNull: true },
+                    { label: "C등급", data: gmData.cB, backgroundColor: GRADE_COLORS.C + "99", borderRadius: 3, stack: "before", skipNull: true },
+                    { label: "B등급", data: gmData.bB, backgroundColor: GRADE_COLORS.B + "99", borderRadius: 3, stack: "before", skipNull: true },
+                    { label: "A등급", data: gmData.aB, backgroundColor: GRADE_COLORS.A + "99", borderRadius: 3, stack: "before", skipNull: true },
+                    { label: "D등급(후)", data: gmData.dA, backgroundColor: GRADE_COLORS.D, borderRadius: 3, stack: "after", skipNull: true },
+                    { label: "C등급(후)", data: gmData.cA, backgroundColor: GRADE_COLORS.C + "99", borderRadius: 3, stack: "after", skipNull: true },
+                    { label: "B등급(후)", data: gmData.bA, backgroundColor: GRADE_COLORS.B + "99", borderRadius: 3, stack: "after", skipNull: true },
+                    { label: "A등급(후)", data: gmData.aA, backgroundColor: GRADE_COLORS.A + "99", borderRadius: 3, stack: "after", skipNull: true },
+                ],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                skipNull: true,
+                plugins: {
+                    legend: {
+                        position: "top",
+                        labels: {
+                            generateLabels: function() {
+                                return [
+                                    { text: "D등급", fillStyle: GRADE_COLORS.D, strokeStyle: "transparent", lineWidth: 0 },
+                                    { text: "C등급", fillStyle: GRADE_COLORS.C, strokeStyle: "transparent", lineWidth: 0 },
+                                    { text: "B등급", fillStyle: GRADE_COLORS.B, strokeStyle: "transparent", lineWidth: 0 },
+                                    { text: "A등급", fillStyle: GRADE_COLORS.A, strokeStyle: "transparent", lineWidth: 0 },
+                                ];
+                            }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(ctx) {
+                                if (ctx.parsed.y === null || ctx.parsed.y === 0) return null;
+                                const name = ctx.dataset.label.replace("(후)", "");
+                                return name + ": " + ctx.parsed.y + "건";
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        stacked: true,
+                        grid: {
+                            display: true,
+                            color: function(ctx) {
+                                // 매 2번째 라인(월 경계)에만 세로줄
+                                return ctx.index % 2 === 0 ? "#e5e7eb" : "transparent";
+                            },
+                        },
+                    },
+                    y: { stacked: true, beginAtZero: true, title: { display: true, text: "건수" } },
+                },
+                barPercentage: 0.5,
+                categoryPercentage: 0.7,
+            },
+        }
+    );
+
+    // 2b. Grade before/after mini donuts
+    destroyChart("chart-grade-before");
+    destroyChart("chart-grade-after");
+    const gradeColors = [GRADE_COLORS.A, GRADE_COLORS.B, GRADE_COLORS.C, GRADE_COLORS.D];
+    const gradeMiniOpts = {
+        responsive: true, cutout: "60%",
+        plugins: { legend: { display: false }, tooltip: {
+            callbacks: { label: function(ctx) { return ctx.label + ": " + ctx.parsed + "건"; } }
+        }}
+    };
+    chartInstances["chart-grade-before"] = new Chart(
+        document.getElementById("chart-grade-before"),
+        { type: "doughnut", data: { labels: ["A","B","C","D"],
+            datasets: [{ data: [data.grade_a, data.grade_b, data.grade_c, data.grade_d], backgroundColor: gradeColors, borderWidth: 0 }]
+        }, options: gradeMiniOpts }
+    );
+    const afterA = data.grade_a_after || 0;
+    const afterB = data.grade_b_after || 0;
+    const afterC = data.grade_c_after || 0;
+    const afterD = data.grade_d_after || 0;
+    const afterIncomplete = data.incomplete || 0;
+    chartInstances["chart-grade-after"] = new Chart(
+        document.getElementById("chart-grade-after"),
+        { type: "doughnut", data: { labels: ["A","B","C","D","미완료"],
+            datasets: [{ data: [afterA, afterB, afterC, afterD, afterIncomplete > 0 ? afterIncomplete : 0], backgroundColor: [...gradeColors, "#e5e7eb"], borderWidth: 0 }]
+        }, options: gradeMiniOpts }
     );
 
     // 3. Completion donut
@@ -466,47 +602,27 @@ function updateCharts(data) {
     const compPct = compTotal > 0 ? Math.round(data.complete / compTotal * 100) : 0;
     const incompPct = compTotal > 0 ? 100 - compPct : 0;
 
-    const completionCenterPlugin = {
-        id: "completionCenter",
-        afterDraw(chart) {
-            const ctx = chart.ctx;
-            const { top, bottom, left, right } = chart.chartArea;
-            const cx = (left + right) / 2;
-            const cy = (top + bottom) / 2;
-            ctx.save();
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            ctx.fillStyle = "#27ae60";
-            ctx.font = "bold 20px sans-serif";
-            ctx.fillText(compPct + "%", cx, cy);
-            ctx.restore();
-        }
-    };
-
     chartInstances["chart-completion"] = new Chart(
         document.getElementById("chart-completion"),
         {
             type: "doughnut",
             data: {
-                labels: ["완료 " + compPct + "%", "미완료 " + incompPct + "%"],
+                labels: ["완료", "미완료"],
                 datasets: [{
                     data: [data.complete, data.incomplete],
-                    backgroundColor: ["#27ae60", "#f39c12"],
+                    backgroundColor: ["#27ae60", "#e5e7eb"],
                     borderWidth: 0,
                 }],
             },
-            plugins: [completionCenterPlugin],
             options: {
                 responsive: true,
-                cutout: "60%",
+                cutout: "65%",
                 plugins: {
-                    legend: { position: "top" },
+                    legend: { display: false },
                     tooltip: {
                         callbacks: {
                             label: function(ctx) {
-                                const val = ctx.parsed;
-                                const pct = compTotal > 0 ? Math.round(val / compTotal * 100) : 0;
-                                return ctx.label + ": " + val + "건";
+                                return ctx.label + ": " + ctx.parsed + "건";
                             }
                         }
                     }

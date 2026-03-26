@@ -830,6 +830,11 @@ async def get_summary(
     grade_c = sum(1 for r in records if r["grade_before"] == "C")
     grade_d = sum(1 for r in records if r["grade_before"] == "D")
 
+    grade_a_after = sum(1 for r in records if r.get("grade_after") == "A")
+    grade_b_after = sum(1 for r in records if r.get("grade_after") == "B")
+    grade_c_after = sum(1 for r in records if r.get("grade_after") == "C")
+    grade_d_after = sum(1 for r in records if r.get("grade_after") == "D")
+
     complete = sum(1 for r in records if r["completion"] == "완료")
     incomplete = sum(1 for r in records if r["completion"] != "완료")
     improvement_rate = round(complete / total * 100, 1) if total > 0 else 0
@@ -870,15 +875,50 @@ async def get_summary(
             else:
                 d_after["미완료"] += 1
 
-    # Monthly average risk score (before vs after)
+    # D-grade monthly breakdown: per month, before D count vs after grade distribution
+    d_grade_monthly = {}
+    for m in all_months:
+        month_d_recs = [r for r in records if r["month"] == m and r["grade_before"] == "D"]
+        before_count = len(month_d_recs)
+        after = {"A": 0, "B": 0, "C": 0, "D": 0, "미완료": 0}
+        for r in month_d_recs:
+            ga = r.get("grade_after")
+            if ga in ("A", "B", "C", "D"):
+                after[ga] += 1
+            else:
+                after["미완료"] += 1
+        d_grade_monthly[m] = {"before": before_count, "after": after}
+
+    # Grade to number: A=1, B=2, C=3, D=4
+    def grade_to_num(g):
+        return {"A": 1, "B": 2, "C": 3, "D": 4}.get(g, 0)
+
+    # Monthly average risk score and grade (before vs after)
     risk_trend: dict[str, dict[str, float]] = {}
     for m in all_months:
         month_recs = [r for r in records if r["month"] == m]
         before_scores = [r["risk_before"] for r in month_recs if r["risk_before"] and r["risk_before"] > 0]
         after_scores = [r["risk_after"] for r in month_recs if r["risk_after"] and r["risk_after"] > 0]
+        before_grades = [grade_to_num(r["grade_before"]) for r in month_recs if r["grade_before"] in ("A","B","C","D")]
+        after_grades = [grade_to_num(r.get("grade_after","")) for r in month_recs if r.get("grade_after") in ("A","B","C","D")]
         risk_trend[m] = {
             "avg_before": round(sum(before_scores) / len(before_scores), 1) if before_scores else 0,
             "avg_after": round(sum(after_scores) / len(after_scores), 1) if after_scores else 0,
+            "avg_grade_before": round(sum(before_grades) / len(before_grades), 2) if before_grades else 0,
+            "avg_grade_after": round(sum(after_grades) / len(after_grades), 2) if after_grades else 0,
+        }
+
+    # Monthly effort: 발굴 vs 개선 건수 per month
+    monthly_effort = {}
+    for m in all_months:
+        month_recs = [r for r in records if r["month"] == m]
+        found = len(month_recs)
+        completed = sum(1 for r in month_recs if r["completion"] == "완료")
+        rate = round(completed / found * 100, 1) if found > 0 else 0
+        monthly_effort[m] = {
+            "found": found,
+            "completed": completed,
+            "rate": rate,
         }
 
     # By location group (소분류)
@@ -1020,10 +1060,16 @@ async def get_summary(
         "grade_b": grade_b,
         "grade_c": grade_c,
         "grade_d": grade_d,
+        "grade_a_after": grade_a_after,
+        "grade_b_after": grade_b_after,
+        "grade_c_after": grade_c_after,
+        "grade_d_after": grade_d_after,
         "grade_cumulative": grade_cumulative,
         "risk_trend": risk_trend,
+        "monthly_effort": monthly_effort,
         "d_grade_total": d_grade_total,
         "d_after": d_after,
+        "d_grade_monthly": d_grade_monthly,
         "complete": complete,
         "incomplete": incomplete,
         "location_stats": location_stats,
