@@ -13,6 +13,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import openpyxl
+import psycopg2
+import psycopg2.extras
 
 app = FastAPI(title="COS-Safety Dashboard")
 
@@ -27,10 +29,38 @@ UPLOAD_DIR = os.environ.get("DATA_DIR", "uploads")
 IMAGE_DIR = os.path.join(UPLOAD_DIR, "images")
 DATA_FILE = os.path.join(UPLOAD_DIR, "current_data.json")
 PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "2026")
+DATABASE_URL = os.environ.get("DATABASE_URL")
 SESSION_TOKENS: set[str] = set()
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(IMAGE_DIR, exist_ok=True)
+
+
+# --- Database ---
+def get_db():
+    conn = psycopg2.connect(DATABASE_URL)
+    return conn
+
+
+def init_db():
+    if not DATABASE_URL:
+        return
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS records (
+            _id TEXT PRIMARY KEY,
+            data JSONB NOT NULL
+        )
+    """)
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+@app.on_event("startup")
+def on_startup():
+    init_db()
 
 
 # --- Auth ---
@@ -625,40 +655,83 @@ async def delete_record(request: Request):
 
 
 # --- Data API ---
-def load_data() -> list[dict]:
-    if not os.path.exists(DATA_FILE):
-        return []
-    with open(DATA_FILE, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    dirty = False
+def _cleanup_records(data: list[dict]) -> tuple[list[dict], list[str]]:
+    """Clean up records and return (data, dirty_ids)."""
+    dirty_ids = []
     for r in data:
+        changed = False
         if "channel" not in r:
             r["channel"] = "안전점검"
+            changed = True
         if "_id" not in r:
             r["_id"] = uuid.uuid4().hex
-            dirty = True
+            changed = True
         if "image" not in r:
             r["image"] = ""
+            changed = True
         if "image_after" not in r:
             r["image_after"] = ""
-        # Re-compute location_group and location_major from raw location
+            changed = True
         new_lg = extract_location_group(r.get("location", ""))
         if r.get("location_group") != new_lg:
             r["location_group"] = new_lg
-            dirty = True
+            changed = True
         new_lm = extract_location_major(new_lg)
         if r.get("location_major") != new_lm:
             r["location_major"] = new_lm
-            dirty = True
-    if dirty:
-        with open(DATA_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+            changed = True
+        if changed:
+            dirty_ids.append(r["_id"])
+    return data, dirty_ids
+
+
+def load_data() -> list[dict]:
+    if not DATABASE_URL:
+        if not os.path.exists(DATA_FILE):
+            return []
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        data, dirty_ids = _cleanup_records(data)
+        if dirty_ids:
+            with open(DATA_FILE, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        return data
+
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT data FROM records")
+    rows = cur.fetchall()
+    data = [row[0] for row in rows]
+    data, dirty_ids = _cleanup_records(data)
+    if dirty_ids:
+        dirty_set = set(dirty_ids)
+        for r in data:
+            if r["_id"] in dirty_set:
+                cur.execute("UPDATE records SET data = %s WHERE _id = %s",
+                            (json.dumps(r, ensure_ascii=False), r["_id"]))
+        conn.commit()
+    cur.close()
+    conn.close()
     return data
 
 
 def save_data(data: list[dict]):
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    if not DATABASE_URL:
+        with open(DATA_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        return
+
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM records")
+    for r in data:
+        rid = r.get("_id") or uuid.uuid4().hex
+        r["_id"] = rid
+        cur.execute("INSERT INTO records (_id, data) VALUES (%s, %s)",
+                    (rid, json.dumps(r, ensure_ascii=False)))
+    conn.commit()
+    cur.close()
+    conn.close()
 
 
 @app.get("/api/data")
