@@ -508,6 +508,13 @@ async def delete_channel_data(request: Request):
     return {"message": f"[{channel}] {before - after}건 삭제 완료", "remaining": after}
 
 
+@app.post("/api/data/clear")
+async def clear_all_data(request: Request):
+    verify_token(request)
+    save_data([])
+    return {"message": "전체 데이터 삭제 완료"}
+
+
 # --- Image Upload ---
 ALLOWED_IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic")
 
