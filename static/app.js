@@ -692,7 +692,7 @@ function escapeHtml(str) {
 // --- Filters Update ---
 function updateFilters(filters) {
     if (filters.channels) populateFilter("f-channel", filters.channels, true);
-    if (filters.years) populateFilter("f-year", filters.years, true);
+    if (filters.years) populateFilter("f-year", filters.years, !initialLoad);
     populateFilter("f-month", filters.months, true);
     populateFilter("f-location", filters.locations, true);
     populateFilter("f-disaster", filters.disaster_types, true);
