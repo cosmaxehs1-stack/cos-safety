@@ -4,6 +4,7 @@ import hashlib
 import secrets
 import uuid
 import zipfile
+import base64
 from datetime import datetime, date
 from typing import Optional
 from xml.etree import ElementTree as ET
@@ -268,15 +269,14 @@ def extract_excel_images(file_path: str) -> dict[str, dict[int, str]]:
                         if row_num in row_images and img_key in row_images[row_num]:
                             continue
 
-                        # Save image file
-                        ext = os.path.splitext(media_name)[1] or '.png'
-                        fname = f"{uuid.uuid4().hex}{ext}"
-                        fpath = os.path.join(IMAGE_DIR, fname)
-                        with open(fpath, "wb") as f:
-                            f.write(media_data[media_name])
+                        # Convert to base64 data URL
+                        ext = os.path.splitext(media_name)[1].lower() or '.png'
+                        mime = {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp'}.get(ext, 'image/png')
+                        b64 = base64.b64encode(media_data[media_name]).decode('ascii')
+                        data_url = f"data:{mime};base64,{b64}"
                         if row_num not in row_images:
                             row_images[row_num] = {}
-                        row_images[row_num][img_key] = f"/uploads/images/{fname}"
+                        row_images[row_num][img_key] = data_url
 
                     if row_images:
                         result[sheet_name] = row_images
@@ -518,12 +518,11 @@ async def upload_image(request: Request, file: UploadFile = File(...)):
     ext = os.path.splitext(file.filename or "")[1].lower()
     if ext not in ALLOWED_IMAGE_EXTENSIONS:
         raise HTTPException(status_code=400, detail="이미지 파일만 업로드 가능합니다. (jpg, png, gif, webp)")
-    filename = f"{uuid.uuid4().hex}{ext}"
-    filepath = os.path.join(IMAGE_DIR, filename)
     content = await file.read()
-    with open(filepath, "wb") as f:
-        f.write(content)
-    return {"filename": filename, "url": f"/uploads/images/{filename}"}
+    mime = {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.heic': 'image/heic'}.get(ext, 'image/png')
+    b64 = base64.b64encode(content).decode('ascii')
+    data_url = f"data:{mime};base64,{b64}"
+    return {"filename": file.filename, "url": data_url}
 
 
 @app.get("/uploads/images/{filename}")
