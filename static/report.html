@@ -167,13 +167,9 @@
         html += '<h2 class="section-title">1. 전체 현황 요약</h2>';
         html += '<div class="summary-cards">';
         html += '<div class="s-card"><div class="s-label">전체 건수</div><div class="s-value">' + total + '</div></div>';
-        html += '<div class="s-card"><div class="s-label">A등급 (저위험)</div><div class="s-value green">' + gA + '</div></div>';
-        html += '<div class="s-card"><div class="s-label">B등급 (보통)</div><div class="s-value blue">' + gB + '</div></div>';
-        html += '<div class="s-card"><div class="s-label">C등급 (주의)</div><div class="s-value orange">' + gC + '</div></div>';
-        html += '<div class="s-card"><div class="s-label">D등급 (고위험)</div><div class="s-value red">' + gD + '</div></div>';
-        html += '<div class="s-card"><div class="s-label">E/F등급 (심각)</div><div class="s-value darkred">' + gE + '</div></div>';
-        html += '<div class="s-card"><div class="s-label">개선 완료</div><div class="s-value teal">' + data.complete + '</div></div>';
-        html += '<div class="s-card"><div class="s-label">미완료</div><div class="s-value red">' + data.incomplete + '</div></div>';
+        html += '<div class="s-card"><div class="s-label">개선 건수</div><div class="s-value teal">' + data.complete + '</div></div>';
+        html += '<div class="s-card"><div class="s-label">미완료 건수</div><div class="s-value red">' + data.incomplete + '</div></div>';
+        html += '<div class="s-card"><div class="s-label">개선률</div><div class="s-value blue">' + data.improvement_rate + '%</div></div>';
         html += '</div>';
 
         // Section 2: Channel Analysis
