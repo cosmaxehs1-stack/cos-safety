@@ -570,22 +570,25 @@ td.red { color: #e74c3c; font-weight: 600; }
 
 /* Table Thumbnail */
 .table-thumb {
-    width: 40px;
-    height: 30px;
-    object-fit: cover;
+    width: 80px;
+    height: 60px;
+    object-fit: contain;
+    background: #f8f9fa;
     border-radius: 4px;
     cursor: pointer;
     border: 1px solid #ddd;
     transition: transform 0.2s;
+    image-rendering: auto;
 }
-.table-thumb:hover { transform: scale(1.5); }
+.table-thumb:hover { transform: scale(2.5); z-index: 10; position: relative; }
 
 /* Image Viewer */
 .image-viewer-img {
-    max-width: 90vw;
-    max-height: 85vh;
-    border-radius: 12px;
+    max-width: 92vw;
+    max-height: 90vh;
+    border-radius: 8px;
     box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    image-rendering: auto;
 }
 
 /* Channel Select */
