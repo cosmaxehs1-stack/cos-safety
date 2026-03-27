@@ -37,9 +37,15 @@ os.makedirs(IMAGE_DIR, exist_ok=True)
 
 
 # --- Database ---
-def get_db():
-    conn = psycopg2.connect(DATABASE_URL)
-    return conn
+def get_db(retries=3):
+    for attempt in range(retries):
+        try:
+            conn = psycopg2.connect(DATABASE_URL, connect_timeout=10)
+            return conn
+        except Exception as e:
+            print(f"[DB] 연결 실패 (시도 {attempt+1}/{retries}): {e}")
+            if attempt == retries - 1:
+                raise
 
 
 def init_db():
@@ -419,13 +425,22 @@ async def upload_excel(request: Request, file: UploadFile = File(...), channel: 
         raise HTTPException(status_code=400, detail="엑셀 파일(.xlsx, .xlsm)만 업로드 가능합니다.")
 
     file_path = os.path.join(UPLOAD_DIR, "uploaded.xlsm")
-    content = await file.read()
-    with open(file_path, "wb") as f:
-        f.write(content)
+    try:
+        content = await file.read()
+        print(f"[upload] file={file.filename}, size={len(content)} bytes, channel={channel}")
+        with open(file_path, "wb") as f:
+            f.write(content)
+    except Exception as e:
+        print(f"[upload] 파일 저장 오류: {e}")
+        import traceback; traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"파일 저장 오류: {str(e)}")
 
     try:
         records = parse_excel(file_path)
+        print(f"[upload] 파싱 완료: {len(records)}건")
     except Exception as e:
+        print(f"[upload] 엑셀 파싱 오류: {e}")
+        import traceback; traceback.print_exc()
         raise HTTPException(status_code=400, detail=f"엑셀 파싱 오류: {str(e)}")
 
     for r in records:
@@ -437,12 +452,18 @@ async def upload_excel(request: Request, file: UploadFile = File(...), channel: 
         if not r.get("image_after"):
             r["image_after"] = ""
 
-    existing = load_data()
-    # 엑셀 데이터만 교체, 직접입력(manual) 데이터는 보존
-    existing = [r for r in existing if r.get("channel") != channel or r.get("source") == "manual"]
-    existing.extend(records)
+    try:
+        existing = load_data()
+        # 엑셀 데이터만 교체, 직접입력(manual) 데이터는 보존
+        existing = [r for r in existing if r.get("channel") != channel or r.get("source") == "manual"]
+        existing.extend(records)
 
-    save_data(existing)
+        save_data(existing)
+        print(f"[upload] 저장 완료: 전체 {len(existing)}건")
+    except Exception as e:
+        print(f"[upload] DB 저장 오류: {e}")
+        import traceback; traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"데이터 저장 오류: {str(e)}")
 
     return {"message": f"[{channel}] {len(records)}건 업로드 완료 (전체 {len(existing)}건)", "count": len(records)}
 

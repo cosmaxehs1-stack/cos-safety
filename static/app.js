@@ -62,8 +62,14 @@ async function uploadFile(input) {
             body: formData,
         });
         if (res.status === 401) { logout(); return; }
-        const data = await res.json();
-        alert(data.message || "업로드 완료");
+        const text = await res.text();
+        let data;
+        try { data = JSON.parse(text); } catch { data = null; }
+        if (!res.ok) {
+            alert("업로드 실패: " + (data?.detail || text || `서버 오류 (${res.status})`));
+            return;
+        }
+        alert(data?.message || "업로드 완료");
         fetchSummary();
     } catch (e) {
         alert("업로드 실패: " + e.message);
