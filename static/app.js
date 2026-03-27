@@ -1019,19 +1019,6 @@ function showImageModal(src) {
     modal.style.display = "flex";
 }
 
-// --- Clear All Data ---
-async function clearAllData() {
-    if (!confirm("정말 전체 데이터를 삭제하시겠습니까?")) return;
-    try {
-        const res = await fetch("/api/data/clear", { method: "POST", headers: authHeaders() });
-        const data = await res.json();
-        alert(data.message || "삭제 완료");
-        fetchSummary();
-    } catch (e) {
-        alert("삭제 실패: " + e.message);
-    }
-}
-
 // --- Init ---
 TOKEN = "public";
 sessionStorage.setItem("token", TOKEN);
