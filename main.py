@@ -417,16 +417,10 @@ async def upload_excel(request: Request, file: UploadFile = File(...), channel: 
     if not file.filename.endswith((".xlsx", ".xlsm")):
         raise HTTPException(status_code=400, detail="엑셀 파일(.xlsx, .xlsm)만 업로드 가능합니다.")
 
-    # 디스크 공간 확보: 기존 이미지 및 임시 파일 정리
-    try:
-        for f in os.listdir(IMAGE_DIR):
-            os.remove(os.path.join(IMAGE_DIR, f))
-        old_upload = os.path.join(UPLOAD_DIR, "uploaded.xlsm")
-        if os.path.exists(old_upload):
-            os.remove(old_upload)
-        print(f"[upload] 디스크 정리 완료")
-    except Exception as e:
-        print(f"[upload] 디스크 정리 경고: {e}")
+    # 임시 엑셀 파일 정리
+    old_upload = os.path.join(UPLOAD_DIR, "uploaded.xlsm")
+    if os.path.exists(old_upload):
+        os.remove(old_upload)
 
     file_path = os.path.join(UPLOAD_DIR, "uploaded.xlsm")
     try:
