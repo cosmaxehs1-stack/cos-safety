@@ -176,7 +176,7 @@
         html += '<h2 class="section-title">2. 채널별 분석</h2>';
         html += '<div class="chart-grid">';
         html += '<div class="chart-box"><h3>채널별 위험요소 건수</h3><canvas id="c-channel"></canvas></div>';
-        html += '<div class="chart-box"><h3>채널별 등급 분포</h3><canvas id="c-channel-grade"></canvas></div>';
+        html += '<div class="chart-box"><h3>주차별 발굴 현황</h3><canvas id="c-weekly-top"></canvas></div>';
         html += '</div>';
         html += '<table class="rtable"><thead><tr><th>채널</th><th>건수</th><th>비율</th><th>A</th><th>B</th><th>C</th><th>D</th></tr></thead><tbody>';
         channelList.forEach(([ch, cnt]) => {
@@ -278,23 +278,24 @@
                 }
             });
 
-            new Chart(document.getElementById('c-channel-grade'), {
-                type: 'bar',
-                data: {
-                    labels: channelList.map(c => c[0]),
-                    datasets: [
-                        { label: 'A등급', data: channelList.map(c => (channelGradeStats[c[0]] || {}).A || 0), backgroundColor: '#27ae60', borderRadius: 2 },
-                        { label: 'B등급', data: channelList.map(c => (channelGradeStats[c[0]] || {}).B || 0), backgroundColor: '#3498db', borderRadius: 2 },
-                        { label: 'C등급', data: channelList.map(c => (channelGradeStats[c[0]] || {}).C || 0), backgroundColor: '#f39c12', borderRadius: 2 },
-                        { label: 'D등급', data: channelList.map(c => (channelGradeStats[c[0]] || {}).D || 0), backgroundColor: '#e74c3c', borderRadius: 2 }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    plugins: { legend: { position: 'top' }, datalabels: { display: false } },
-                    scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true } }
-                }
-            });
+            if (weeks.length > 0) {
+                const WEEKLY_TARGET = 39;
+                new Chart(document.getElementById('c-weekly-top'), {
+                    type: 'bar',
+                    data: {
+                        labels: weeks.map(w => w[0]),
+                        datasets: [
+                            { label: '주간 발굴', data: weeks.map(w => w[1]), backgroundColor: weeks.map(w => w[1] >= WEEKLY_TARGET ? '#27ae60' : '#3498db'), borderRadius: 4 },
+                            { label: '목표 (39건)', data: weeks.map(() => WEEKLY_TARGET), type: 'line', borderColor: '#e74c3c', borderWidth: 2, borderDash: [6, 4], pointRadius: 0, fill: false }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: { legend: { position: 'top' }, datalabels: { display: false } },
+                        scales: { x: { grid: { display: false } }, y: { beginAtZero: true, suggestedMax: WEEKLY_TARGET + 10 } }
+                    }
+                });
+            }
         }
 
         // Grade Pie
