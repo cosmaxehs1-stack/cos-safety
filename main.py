@@ -77,18 +77,11 @@ def on_startup():
 # --- Auth ---
 @app.post("/api/login")
 async def login(request: Request):
-    body = await request.json()
-    if body.get("password") == PASSWORD:
-        token = secrets.token_hex(32)
-        SESSION_TOKENS.add(token)
-        return {"token": token}
-    raise HTTPException(status_code=401, detail="비밀번호가 올바르지 않습니다.")
+    return {"token": "public"}
 
 
 def verify_token(request: Request):
-    token = request.headers.get("Authorization", "").replace("Bearer ", "")
-    if token not in SESSION_TOKENS:
-        raise HTTPException(status_code=401, detail="인증이 필요합니다.")
+    pass
 
 
 # --- Excel Parsing ---

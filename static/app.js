@@ -1020,11 +1020,6 @@ function showImageModal(src) {
 }
 
 // --- Init ---
-if (TOKEN) {
-    fetch("/api/summary", { headers: authHeaders() })
-        .then(res => {
-            if (res.ok) showDashboard();
-            else logout();
-        })
-        .catch(() => logout());
-}
+TOKEN = "public";
+sessionStorage.setItem("token", TOKEN);
+showDashboard();
