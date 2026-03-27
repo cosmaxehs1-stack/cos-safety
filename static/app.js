@@ -710,14 +710,8 @@ function updateFilters(filters) {
     });
     if (prevWeek !== "0") weekSel.value = prevWeek;
 
-    // 첫 로드 시 2026년 기본 선택 후 재조회
     if (initialLoad) {
         initialLoad = false;
-        if (filters.years && filters.years.includes("2026")) {
-            document.getElementById("f-year").value = "2026";
-        }
-        fetchSummary();
-        return;
     }
 }
 
