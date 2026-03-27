@@ -800,7 +800,7 @@ async function printReport() {
             return;
         }
         window.__reportData = data;
-        window.open("/static/report.html#" + encodeURIComponent(TOKEN), "_blank");
+        window.open("/static/report.html#" + encodeURIComponent(TOKEN) + "?" + params.toString(), "_blank");
     } catch (e) {
         alert('리포트 생성 실패: ' + e.message);
     } finally {

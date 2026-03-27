@@ -72,13 +72,17 @@
         if (window.opener && window.opener.__reportData) {
             data = window.opener.__reportData;
         } else {
-            const token = decodeURIComponent(window.location.hash.substring(1));
+            const hash = decodeURIComponent(window.location.hash.substring(1));
+            const qIdx = hash.indexOf('?');
+            const token = qIdx >= 0 ? hash.substring(0, qIdx) : hash;
+            const filterParams = qIdx >= 0 ? hash.substring(qIdx + 1) : '';
             if (!token) {
                 document.getElementById('report').innerHTML = '<p class="loading">인증 정보가 없습니다. 대시보드에서 리포트 출력을 클릭해주세요.</p>';
                 return;
             }
             try {
-                const res = await fetch('/api/summary', { headers: { Authorization: 'Bearer ' + token } });
+                const url = '/api/summary' + (filterParams ? '?' + filterParams : '');
+                const res = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
                 if (!res.ok) throw new Error('인증 실패');
                 data = await res.json();
             } catch (e) {
