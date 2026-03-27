@@ -799,7 +799,8 @@ async function printReport() {
             alert('리포트를 생성할 데이터가 없습니다.');
             return;
         }
-        window.open("/static/report.html?" + params.toString(), "_blank");
+        sessionStorage.setItem("reportData", JSON.stringify(data));
+        window.open("/static/report.html", "_blank");
     } catch (e) {
         alert('리포트 생성 실패: ' + e.message);
     } finally {

@@ -70,11 +70,13 @@
         // --- Get Data ---
         let data = null;
         try {
-            const filterParams = window.location.search.substring(1);
-            const url = '/api/summary' + (filterParams ? '?' + filterParams : '');
-            const res = await fetch(url, { headers: { Authorization: 'Bearer public' } });
-            if (!res.ok) throw new Error('데이터 조회 실패');
-            data = await res.json();
+            const stored = sessionStorage.getItem("reportData");
+            if (stored) {
+                data = JSON.parse(stored);
+            } else {
+                document.getElementById('report').innerHTML = '<p class="loading">대시보드에서 리포트 출력을 클릭해주세요.</p>';
+                return;
+            }
         } catch (e) {
             document.getElementById('report').innerHTML = '<p class="loading">데이터를 불러올 수 없습니다: ' + e.message + '</p>';
             return;
