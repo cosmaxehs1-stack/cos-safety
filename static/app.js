@@ -692,7 +692,7 @@ function escapeHtml(str) {
 // --- Filters Update ---
 function updateFilters(filters) {
     if (filters.channels) populateFilter("f-channel", filters.channels, true);
-    if (filters.years) populateFilter("f-year", filters.years, !initialLoad);
+    if (filters.years) populateFilter("f-year", filters.years, true);
     populateFilter("f-month", filters.months, true);
     populateFilter("f-location", filters.locations, true);
     populateFilter("f-disaster", filters.disaster_types, true);
@@ -711,10 +711,13 @@ function updateFilters(filters) {
     if (prevWeek !== "0") weekSel.value = prevWeek;
 
     // 첫 로드 시 2026년 기본 선택 후 재조회
-    if (initialLoad && filters.years && filters.years.includes("2026")) {
+    if (initialLoad) {
         initialLoad = false;
-        setFilterValue("f-year", "2026");
+        if (filters.years && filters.years.includes("2026")) {
+            document.getElementById("f-year").value = "2026";
+        }
         fetchSummary();
+        return;
     }
 }
 
