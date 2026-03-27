@@ -871,6 +871,16 @@ async def get_summary(
     grade_c_after = sum(1 for r in records if r.get("grade_after") == "C")
     grade_d_after = sum(1 for r in records if r.get("grade_after") == "D")
 
+    # 현황 등급: 완료 건은 grade_after, 미완료 건은 grade_before
+    def current_grade(r):
+        if r["completion"] == "완료" and r.get("grade_after") in ("A", "B", "C", "D"):
+            return r["grade_after"]
+        return r.get("grade_before", "-")
+    grade_a_current = sum(1 for r in records if current_grade(r) == "A")
+    grade_b_current = sum(1 for r in records if current_grade(r) == "B")
+    grade_c_current = sum(1 for r in records if current_grade(r) == "C")
+    grade_d_current = sum(1 for r in records if current_grade(r) == "D")
+
     complete = sum(1 for r in records if r["completion"] == "완료")
     incomplete = sum(1 for r in records if r["completion"] != "완료")
     improvement_rate = round(complete / total * 100, 1) if total > 0 else 0
@@ -1100,6 +1110,10 @@ async def get_summary(
         "grade_b_after": grade_b_after,
         "grade_c_after": grade_c_after,
         "grade_d_after": grade_d_after,
+        "grade_a_current": grade_a_current,
+        "grade_b_current": grade_b_current,
+        "grade_c_current": grade_c_current,
+        "grade_d_current": grade_d_current,
         "grade_cumulative": grade_cumulative,
         "risk_trend": risk_trend,
         "monthly_effort": monthly_effort,
