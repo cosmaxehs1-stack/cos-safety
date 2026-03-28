@@ -717,6 +717,10 @@ function updateFilters(filters) {
 
 // --- Tabs ---
 function switchTab(tabName, btn) {
+    doSwitchTab(tabName, btn);
+    if (tabName === "weekly") loadWeeklyTab();
+}
+function doSwitchTab(tabName, btn) {
     document.querySelectorAll(".tab-content").forEach(el => el.style.display = "none");
     document.querySelectorAll(".tab").forEach(el => el.classList.remove("active"));
     document.getElementById("tab-" + tabName).style.display = "block";
@@ -1023,7 +1027,302 @@ function showImageModal(src) {
     modal.style.display = "flex";
 }
 
+
+// --- Admin & Weekly ---
+let ADMIN_TOKEN = sessionStorage.getItem("admin_token") || "";
+let weeklyLiveData = null;
+let weeklySavedSnapshots = [];
+
+function adminLogin() {
+    return new Promise(resolve => {
+        let modal = document.getElementById("admin-login-modal");
+        if (!modal) {
+            modal = document.createElement("div");
+            modal.id = "admin-login-modal";
+            modal.className = "modal-overlay";
+            modal.innerHTML = `<div class="modal-box" style="max-width:360px;">
+                <h3 style="margin:0 0 12px;">관리자 인증</h3>
+                <input type="password" id="admin-pw-input" placeholder="관리자 비밀번호"
+                    style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;font-size:14px;box-sizing:border-box;">
+                <p id="admin-login-error" style="color:#e74c3c;font-size:13px;margin:8px 0 0;display:none;"></p>
+                <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end;">
+                    <button id="admin-cancel-btn" style="padding:8px 16px;border:1px solid #ddd;border-radius:6px;background:#f5f5f5;cursor:pointer;">취소</button>
+                    <button id="admin-submit-btn" style="padding:8px 16px;border:none;border-radius:6px;background:#1e40af;color:#fff;font-weight:600;cursor:pointer;">확인</button>
+                </div>
+            </div>`;
+            document.body.appendChild(modal);
+        }
+        const input = document.getElementById("admin-pw-input");
+        const errEl = document.getElementById("admin-login-error");
+        input.value = "";
+        errEl.style.display = "none";
+        modal.style.display = "flex";
+        setTimeout(() => input.focus(), 100);
+
+        async function submit() {
+            const pw = input.value;
+            if (!pw) { errEl.textContent = "비밀번호를 입력하세요."; errEl.style.display = ""; return; }
+            try {
+                const res = await fetch("/api/admin/login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ password: pw }),
+                });
+                if (!res.ok) { errEl.textContent = "비밀번호가 올바르지 않습니다."; errEl.style.display = ""; return; }
+                const data = await res.json();
+                ADMIN_TOKEN = data.admin_token;
+                sessionStorage.setItem("admin_token", ADMIN_TOKEN);
+                cleanup(); resolve(true);
+            } catch (e) { errEl.textContent = "서버 연결 실패"; errEl.style.display = ""; }
+        }
+        function cancel() { cleanup(); resolve(false); }
+        function onKey(e) { if (e.key === "Enter") submit(); if (e.key === "Escape") cancel(); }
+
+        function cleanup() {
+            modal.style.display = "none";
+            document.getElementById("admin-submit-btn").removeEventListener("click", submit);
+            document.getElementById("admin-cancel-btn").removeEventListener("click", cancel);
+            input.removeEventListener("keydown", onKey);
+        }
+        document.getElementById("admin-submit-btn").addEventListener("click", submit);
+        document.getElementById("admin-cancel-btn").addEventListener("click", cancel);
+        input.addEventListener("keydown", onKey);
+    });
+}
+
+function adminHeaders() {
+    return { "Content-Type": "application/json", "X-Admin-Token": ADMIN_TOKEN };
+}
+
+async function loadWeeklyTab() {
+    const year = document.getElementById("w-year").value;
+    const quarter = document.getElementById("w-quarter").value;
+
+    const [liveRes, listRes] = await Promise.all([
+        fetch(`/api/weekly/quarter?year=${year}&quarter=${quarter}`, { headers: authHeaders() }),
+        fetch(`/api/weekly/list?year=${year}&quarter=${quarter}`, { headers: authHeaders() }),
+    ]);
+    weeklyLiveData = await liveRes.json();
+    const listData = await listRes.json();
+    weeklySavedSnapshots = listData.snapshots || [];
+
+    const badgeContainer = document.getElementById("w-saved-badges");
+    if (weeklySavedSnapshots.length === 0) {
+        badgeContainer.innerHTML = '<span style="color:#999;font-size:12px;">저장 이력 없음</span>';
+    } else {
+        badgeContainer.innerHTML = weeklySavedSnapshots.map(s =>
+            `<span class="saved-badge">${s.year}년 ${s.month}월 ${s.week}주차 업데이트 완료 <span style="color:#64748b;font-size:10px;">(${s.saved_at.slice(0,16).replace("T"," ")})</span></span>`
+        ).join(" ");
+    }
+
+    const compareSelect = document.getElementById("w-compare");
+    const compareWrap = document.getElementById("weekly-compare-select");
+    if (weeklySavedSnapshots.length > 0) {
+        compareWrap.style.display = "";
+        let opts = '<option value="">비교 안 함</option>';
+        weeklySavedSnapshots.forEach(s => {
+            opts += `<option value="${s.id}">${s.month}월 ${s.week}주 (${s.saved_at.slice(0,10)})</option>`;
+        });
+        compareSelect.innerHTML = opts;
+        compareSelect.value = weeklySavedSnapshots[weeklySavedSnapshots.length - 1].id;
+    } else {
+        compareWrap.style.display = "none";
+        compareSelect.innerHTML = "";
+    }
+
+    renderCurrentWeekly();
+}
+
+async function renderCurrentWeekly() {
+    const compareId = document.getElementById("w-compare").value;
+    let prevData = null;
+    if (compareId) {
+        try {
+            const res = await fetch(`/api/weekly/get?id=${compareId}`, { headers: authHeaders() });
+            const result = await res.json();
+            if (result.snapshot) prevData = result.snapshot.data;
+        } catch (e) {}
+    }
+    renderQuarterTable(weeklyLiveData, prevData);
+}
+
+function renderQuarterTable(data, prevData) {
+    const container = document.getElementById("weekly-tables");
+    if (!data || !data.sites) { container.innerHTML = ""; return; }
+
+    const months = data.months || [];
+    const channels = data.channel_order || [];
+    const siteNames = ["전체", "화성/판교", "평택/고렴"];
+    const curMonth = parseInt(document.getElementById("w-cur-month").value);
+    const curWeek = parseInt(document.getElementById("w-cur-week").value);
+
+    // Determine which months have 5th week data
+    const totalSite = data.sites["전체"] || {};
+    const has5th = {};
+    months.forEach(m => {
+        has5th[m] = false;
+        [...channels, "합계"].forEach(ch => {
+            const wk = (totalSite[ch] || {}).weeks || {};
+            const w5 = wk[`${m}-5`];
+            if (w5 && (w5.discovered > 0 || w5.improved > 0)) has5th[m] = true;
+        });
+    });
+
+    let html = "";
+    siteNames.forEach(siteName => {
+        const siteData = data.sites[siteName] || {};
+        const prevSiteData = prevData ? (prevData.sites || {})[siteName] || {} : null;
+
+        html += `<div class="weekly-table-wrap"><h4 class="weekly-site-title">${siteName}</h4>`;
+        html += `<table class="weekly-table"><thead>`;
+
+        // Header row 1
+        html += `<tr><th rowspan="2" class="wt-fixed">구분</th><th rowspan="2" class="wt-fixed"></th>`;
+        months.forEach(m => {
+            const weekCount = has5th[m] ? 5 : 4;
+            html += `<th colspan="${weekCount + 1}" class="wt-month-group">${m}월</th>`;
+        });
+        html += `<th colspan="1" class="wt-month-group">${data.year}년 ${data.quarter}분기</th>`;
+        html += `<th rowspan="2">개선률</th>`;
+        html += `</tr>`;
+
+        // Header row 2
+        html += `<tr>`;
+        months.forEach(m => {
+            const maxW = has5th[m] ? 5 : 4;
+            for (let w = 1; w <= maxW; w++) {
+                const isCur = (m === curMonth && w === curWeek);
+                const isFirst = (w === 1);
+                html += `<th class="${isCur ? "wt-current" : ""} ${isFirst ? "wt-month-start" : ""}">${w}주${isCur ? " ★" : ""}</th>`;
+            }
+            html += `<th class="wt-sub">소계</th>`;
+        });
+        html += `<th class="wt-month-start">합계</th>`;
+        html += `</tr></thead><tbody>`;
+
+        const allCh = [...channels, "합계"];
+        allCh.forEach((ch, idx) => {
+            const d = siteData[ch] || {};
+            const p = prevSiteData ? (prevSiteData[ch] || {}) : null;
+            const isTotal = ch === "합계";
+            const isLastBeforeTotal = (idx === allCh.length - 2);
+            const rowCls = isTotal ? "weekly-total-row" : "";
+
+            // Row 1: 발굴
+            html += `<tr class="${rowCls} wt-ch-first">`;
+            html += `<td class="ch-name" rowspan="2">${ch}</td>`;
+            html += `<td class="row-type">발굴</td>`;
+            months.forEach(m => {
+                const maxW = has5th[m] ? 5 : 4;
+                for (let w = 1; w <= maxW; w++) {
+                    const wk = d.weeks ? (d.weeks[`${m}-${w}`] || {}) : {};
+                    const pw = p && p.weeks ? (p.weeks[`${m}-${w}`] || {}) : null;
+                    const val = wk.discovered || 0;
+                    const pval = pw ? (pw.discovered || 0) : null;
+                    const isCur = (m === curMonth && w === curWeek);
+                    const isFirst = (w === 1);
+                    const diff = pval !== null ? val - pval : null;
+                    html += `<td class="num ${isCur ? "wt-current" : ""} ${isFirst ? "wt-month-start" : ""}">${val || "-"}${diff !== null && diff !== 0 ? `<span class="wt-diff ${diff > 0 ? "diff-up" : "diff-down"}">${diff > 0 ? "+" + diff : diff}</span>` : ""}</td>`;
+                }
+                const sub = d.month_subs ? (d.month_subs[String(m)] || {}) : {};
+                html += `<td class="num wt-sub">${sub.discovered || 0}</td>`;
+            });
+            html += `<td class="num wt-qtr wt-month-start">${d.quarter_discovered || 0}</td>`;
+            html += `<td class="num rate" rowspan="2">${d.quarter_rate ? Math.round(d.quarter_rate * 100) + "%" : "-"}</td>`;
+            html += `</tr>`;
+
+            // Row 2: 개선
+            html += `<tr class="${rowCls} ${isLastBeforeTotal ? "wt-before-total" : ""}">`;
+            html += `<td class="row-type">개선</td>`;
+            months.forEach(m => {
+                const maxW = has5th[m] ? 5 : 4;
+                for (let w = 1; w <= maxW; w++) {
+                    const wk = d.weeks ? (d.weeks[`${m}-${w}`] || {}) : {};
+                    const pw = p && p.weeks ? (p.weeks[`${m}-${w}`] || {}) : null;
+                    const val = wk.improved || 0;
+                    const pval = pw ? (pw.improved || 0) : null;
+                    const isCur = (m === curMonth && w === curWeek);
+                    const isFirst = (w === 1);
+                    const diff = pval !== null ? val - pval : null;
+                    html += `<td class="num ${isCur ? "wt-current" : ""} ${isFirst ? "wt-month-start" : ""}">${val || "-"}${diff !== null && diff !== 0 ? `<span class="wt-diff ${diff > 0 ? "diff-up" : "diff-down"}">${diff > 0 ? "+" + diff : diff}</span>` : ""}</td>`;
+                }
+                const sub = d.month_subs ? (d.month_subs[String(m)] || {}) : {};
+                html += `<td class="num wt-sub">${sub.improved || 0}</td>`;
+            });
+            html += `<td class="num wt-qtr wt-month-start">${d.quarter_improved || 0}</td>`;
+            html += `</tr>`;
+        });
+
+        html += `</tbody></table></div>`;
+    });
+
+    container.innerHTML = html;
+}
+
+
+async function toggleAdmin() {
+    const btn = document.getElementById("btn-admin");
+    if (ADMIN_TOKEN) {
+        // 관리자 모드 해제
+        ADMIN_TOKEN = "";
+        sessionStorage.removeItem("admin_token");
+        btn.textContent = "관리자";
+        btn.classList.remove("btn-admin-active");
+        document.querySelector(".btn-weekly-save").style.display = "none";
+    } else {
+        const ok = await adminLogin();
+        if (ok) {
+            btn.textContent = "관리자 ✓";
+            btn.classList.add("btn-admin-active");
+            document.querySelector(".btn-weekly-save").style.display = "";
+        }
+    }
+}
+
+function updateAdminUI() {
+    const btn = document.getElementById("btn-admin");
+    const saveBtn = document.querySelector(".btn-weekly-save");
+    if (ADMIN_TOKEN) {
+        btn.textContent = "관리자 ✓";
+        btn.classList.add("btn-admin-active");
+        if (saveBtn) saveBtn.style.display = "";
+    } else {
+        btn.textContent = "관리자";
+        btn.classList.remove("btn-admin-active");
+        if (saveBtn) saveBtn.style.display = "none";
+    }
+}
+
+async function saveWeeklySnapshot() {
+    const year = document.getElementById("w-year").value;
+    const quarter = document.getElementById("w-quarter").value;
+    const curMonth = document.getElementById("w-cur-month").value;
+    const curWeek = document.getElementById("w-cur-week").value;
+
+    if (!confirm(`${year}년 ${quarter}분기 (이번주: ${curMonth}월 ${curWeek}주)를 확정 저장하시겠습니까?`)) return;
+
+    try {
+        const res = await fetch("/api/weekly/save", {
+            method: "POST",
+            headers: adminHeaders(),
+            body: JSON.stringify({
+                year: parseInt(year), quarter: parseInt(quarter),
+                current_month: parseInt(curMonth), current_week: parseInt(curWeek),
+            }),
+        });
+        if (!res.ok) {
+            const err = await res.json();
+            alert(err.detail || "저장 실패");
+            return;
+        }
+        const result = await res.json();
+        alert(result.message);
+        loadWeeklyTab();
+    } catch (e) { alert("서버 연결 실패"); }
+}
+
 // --- Init ---
 TOKEN = "public";
 sessionStorage.setItem("token", TOKEN);
 showDashboard();
+updateAdminUI();

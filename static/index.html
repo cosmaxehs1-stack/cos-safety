@@ -46,6 +46,7 @@
                 <input type="file" id="file-input" accept=".xlsx,.xlsm" style="display:none" onchange="uploadFile(this)">
                 <button class="btn-direct-input" onclick="showAddRecordModal()">직접입력</button>
                 <button class="btn-manage" onclick="showManageModal()">관리</button>
+                <button class="btn-admin" id="btn-admin" onclick="toggleAdmin()">관리자</button>
                 <button class="btn-logout" onclick="logout()">로그아웃</button>
             </div>
         </header>
@@ -123,6 +124,7 @@
             <button class="tab active" onclick="switchTab('overview', this)">Overview</button>
             <button class="tab" onclick="switchTab('data', this)">Data</button>
             <button class="tab" onclick="switchTab('category', this)">Category</button>
+            <button class="tab" id="tab-btn-weekly" onclick="switchTab('weekly', this)">주간현황</button>
         </div>
 
         <!-- Overview Tab -->
@@ -275,6 +277,47 @@
                     <canvas id="chart-process"></canvas>
                 </div>
             </div>
+        </div>
+
+        <!-- Weekly Tab (Admin Only) -->
+        <div id="tab-weekly" class="tab-content" style="display:none;">
+            <div class="weekly-header">
+                <h3>위험요소 발굴 및 개선 현황 표</h3>
+                <div class="weekly-controls">
+                    <select id="w-year" onchange="loadWeeklyTab()">
+                        <option value="2026" selected>2026년</option>
+                        <option value="2025">2025년</option>
+                    </select>
+                    <select id="w-quarter" onchange="loadWeeklyTab()">
+                        <option value="1" selected>1분기</option>
+                        <option value="2">2분기</option>
+                        <option value="3">3분기</option>
+                        <option value="4">4분기</option>
+                    </select>
+                    <span class="weekly-sep">|</span>
+                    <label style="font-size:13px;">이번주:</label>
+                    <select id="w-cur-month">
+                        <option value="1">1월</option><option value="2">2월</option><option value="3" selected>3월</option>
+                        <option value="4">4월</option><option value="5">5월</option><option value="6">6월</option>
+                        <option value="7">7월</option><option value="8">8월</option><option value="9">9월</option>
+                        <option value="10">10월</option><option value="11">11월</option><option value="12">12월</option>
+                    </select>
+                    <select id="w-cur-week">
+                        <option value="1">1주</option><option value="2">2주</option><option value="3">3주</option>
+                        <option value="4" selected>4주</option><option value="5">5주</option>
+                    </select>
+                    <button class="btn-weekly-save" onclick="saveWeeklySnapshot()">저장 (확정)</button>
+                </div>
+            </div>
+            <div class="weekly-saved-list">
+                <label>저장 이력:</label>
+                <span id="w-saved-badges"></span>
+            </div>
+            <div id="weekly-compare-select" style="margin-bottom:10px;display:none;">
+                <label style="font-size:13px;">비교 기준:</label>
+                <select id="w-compare" onchange="renderCurrentWeekly()"></select>
+            </div>
+            <div id="weekly-tables" style="overflow-x:auto;"></div>
         </div>
 
         <!-- No Data Message -->

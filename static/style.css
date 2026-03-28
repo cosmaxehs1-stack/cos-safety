@@ -107,6 +107,24 @@ body {
     font-size: 13px;
 }
 .btn-logout:hover { background: #7f8c8d; }
+.btn-admin {
+    padding: 8px 16px; background: #fff; color: #475569;
+    border: 2px solid #cbd5e1; border-radius: 6px; cursor: pointer;
+    font-size: 13px; font-weight: 500;
+}
+.btn-admin:hover { background: #f1f5f9; }
+.btn-admin-active {
+    background: #1e40af !important; color: #fff !important;
+    border-color: #1e40af !important;
+}
+.weekly-update-banner {
+    padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 500;
+    margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
+    background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af;
+}
+.weekly-update-banner .banner-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: #1e40af; flex-shrink: 0;
+}
 
 /* Filters */
 .filter-bar {
@@ -592,6 +610,116 @@ td.red { color: #e74c3c; font-weight: 600; }
     object-fit: contain;
     background: #000;
 }
+
+/* Weekly Tab */
+.weekly-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px; flex-wrap: wrap; gap: 10px;
+}
+.weekly-header h3 { margin: 0; font-size: 18px; }
+.weekly-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.weekly-controls select {
+    padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;
+}
+.btn-weekly-save {
+    padding: 7px 18px; background: #e74c3c; color: white; border: none;
+    border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.btn-weekly-save:hover { background: #c0392b; }
+.btn-weekly-save:disabled { cursor: default; }
+.weekly-saved-list {
+    margin-bottom: 14px; font-size: 13px; color: #666; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.saved-badge {
+    display: inline-block; padding: 3px 10px; background: #eaf4fe; color: #2980b9;
+    border-radius: 12px; font-size: 12px; font-weight: 500; cursor: pointer;
+}
+.saved-badge:hover { background: #d4e9fc; }
+.weekly-status {
+    margin-bottom: 14px; font-size: 14px; padding: 8px 14px; background: #f8f9fa;
+    border-radius: 8px; border-left: 4px solid #3498db;
+}
+/* --- Weekly Table --- */
+.weekly-table-wrap { margin-bottom: 28px; }
+.weekly-site-title {
+    font-size: 15px; font-weight: 700; margin: 0 0 8px 0; color: #1e293b;
+    padding: 6px 0; border-bottom: 3px solid #1e40af;
+}
+.weekly-table {
+    width: 100%; border-collapse: collapse; font-size: 12px; background: #fff;
+    border: 2px solid #64748b;
+}
+
+/* 헤더 */
+.weekly-table th {
+    padding: 6px 8px; text-align: center; font-weight: 700; font-size: 11px;
+    color: #1e293b; border: 1px solid #cbd5e1;
+}
+.weekly-table th.wt-month-group {
+    background: #1e40af; color: #fff; font-size: 12px;
+    border: 1px solid #1e3a8a;
+}
+.weekly-table thead tr:last-child th {
+    background: #e2e8f0; color: #334155;
+}
+
+/* 셀 기본 */
+.weekly-table td {
+    padding: 5px 7px; text-align: center;
+    border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;
+}
+.weekly-table td.ch-name {
+    text-align: left; font-weight: 600; white-space: nowrap;
+    background: #f8fafc; border-right: 2px solid #94a3b8; color: #1e293b;
+}
+.weekly-table td.row-type {
+    font-size: 11px; color: #64748b; white-space: nowrap; width: 36px;
+    background: #f8fafc; border-right: 2px solid #94a3b8; font-weight: 500;
+}
+.weekly-table td.num { font-variant-numeric: tabular-nums; color: #334155; }
+
+/* 소계 컬럼 */
+.weekly-table td.wt-sub {
+    background: #f1f5f9; font-weight: 700; color: #1e293b;
+    border-right: 2px solid #94a3b8;
+}
+.weekly-table th.wt-sub {
+    background: #cbd5e1; color: #1e293b;
+    border-right: 2px solid #94a3b8;
+}
+
+/* 분기 합계 컬럼 */
+.weekly-table td.wt-qtr { background: #fefce8; font-weight: 700; color: #92400e; }
+
+/* 개선률 */
+.weekly-table td.rate {
+    font-weight: 700; color: #1e40af; background: #eff6ff;
+    border-left: 1px solid #cbd5e1;
+}
+
+/* 이번주 하이라이트 */
+.weekly-table .wt-current { background: #dbeafe !important; }
+.weekly-table th.wt-current { background: #60a5fa !important; color: #fff !important; font-weight: 700; }
+
+/* 월 구분선 */
+.weekly-table td.wt-month-start, .weekly-table th.wt-month-start { border-left: 2px solid #94a3b8; }
+
+/* 채널 구분선 */
+.weekly-table tr.wt-ch-first td { border-top: 1px solid #cbd5e1; }
+.weekly-table tr.wt-before-total td { border-bottom: 2px solid #475569; }
+
+/* 합계행 */
+.weekly-total-row td { background: #fef9c3 !important; font-weight: 700; color: #92400e; }
+.weekly-total-row td.ch-name { background: #fde68a !important; color: #78350f; }
+.weekly-total-row td.row-type { background: #fde68a !important; color: #78350f; }
+.weekly-total-row td.rate { background: #fef3c7 !important; color: #1e40af; }
+
+/* 증감 표시 */
+.wt-diff { display: block; font-size: 9px; line-height: 1; margin-top: 2px; font-weight: 700; }
+.weekly-table .diff-up { color: #dc2626; }
+.weekly-table .diff-down { color: #2563eb; }
+
+.weekly-sep { color: #ccc; font-size: 18px; }
 
 /* Channel Select */
 .channel-select {

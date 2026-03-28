@@ -30,8 +30,10 @@ UPLOAD_DIR = os.environ.get("DATA_DIR", "uploads")
 IMAGE_DIR = os.path.join(UPLOAD_DIR, "images")
 DATA_FILE = os.path.join(UPLOAD_DIR, "current_data.json")
 PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "2026")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin2026")
 DATABASE_URL = os.environ.get("DATABASE_URL")
 SESSION_TOKENS: set[str] = set()
+ADMIN_TOKENS: set[str] = set()
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(IMAGE_DIR, exist_ok=True)
@@ -60,6 +62,17 @@ def init_db():
             data JSONB NOT NULL
         )
     """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS weekly_snapshots (
+            id TEXT PRIMARY KEY,
+            year INT NOT NULL,
+            quarter INT NOT NULL,
+            month INT NOT NULL,
+            week INT NOT NULL,
+            saved_at TEXT NOT NULL,
+            data JSONB NOT NULL
+        )
+    """)
     conn.commit()
     cur.close()
     conn.close()
@@ -81,8 +94,25 @@ async def login(request: Request):
     return {"token": "public"}
 
 
+@app.post("/api/admin/login")
+async def admin_login(request: Request):
+    body = await request.json()
+    pw = body.get("password", "")
+    if pw != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="관리자 비밀번호가 올바르지 않습니다.")
+    token = secrets.token_hex(16)
+    ADMIN_TOKENS.add(token)
+    return {"admin_token": token}
+
+
 def verify_token(request: Request):
     pass
+
+
+def verify_admin(request: Request):
+    token = request.headers.get("X-Admin-Token", "")
+    if token not in ADMIN_TOKENS:
+        raise HTTPException(status_code=403, detail="관리자 권한이 필요합니다.")
 
 
 # --- Excel Parsing ---
@@ -1147,6 +1177,275 @@ async def get_summary(
             "weeks": weeks,
         },
     }
+
+
+# --- Weekly Snapshot ---
+CHANNEL_GROUPS = {
+    "안전점검": ["안전점검"],
+    "부서별 위험요소발굴": ["부서별 위험요소발굴"],
+    "근로자 제안": ["근로자 제안"],
+    "5S/EHS평가": ["5S/EHS평가"],
+    "정기위험성평가": ["정기위험성평가(코스맥스)", "정기위험성평가(협력사)"],
+    "수시위험성평가": ["수시위험성평가"],
+}
+CHANNEL_ORDER = ["안전점검", "부서별 위험요소발굴", "근로자 제안", "5S/EHS평가", "정기위험성평가", "수시위험성평가"]
+SITE_GROUPS = {
+    "전체": None,
+    "화성/판교": ["화성", "판교"],
+    "평택/고렴": ["평택", "고렴"],
+}
+QUARTER_MONTHS = {1: [1, 2, 3], 2: [4, 5, 6], 3: [7, 8, 9], 4: [10, 11, 12]}
+
+
+def calc_week_from_date(date_str: str) -> int:
+    """날짜 문자열에서 해당 월의 주차를 계산 (1일이 포함된 주 = 1주차)"""
+    try:
+        d = datetime.strptime(date_str, "%Y-%m-%d")
+        day = d.day
+        # 1주차: 1~7, 2주차: 8~14, 3주차: 15~21, 4주차: 22~28, 5주차: 29~
+        return min((day - 1) // 7 + 1, 5)
+    except (ValueError, TypeError):
+        return 0
+
+
+def get_effective_week(r: dict) -> int:
+    """레코드의 주차를 반환. week=0이면 날짜 기반으로 자동 계산"""
+    w = r.get("week", 0)
+    if w and w > 0:
+        return w
+    date_str = r.get("date", "")
+    if date_str:
+        return calc_week_from_date(date_str)
+    return 0
+
+
+def compute_quarter_stats(records: list, year: str, quarter: int) -> dict:
+    """분기 전체 채널별/사업장별/주차별 발굴·개선 집계 (발굴 주차 기준)"""
+    months = QUARTER_MONTHS[quarter]
+
+    # Filter records for this year & quarter months
+    filtered = []
+    for r in records:
+        d = r.get("date", "") or ""
+        if d[:4] != year:
+            continue
+        m_str = r.get("month", "")
+        try:
+            m_num = int(m_str.replace("월", ""))
+        except (ValueError, AttributeError):
+            continue
+        if m_num in months:
+            filtered.append(r)
+
+    # Compute previous year totals
+    prev_year = str(int(year) - 1)
+    prev_records = [r for r in records if (r.get("date", "") or "")[:4] == prev_year]
+
+    result = {}
+    for site_name, majors in SITE_GROUPS.items():
+        site_recs = filtered
+        site_prev = prev_records
+        if majors:
+            site_recs = [r for r in filtered if r.get("location_major", "") in majors]
+            site_prev = [r for r in prev_records if r.get("location_major", "") in majors]
+
+        site_data = {}
+        for ch_name in CHANNEL_ORDER:
+            ch_keys = CHANNEL_GROUPS[ch_name]
+            ch_recs = [r for r in site_recs if r.get("channel", "") in ch_keys]
+            ch_prev = [r for r in site_prev if r.get("channel", "") in ch_keys]
+
+            # Previous year totals
+            prev_discovered = len(ch_prev)
+            prev_improved = sum(1 for r in ch_prev if r.get("completion") == "완료")
+            prev_rate = round(prev_improved / prev_discovered, 4) if prev_discovered > 0 else 0
+
+            # Per month/week breakdown
+            weeks_data = {}
+            for m in months:
+                m_key = f"{m}월"
+                for w in range(1, 6):
+                    w_recs = [r for r in ch_recs if r.get("month") == m_key and get_effective_week(r) == w]
+                    if not w_recs and w == 5:
+                        continue  # skip 5th week if no data
+                    key = f"{m}-{w}"
+                    weeks_data[key] = {
+                        "discovered": len(w_recs),
+                        "d_discovered": sum(1 for r in w_recs if r.get("grade_before") == "D"),
+                        "improved": sum(1 for r in w_recs if r.get("completion") == "완료"),
+                        "d_improved": sum(1 for r in w_recs if r.get("grade_before") == "D" and r.get("completion") == "완료"),
+                    }
+
+            # Monthly subtotals
+            month_subs = {}
+            for m in months:
+                m_recs = [r for r in ch_recs if r.get("month") == f"{m}월"]
+                month_subs[str(m)] = {
+                    "discovered": len(m_recs),
+                    "d_discovered": sum(1 for r in m_recs if r.get("grade_before") == "D"),
+                    "improved": sum(1 for r in m_recs if r.get("completion") == "완료"),
+                    "d_improved": sum(1 for r in m_recs if r.get("grade_before") == "D" and r.get("completion") == "완료"),
+                }
+
+            # Quarter total
+            q_discovered = len(ch_recs)
+            q_improved = sum(1 for r in ch_recs if r.get("completion") == "완료")
+            q_d_disc = sum(1 for r in ch_recs if r.get("grade_before") == "D")
+            q_d_imp = sum(1 for r in ch_recs if r.get("grade_before") == "D" and r.get("completion") == "완료")
+            q_rate = round(q_improved / q_discovered, 4) if q_discovered > 0 else 0
+
+            site_data[ch_name] = {
+                "prev_discovered": prev_discovered,
+                "prev_improved": prev_improved,
+                "prev_rate": prev_rate,
+                "weeks": weeks_data,
+                "month_subs": month_subs,
+                "quarter_discovered": q_discovered,
+                "quarter_improved": q_improved,
+                "quarter_d_discovered": q_d_disc,
+                "quarter_d_improved": q_d_imp,
+                "quarter_rate": q_rate,
+            }
+
+        # 합계
+        total = {"prev_discovered": 0, "prev_improved": 0, "weeks": {}, "month_subs": {}, "quarter_discovered": 0, "quarter_improved": 0, "quarter_d_discovered": 0, "quarter_d_improved": 0}
+        for ch in CHANNEL_ORDER:
+            d = site_data[ch]
+            total["prev_discovered"] += d["prev_discovered"]
+            total["prev_improved"] += d["prev_improved"]
+            total["quarter_discovered"] += d["quarter_discovered"]
+            total["quarter_improved"] += d["quarter_improved"]
+            total["quarter_d_discovered"] += d["quarter_d_discovered"]
+            total["quarter_d_improved"] += d["quarter_d_improved"]
+            for wk, wv in d["weeks"].items():
+                if wk not in total["weeks"]:
+                    total["weeks"][wk] = {"discovered": 0, "d_discovered": 0, "improved": 0, "d_improved": 0}
+                for k2 in ("discovered", "d_discovered", "improved", "d_improved"):
+                    total["weeks"][wk][k2] += wv[k2]
+            for mk, mv in d["month_subs"].items():
+                if mk not in total["month_subs"]:
+                    total["month_subs"][mk] = {"discovered": 0, "d_discovered": 0, "improved": 0, "d_improved": 0}
+                for k2 in ("discovered", "d_discovered", "improved", "d_improved"):
+                    total["month_subs"][mk][k2] += mv[k2]
+        total["prev_rate"] = round(total["prev_improved"] / total["prev_discovered"], 4) if total["prev_discovered"] > 0 else 0
+        total["quarter_rate"] = round(total["quarter_improved"] / total["quarter_discovered"], 4) if total["quarter_discovered"] > 0 else 0
+        site_data["합계"] = total
+
+        result[site_name] = site_data
+
+    return {
+        "year": year,
+        "quarter": quarter,
+        "months": months,
+        "channel_order": CHANNEL_ORDER,
+        "sites": result,
+    }
+
+
+@app.get("/api/weekly/quarter")
+async def weekly_quarter(request: Request, year: str = "2026", quarter: int = 1):
+    """분기 전체 실시간 집계"""
+    verify_token(request)
+    records = load_data()
+    stats = compute_quarter_stats(records, year, quarter)
+    return stats
+
+
+@app.post("/api/weekly/save")
+async def weekly_save(request: Request):
+    """관리자가 저장 - 분기 스냅샷 확정"""
+    verify_admin(request)
+    body = await request.json()
+    year = int(body.get("year", 2026))
+    quarter = int(body.get("quarter", 1))
+    current_month = int(body.get("current_month", 1))
+    current_week = int(body.get("current_week", 1))
+
+    snapshot_id = f"{year}-Q{quarter}-{current_month}월{current_week}주"
+
+    if DATABASE_URL:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM weekly_snapshots WHERE id = %s", (snapshot_id,))
+        if cur.fetchone():
+            cur.close()
+            conn.close()
+            raise HTTPException(status_code=409, detail=f"{snapshot_id}는 이미 저장되었습니다.")
+        cur.close()
+        conn.close()
+
+    records = load_data()
+    stats = compute_quarter_stats(records, str(year), quarter)
+    stats["current_month"] = current_month
+    stats["current_week"] = current_week
+
+    if DATABASE_URL:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO weekly_snapshots (id, year, quarter, month, week, saved_at, data) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            (snapshot_id, year, quarter, current_month, current_week,
+             datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+             json.dumps(stats, ensure_ascii=False))
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+
+    return {"message": f"{snapshot_id} 저장 완료", "id": snapshot_id}
+
+
+@app.get("/api/weekly/list")
+async def weekly_list(request: Request, year: int = 2026, quarter: int = 0):
+    """저장된 스냅샷 목록 조회"""
+    verify_token(request)
+    if not DATABASE_URL:
+        return {"snapshots": []}
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    if quarter > 0:
+        cur.execute("SELECT id, year, quarter, month, week, saved_at FROM weekly_snapshots WHERE year = %s AND quarter = %s ORDER BY month, week", (year, quarter))
+    else:
+        cur.execute("SELECT id, year, quarter, month, week, saved_at FROM weekly_snapshots WHERE year = %s ORDER BY quarter, month, week", (year,))
+    rows = [dict(r) for r in cur.fetchall()]
+    cur.close()
+    conn.close()
+    return {"snapshots": rows}
+
+
+@app.get("/api/weekly/get")
+async def weekly_get(request: Request, id: str = ""):
+    """저장된 스냅샷 조회"""
+    verify_token(request)
+    if not DATABASE_URL or not id:
+        return {"snapshot": None}
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute("SELECT * FROM weekly_snapshots WHERE id = %s", (id,))
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="스냅샷을 찾을 수 없습니다.")
+    row = dict(row)
+    if isinstance(row["data"], str):
+        row["data"] = json.loads(row["data"])
+    return {"snapshot": row}
+
+
+@app.delete("/api/weekly/delete")
+async def weekly_delete(request: Request, id: str = ""):
+    """관리자가 저장된 스냅샷 삭제"""
+    verify_admin(request)
+    if not DATABASE_URL or not id:
+        raise HTTPException(status_code=400, detail="ID가 필요합니다.")
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM weekly_snapshots WHERE id = %s", (id,))
+    conn.commit()
+    cur.close()
+    conn.close()
+    return {"message": f"{id} 삭제 완료"}
 
 
 @app.get("/api/health")
