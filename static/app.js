@@ -202,9 +202,9 @@ function updateStats(data) {
 
 // --- Charts ---
 const GRADE_COLORS = {
-    A: "#27ae60",
-    B: "#3498db",
-    C: "#f39c12",
+    A: "rgba(39, 174, 96, 0.5)",
+    B: "rgba(52, 152, 219, 0.5)",
+    C: "rgba(243, 156, 18, 0.5)",
     D: "#e74c3c",
     "-": "#bdc3c7",
 };
@@ -238,7 +238,7 @@ function toggleLocationView() {
 function renderLocationChart(data) {
     destroyChart("chart-location");
 
-    const MAJOR_ORDER = ["화성", "평택", "고렴", "판교", "기타"];
+    const MAJOR_ORDER = ["화성", "평택", "고렴", "판교"];
     const hierarchy = data.location_hierarchy || {};
     const subStats = data.location_stats || {};
     const subDisaster = data.location_disaster_stats || {};
@@ -1007,9 +1007,16 @@ function showImageModal(src) {
         modal = document.createElement("div");
         modal.id = "image-viewer-modal";
         modal.className = "modal-overlay";
-        modal.style.cursor = "pointer";
-        modal.onclick = function() { modal.style.display = "none"; };
-        modal.innerHTML = '<img id="image-viewer-img" class="image-viewer-img" src="">';
+        modal.style.cssText = "cursor:pointer;background:rgba(0,0,0,0.85);";
+        modal.onclick = function(e) {
+            if (e.target === modal) modal.style.display = "none";
+        };
+        modal.innerHTML = '<div style="position:relative;display:flex;align-items:center;justify-content:center;">' +
+            '<img id="image-viewer-img" class="image-viewer-img" src="">' +
+            '<button onclick="document.getElementById(\'image-viewer-modal\').style.display=\'none\'" ' +
+            'style="position:absolute;top:-16px;right:-16px;width:36px;height:36px;border-radius:50%;border:none;' +
+            'background:rgba(255,255,255,0.9);color:#333;font-size:20px;cursor:pointer;display:flex;align-items:center;' +
+            'justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);">&times;</button></div>';
         document.body.appendChild(modal);
     }
     document.getElementById("image-viewer-img").src = src;

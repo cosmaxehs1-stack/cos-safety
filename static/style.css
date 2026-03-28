@@ -585,10 +585,12 @@ td.red { color: #e74c3c; font-weight: 600; }
 /* Image Viewer */
 .image-viewer-img {
     max-width: 92vw;
-    max-height: 90vh;
-    border-radius: 8px;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-    image-rendering: auto;
+    max-height: 88vh;
+    border-radius: 10px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    image-rendering: high-quality;
+    object-fit: contain;
+    background: #000;
 }
 
 /* Channel Select */

@@ -116,23 +116,29 @@ def parse_number(val) -> int:
 def extract_location_group(location: str) -> str:
     """소분류 장소 그룹을 반환"""
     if not location:
-        return "기타"
+        return "기타(전공장)"
     loc = location.strip()
     if "화성" in loc:
         for i in [1, 2, 3, 5]:
             if f"{i}공장" in loc or f"{i} 공장" in loc:
                 return f"화성{i}공장"
-        return "기타"
+        return "기타(전공장)"
     if "평택" in loc:
         for i in [1, 2]:
             if f"{i}공장" in loc or f"{i} 공장" in loc:
                 return f"평택{i}공장"
-        return "기타"
+        return "기타(전공장)"
     if "고렴" in loc:
         return "고렴창고"
     if "판교" in loc:
         return "판교연구소"
-    return "기타"
+    if "석정리" in loc:
+        return "석정리창고"
+    if "전 공장" in loc or "전공장" in loc:
+        return "기타(전공장)"
+    if "복지관" in loc:
+        return "기타(복지관)"
+    return "기타(전공장)"
 
 
 def extract_team(location_group: str) -> str:
@@ -152,7 +158,9 @@ def extract_location_major(location_group: str) -> str:
         return "고렴"
     if location_group.startswith("판교"):
         return "판교"
-    return "기타"
+    if location_group.startswith("석정리"):
+        return "석정리"
+    return "기타(전공장)"
 
 
 
@@ -981,7 +989,7 @@ async def get_summary(
         location_disaster_stats[lg][dt] = location_disaster_stats[lg].get(dt, 0) + 1
 
     # By location major (대분류)
-    MAJOR_ORDER = ["화성", "평택", "고렴", "판교", "기타"]
+    MAJOR_ORDER = ["화성", "평택", "고렴", "판교"]
     location_major_stats: dict[str, dict[str, int]] = {}
     location_major_disaster_stats: dict[str, dict[str, int]] = {}
     location_hierarchy: dict[str, list[str]] = {m: [] for m in MAJOR_ORDER}
