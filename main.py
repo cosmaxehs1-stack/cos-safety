@@ -63,6 +63,14 @@ def init_db():
         )
     """)
     cur.execute("""
+        CREATE TABLE IF NOT EXISTS excel_files (
+            channel TEXT PRIMARY KEY,
+            filename TEXT NOT NULL,
+            data BYTEA NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+    """)
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS weekly_snapshots (
             id TEXT PRIMARY KEY,
             year INT NOT NULL,
@@ -477,9 +485,17 @@ async def upload_excel(request: Request, file: UploadFile = File(...), channel: 
     except Exception as e:
         print(f"[upload] 엑셀 파싱 오류: {e}")
         import traceback; traceback.print_exc()
+        if os.path.exists(file_path):
+            os.remove(file_path)
         raise HTTPException(status_code=400, detail=f"엑셀 파싱 오류: {str(e)}")
+
+    # 엑셀 원본 파일 보관 (채널별)
+    try:
+        save_excel_file(channel, file_path, file.filename)
+        print(f"[upload] 엑셀 파일 보관 완료: {channel}")
+    except Exception as e:
+        print(f"[upload] 엑셀 파일 보관 오류: {e}")
     finally:
-        # 파싱 후 엑셀 임시 파일 삭제
         if os.path.exists(file_path):
             os.remove(file_path)
 
@@ -648,6 +664,12 @@ async def add_record(request: Request):
     existing.append(record)
     save_data(existing)
 
+    # 엑셀 동기화
+    try:
+        sync_record_to_excel(channel, record, action="upsert")
+    except Exception as e:
+        print(f"[excel-sync] 추가 동기화 오류: {e}")
+
     return {"message": f"위험요소 1건 추가 완료 (No.{record['no']})", "record": record}
 
 
@@ -705,6 +727,13 @@ async def update_record(request: Request):
         target["grade_after"] = "A" if risk <= 4 else "B" if risk <= 8 else "C" if risk <= 12 else "D" if risk > 0 else "-"
 
     save_data(data)
+
+    # 엑셀 동기화
+    try:
+        sync_record_to_excel(target.get("channel", ""), target, action="upsert")
+    except Exception as e:
+        print(f"[excel-sync] 수정 동기화 오류: {e}")
+
     return {"message": "수정 완료", "record": target}
 
 
@@ -717,12 +746,24 @@ async def delete_record(request: Request):
         raise HTTPException(status_code=400, detail="_id가 필요합니다.")
 
     data = load_data()
-    before = len(data)
-    data = [r for r in data if r.get("_id") != record_id]
-    if len(data) == before:
+    # 삭제 전 레코드 보관 (엑셀 동기화용)
+    deleted_record = None
+    for r in data:
+        if r.get("_id") == record_id:
+            deleted_record = r
+            break
+    if not deleted_record:
         raise HTTPException(status_code=404, detail="레코드를 찾을 수 없습니다.")
 
+    data = [r for r in data if r.get("_id") != record_id]
     save_data(data)
+
+    # 엑셀 동기화
+    try:
+        sync_record_to_excel(deleted_record.get("channel", ""), deleted_record, action="delete")
+    except Exception as e:
+        print(f"[excel-sync] 삭제 동기화 오류: {e}")
+
     return {"message": "삭제 완료"}
 
 
@@ -804,6 +845,197 @@ def save_data(data: list[dict]):
     conn.commit()
     cur.close()
     conn.close()
+
+
+# --- Excel File Storage ---
+def save_excel_file(channel: str, file_path: str, filename: str):
+    """엑셀 파일을 DB 또는 파일시스템에 보관"""
+    with open(file_path, "rb") as f:
+        data = f.read()
+    if DATABASE_URL:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO excel_files (channel, filename, data, updated_at) VALUES (%s, %s, %s, %s) "
+            "ON CONFLICT (channel) DO UPDATE SET filename = %s, data = %s, updated_at = %s",
+            (channel, filename, data, datetime.now().isoformat(),
+             filename, data, datetime.now().isoformat())
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+    else:
+        safe_name = channel.replace("/", "_").replace(" ", "_")
+        dest = os.path.join(UPLOAD_DIR, f"excel_{safe_name}.xlsm")
+        with open(dest, "wb") as f:
+            f.write(data)
+
+
+def load_excel_file(channel: str) -> Optional[bytes]:
+    """보관된 엑셀 파일 바이너리 반환"""
+    if DATABASE_URL:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT data, filename FROM excel_files WHERE channel = %s", (channel,))
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        if row:
+            return row[0]
+        return None
+    else:
+        safe_name = channel.replace("/", "_").replace(" ", "_")
+        path = os.path.join(UPLOAD_DIR, f"excel_{safe_name}.xlsm")
+        if os.path.exists(path):
+            with open(path, "rb") as f:
+                return f.read()
+        return None
+
+
+def load_excel_filename(channel: str) -> Optional[str]:
+    """보관된 엑셀 파일명 반환"""
+    if DATABASE_URL:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT filename FROM excel_files WHERE channel = %s", (channel,))
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        return row[0] if row else None
+    return None
+
+
+def save_excel_bytes(channel: str, data: bytes, filename: str = "updated.xlsm"):
+    """수정된 엑셀 바이너리를 저장"""
+    if DATABASE_URL:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO excel_files (channel, filename, data, updated_at) VALUES (%s, %s, %s, %s) "
+            "ON CONFLICT (channel) DO UPDATE SET data = %s, updated_at = %s",
+            (channel, filename, data, datetime.now().isoformat(),
+             data, datetime.now().isoformat())
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+    else:
+        safe_name = channel.replace("/", "_").replace(" ", "_")
+        dest = os.path.join(UPLOAD_DIR, f"excel_{safe_name}.xlsm")
+        with open(dest, "wb") as f:
+            f.write(data)
+
+
+# --- Excel Write-Back ---
+# 엑셀 컬럼 매핑 (0-based index → record field)
+EXCEL_COL_MAP = {
+    0: "no", 1: "department", 2: "person", 3: "date", 4: "location",
+    5: "content_full", 6: "process", 7: "disaster_type",
+    8: "likelihood_before", 9: "severity_before", 10: "risk_before", 11: "grade_before",
+    12: "improvement_needed", 14: "improvement_plan", 15: "improve_dept",
+    16: "planned_date", 17: "actual_date",
+    18: "likelihood_after", 19: "severity_after", 20: "risk_after", 21: "grade_after",
+    23: "completion", 24: "note", 25: "tracking_manager", 26: "week",
+}
+
+# 역매핑: field → col index
+FIELD_TO_COL = {v: k for k, v in EXCEL_COL_MAP.items()}
+
+
+def _update_excel_row(ws, row_num: int, record: dict):
+    """엑셀 워크시트의 특정 행을 record 데이터로 업데이트"""
+    for col_idx, field in EXCEL_COL_MAP.items():
+        val = record.get(field, "")
+        if val is None:
+            val = ""
+        ws.cell(row=row_num, column=col_idx + 1, value=val)
+
+
+def _find_excel_row_by_no(ws, no_val: int, min_row: int = 7) -> Optional[int]:
+    """엑셀에서 No 값으로 행 번호를 찾음"""
+    for row_num in range(min_row, ws.max_row + 1):
+        cell_val = ws.cell(row=row_num, column=1).value
+        if cell_val is not None:
+            try:
+                if int(cell_val) == no_val:
+                    return row_num
+            except (ValueError, TypeError):
+                continue
+    return None
+
+
+def _get_next_empty_row(ws, min_row: int = 7) -> int:
+    """데이터가 있는 마지막 행 다음 행 번호 반환"""
+    last_row = min_row
+    for row_num in range(min_row, ws.max_row + 1):
+        cell_val = ws.cell(row=row_num, column=1).value
+        if cell_val is not None:
+            try:
+                int(cell_val)
+                last_row = row_num + 1
+            except (ValueError, TypeError):
+                continue
+    return last_row
+
+
+def sync_record_to_excel(channel: str, record: dict, action: str = "upsert"):
+    """
+    보관된 엑셀 파일에 레코드를 동기화.
+    action: "upsert" (추가/수정), "delete" (삭제)
+    """
+    import io
+    excel_data = load_excel_file(channel)
+    if not excel_data:
+        return  # 보관된 엑셀 없으면 skip
+
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(excel_data))
+    except Exception as e:
+        print(f"[excel-sync] 엑셀 열기 오류: {e}")
+        return
+
+    # 월 기반으로 시트 찾기, 없으면 첫 번째 시트
+    month = record.get("month", "")
+    target_ws = None
+    for sname in wb.sheetnames:
+        if sname == month or month in sname:
+            target_ws = wb[sname]
+            break
+    if not target_ws:
+        # 미완료 시트 제외, 첫 번째 시트 사용
+        for sname in wb.sheetnames:
+            if sname != "미완료":
+                target_ws = wb[sname]
+                break
+    if not target_ws:
+        wb.close()
+        return
+
+    no_val = record.get("no")
+    if no_val is None:
+        wb.close()
+        return
+
+    if action == "delete":
+        row_num = _find_excel_row_by_no(target_ws, int(no_val))
+        if row_num:
+            # 행의 모든 셀을 비움
+            for col in range(1, 28):
+                target_ws.cell(row=row_num, column=col, value=None)
+    else:  # upsert
+        row_num = _find_excel_row_by_no(target_ws, int(no_val))
+        if row_num:
+            _update_excel_row(target_ws, row_num, record)
+        else:
+            new_row = _get_next_empty_row(target_ws)
+            _update_excel_row(target_ws, new_row, record)
+
+    # 저장
+    buf = io.BytesIO()
+    wb.save(buf)
+    wb.close()
+    filename = load_excel_filename(channel) or "updated.xlsm"
+    save_excel_bytes(channel, buf.getvalue(), filename)
 
 
 @app.get("/api/data")
@@ -1467,6 +1699,39 @@ async def health_check():
         except Exception as e:
             result["error"] = str(e)
     return result
+
+
+# --- Excel Download ---
+@app.get("/api/download-excel")
+async def download_excel(request: Request, channel: str = "안전점검"):
+    verify_token(request)
+    import io
+    excel_data = load_excel_file(channel)
+    if not excel_data:
+        raise HTTPException(status_code=404, detail=f"[{channel}] 보관된 엑셀 파일이 없습니다.")
+
+    filename = load_excel_filename(channel) or f"{channel}.xlsm"
+    return Response(
+        content=excel_data,
+        media_type="application/vnd.ms-excel.sheet.macroEnabled.12",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+
+@app.get("/api/excel-channels")
+async def excel_channels(request: Request):
+    """보관된 엑셀이 있는 채널 목록"""
+    verify_token(request)
+    channels_with_excel = []
+    if DATABASE_URL:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT channel, filename, updated_at FROM excel_files ORDER BY channel")
+        for row in cur.fetchall():
+            channels_with_excel.append({"channel": row[0], "filename": row[1], "updated_at": row[2]})
+        cur.close()
+        conn.close()
+    return {"channels": channels_with_excel}
 
 
 # --- Static Files ---

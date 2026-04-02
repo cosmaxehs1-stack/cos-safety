@@ -44,6 +44,7 @@
                 </select>
                 <button class="btn-upload" onclick="document.getElementById('file-input').click()">업로드</button>
                 <input type="file" id="file-input" accept=".xlsx,.xlsm" style="display:none" onchange="uploadFile(this)">
+                <button class="btn-download" onclick="downloadExcel()" title="엑셀 다운로드">⬇ 엑셀</button>
                 <button class="btn-direct-input" onclick="showAddRecordModal()">직접입력</button>
                 <button class="btn-manage" onclick="showManageModal()">관리</button>
                 <button class="btn-admin" id="btn-admin" onclick="toggleAdmin()">관리자</button>
@@ -167,6 +168,11 @@
                                 <div class="grade-detail-item red"><div class="grade-detail-label">D</div><div class="grade-detail-val" id="s-d-after">0</div></div>
                             </div>
                         </div>
+                    </div>
+                    <div style="display:flex;gap:12px;justify-content:center;padding:4px 8px;margin-top:2px;font-size:11px;color:#9ca3af;">
+                        <span><b style="color:#22c55e;">A</b>·<b style="color:#3b82f6;">B</b> 필요 시 개선·추적</span>
+                        <span><b style="color:#f59e0b;">C</b> 추적관리</span>
+                        <span><b style="color:#ef4444;">D</b> 신속개선</span>
                     </div>
                 </div>
                 <div class="stat-group">

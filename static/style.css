@@ -97,6 +97,17 @@ body {
     font-weight: 600;
 }
 .btn-upload:hover { background: #1e8449; }
+.btn-download {
+    padding: 8px 16px;
+    background: #2980b9;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    white-space: nowrap;
+}
+.btn-download:hover { background: #1f6fa3; }
 .btn-logout {
     padding: 8px 16px;
     background: #95a5a6;
@@ -772,6 +783,7 @@ td.red { color: #e74c3c; font-weight: 600; }
     }
     .header-right .btn-pdf,
     .header-right .btn-upload,
+    .header-right .btn-download,
     .header-right .btn-direct-input,
     .header-right .btn-logout {
         padding: 6px 10px;
@@ -829,6 +841,7 @@ td.red { color: #e74c3c; font-weight: 600; }
     .tabs { display: none !important; }
     .header-right .btn-pdf,
     .header-right .btn-upload,
+    .header-right .btn-download,
     .header-right .btn-direct-input,
     .header-right .btn-logout,
     .header-right #file-input { display: none !important; }
