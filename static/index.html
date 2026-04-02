@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>COS-Safety Dashboard</title>
-    <link rel="stylesheet" href="/static/style.css?v=8">
+    <link rel="stylesheet" href="/static/style.css?v=20">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -21,441 +21,498 @@
         </div>
     </div>
 
-    <!-- Dashboard -->
-    <div id="dashboard" class="dashboard" style="display:none;">
-        <!-- Header -->
-        <header class="header">
-            <div class="header-left">
+    <!-- Dashboard Layout -->
+    <div id="dashboard" class="dashboard-layout" style="display:none;">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
                 <h1>COSMAX</h1>
-                <span class="header-divider">|</span>
-                <span class="header-subtitle">COS-Safety Dashboard</span>
+                <span class="sidebar-subtitle">COS-Safety</span>
             </div>
-            <div class="header-right">
-                <span id="total-badge" class="total-badge">0 cases</span>
-                <button class="btn-pdf" onclick="printReport()">리포트 출력</button>
-                <select id="upload-channel" class="channel-select">
-                    <option value="정기위험성평가(코스맥스)">정기위험성평가(코스맥스)</option>
-                    <option value="정기위험성평가(협력사)">정기위험성평가(협력사)</option>
-                    <option value="수시위험성평가">수시위험성평가</option>
-                    <option value="안전점검" selected>안전점검</option>
-                    <option value="부서별 위험요소발굴">부서별 위험요소발굴</option>
-                    <option value="근로자 제안">근로자 제안</option>
-                    <option value="5S/EHS평가">5S/EHS평가</option>
-                </select>
-                <button class="btn-upload" onclick="document.getElementById('file-input').click()">업로드</button>
-                <input type="file" id="file-input" accept=".xlsx,.xlsm" style="display:none" onchange="uploadFile(this)">
-                <button class="btn-download" onclick="downloadExcel()" title="엑셀 다운로드">⬇ 엑셀</button>
-                <button class="btn-direct-input" onclick="showAddRecordModal()">직접입력</button>
-                <button class="btn-manage" onclick="showManageModal()">관리</button>
-                <button class="btn-admin" id="btn-admin" onclick="toggleAdmin()">관리자</button>
-                <button class="btn-logout" onclick="logout()">로그아웃</button>
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" data-page="summary" onclick="switchPage('summary',this);return false;">
+                    <span class="nav-icon">&#9632;</span>
+                    <span class="nav-text">현황 요약</span>
+                </a>
+                <a href="#" class="nav-item" data-page="register" onclick="switchPage('register',this);return false;">
+                    <span class="nav-icon">&#9998;</span>
+                    <span class="nav-text">위험요소 등록</span>
+                </a>
+                <a href="#" class="nav-item" data-page="analysis" onclick="switchPage('analysis',this);return false;">
+                    <span class="nav-icon">&#9776;</span>
+                    <span class="nav-text">위험요소 분석</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <button id="btn-admin" class="btn-admin-sidebar" onclick="toggleAdmin()">관리자</button>
+                <button class="btn-logout-sidebar" onclick="logout()">로그아웃</button>
             </div>
-        </header>
+        </aside>
 
-        <!-- Filters -->
-        <div class="filter-bar">
-            <div class="filter-item">
-                <label>팀</label>
-                <select id="f-team" onchange="fetchSummary()">
-                    <option value="전체">전체</option>
-                    <option value="환경안전1팀">환경안전1팀</option>
-                    <option value="환경안전2팀">환경안전2팀</option>
-                </select>
-            </div>
-            <div class="filter-item">
-                <label>채널</label>
-                <select id="f-channel" onchange="fetchSummary()"><option value="전체">전체</option></select>
-            </div>
-            <div class="filter-item">
-                <label>년도</label>
-                <select id="f-year" onchange="fetchSummary()"><option value="전체">전체</option><option value="2026" selected>2026</option></select>
-            </div>
-            <div class="filter-item">
-                <label>월</label>
-                <select id="f-month" onchange="fetchSummary()"><option value="전체">전체</option></select>
-            </div>
-            <div class="filter-item">
-                <label>장소</label>
-                <select id="f-location" onchange="fetchSummary()"><option value="전체">전체</option></select>
-            </div>
-            <div class="filter-item">
-                <label>등급</label>
-                <select id="f-grade" onchange="fetchSummary()">
-                    <option value="전체">전체</option>
-                    <option value="A">A등급</option>
-                    <option value="B">B등급</option>
-                    <option value="C">C등급</option>
-                    <option value="D">D등급</option>
-                </select>
-            </div>
-            <div class="filter-item">
-                <label>재해유형</label>
-                <select id="f-disaster" onchange="fetchSummary()"><option value="전체">전체</option></select>
-            </div>
-            <div class="filter-item">
-                <label>공정</label>
-                <select id="f-process" onchange="fetchSummary()"><option value="전체">전체</option></select>
-            </div>
-            <div class="filter-item">
-                <label>완료여부</label>
-                <select id="f-completion" onchange="fetchSummary()">
-                    <option value="전체">전체</option>
-                    <option value="완료">완료</option>
-                    <option value="미완료">미완료</option>
-                </select>
-            </div>
-            <div class="filter-item">
-                <label>반복여부</label>
-                <select id="f-repeat" onchange="fetchSummary()">
-                    <option value="전체">전체</option>
-                    <option value="반복">반복</option>
-                    <option value="단건">단건</option>
-                </select>
-            </div>
-            <div class="filter-item">
-                <label>키워드</label>
-                <input type="text" id="f-keyword" placeholder="검색..." onkeydown="if(event.key==='Enter') fetchSummary()">
-            </div>
-            <button class="btn-search" onclick="fetchSummary()">검색</button>
-            <button class="btn-reset" onclick="resetFilters()">초기화</button>
+        <!-- Mobile Header -->
+        <div class="mobile-header" id="mobile-header">
+            <button class="hamburger" onclick="toggleSidebar()">&#9776;</button>
+            <span>COS-Safety</span>
         </div>
 
-        <!-- Tabs -->
-        <div class="tabs">
-            <button class="tab active" onclick="switchTab('overview', this)">Overview</button>
-            <button class="tab" onclick="switchTab('data', this)">Data</button>
-            <button class="tab" onclick="switchTab('category', this)">Category</button>
-            <button class="tab" id="tab-btn-weekly" onclick="switchTab('weekly', this)">주간현황</button>
-        </div>
+        <!-- Main Content -->
+        <main class="main-content" id="main-content">
 
-        <!-- Overview Tab -->
-        <div id="tab-overview" class="tab-content">
-            <!-- Stats Cards -->
-            <div class="stats-groups">
-                <div class="stat-group">
-                    <div class="stat-group-title">등급 현황</div>
-                    <div class="stat-group-cards" style="align-items:center;">
-                        <div class="stat-card" style="padding:8px 4px;">
-                            <div class="stat-label">TOTAL</div>
-                            <div class="stat-value" id="s-total">0</div>
-                        </div>
-                        <div class="stat-card" style="padding:8px 4px;">
-                            <div class="stat-label" style="margin-bottom:4px;">개선 전</div>
-                            <canvas id="chart-grade-before" style="width:120px;height:120px;margin:0 auto;"></canvas>
-                        </div>
-                        <div style="font-size:28px;color:#9ca3af;padding:0 4px;align-self:center;">→</div>
-                        <div class="stat-card" style="padding:8px 4px;">
-                            <div class="stat-label" style="margin-bottom:4px;">현황</div>
-                            <canvas id="chart-grade-after" style="width:120px;height:120px;margin:0 auto;"></canvas>
-                        </div>
-                    </div>
-                    <div class="stat-group-cards grade-detail-row" style="align-items:center;padding-top:6px;border-top:1px solid #f0f0f0;margin-top:4px;">
-                        <div class="stat-card" style="padding:0;"></div>
-                        <div class="stat-card" style="padding:2px 4px;">
-                            <div class="grade-detail-cols">
-                                <div class="grade-detail-item green"><div class="grade-detail-label">A</div><div class="grade-detail-val" id="s-a">0</div></div>
-                                <div class="grade-detail-item blue"><div class="grade-detail-label">B</div><div class="grade-detail-val" id="s-b">0</div></div>
-                                <div class="grade-detail-item orange"><div class="grade-detail-label">C</div><div class="grade-detail-val" id="s-c">0</div></div>
-                                <div class="grade-detail-item red"><div class="grade-detail-label">D</div><div class="grade-detail-val" id="s-d">0</div></div>
-                            </div>
-                        </div>
-                        <div style="font-size:18px;color:#9ca3af;padding:0 4px;">→</div>
-                        <div class="stat-card" style="padding:2px 4px;">
-                            <div class="grade-detail-cols">
-                                <div class="grade-detail-item green"><div class="grade-detail-label">A</div><div class="grade-detail-val" id="s-a-after">0</div></div>
-                                <div class="grade-detail-item blue"><div class="grade-detail-label">B</div><div class="grade-detail-val" id="s-b-after">0</div></div>
-                                <div class="grade-detail-item orange"><div class="grade-detail-label">C</div><div class="grade-detail-val" id="s-c-after">0</div></div>
-                                <div class="grade-detail-item red"><div class="grade-detail-label">D</div><div class="grade-detail-val" id="s-d-after">0</div></div>
-                            </div>
-                        </div>
-                    </div>
-                    <div style="display:flex;gap:12px;justify-content:center;padding:4px 8px;margin-top:2px;font-size:11px;color:#9ca3af;">
-                        <span><b style="color:#22c55e;">A</b>·<b style="color:#3b82f6;">B</b> 필요 시 개선·추적</span>
-                        <span><b style="color:#f59e0b;">C</b> 추적관리</span>
-                        <span><b style="color:#ef4444;">D</b> 신속개선</span>
-                    </div>
-                </div>
-                <div class="stat-group">
-                    <div class="stat-group-title">개선 현황</div>
-                    <div class="stat-group-cards" style="align-items:center;">
-                        <div class="stat-card" style="padding:8px 4px;">
-                            <div class="stat-label" style="margin-bottom:4px;">개선률</div>
-                            <canvas id="chart-completion" style="width:120px;height:120px;margin:0 auto;"></canvas>
-                        </div>
-                    </div>
-                    <div class="stat-group-cards grade-detail-row" style="align-items:center;padding-top:6px;border-top:1px solid #f0f0f0;margin-top:4px;">
-                        <div class="stat-card" style="padding:2px 4px;">
-                            <div class="grade-detail-cols">
-                                <div class="grade-detail-item teal"><div class="grade-detail-label">개선</div><div class="grade-detail-val" id="s-complete">0</div></div>
-                                <div class="grade-detail-item red"><div class="grade-detail-label">미개선</div><div class="grade-detail-val" id="s-pending">0</div></div>
-                                <div class="grade-detail-item rate"><div class="grade-detail-label">개선률</div><div class="grade-detail-val" id="s-improvement">0%</div></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="stat-group">
-                    <div class="stat-group-title">반복 현황</div>
-                    <div class="stat-group-cards">
-                        <div class="stat-card">
-                            <div class="stat-label">반복 건수</div>
-                            <div class="stat-value purple" id="s-repeat">0</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Charts Row 1 -->
-            <div class="chart-row">
-                <div class="chart-box">
-                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-                        <h3 style="margin:0;">장소별 위험요소 현황</h3>
-                        <button id="btn-loc-toggle" class="btn-toggle" onclick="toggleLocationView()">재해유형별</button>
-                    </div>
-                    <canvas id="chart-location"></canvas>
-                </div>
-                <div class="chart-box">
-                    <h3>주차별 발굴 현황</h3>
-                    <canvas id="chart-week"></canvas>
-                </div>
-            </div>
-
-
-
-            <!-- Channel Summary Table -->
-            <div class="table-container" id="channel-table-wrap" style="display:none;">
-                <h3 class="table-title">채널별 현황 요약</h3>
-                <table id="channel-summary-table">
-                    <thead>
-                        <tr>
-                            <th>채널</th>
-                            <th>발굴건수</th>
-                            <th>A등급</th>
-                            <th>B등급</th>
-                            <th>C등급</th>
-                            <th>D등급</th>
-                            <th>완료</th>
-                            <th>미완료</th>
-                            <th>개선률</th>
-                        </tr>
-                    </thead>
-                    <tbody id="channel-summary-tbody"></tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Data Tab -->
-        <div id="tab-data" class="tab-content" style="display:none;">
-            <div class="table-container">
-                <table id="data-table">
-                    <thead>
-                        <tr>
-                            <th>No</th>
-                            <th>월</th>
-                            <th>담당자</th>
-                            <th>일시</th>
-                            <th>장소</th>
-                            <th>위험요소 내용</th>
-                            <th>재해유형</th>
-                            <th>위험등급(전)</th>
-                            <th>위험등급(후)</th>
-                            <th>완료여부</th>
-                            <th>반복</th>
-                            <th>주차</th>
-                            <th>개선 전</th>
-                            <th>개선 후</th>
-                            <th>작업</th>
-                        </tr>
-                    </thead>
-                    <tbody id="data-tbody"></tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Category Tab -->
-        <div id="tab-category" class="tab-content" style="display:none;">
-            <div class="chart-row">
-                <div class="chart-box">
-                    <h3>재해유형별 분포</h3>
-                    <canvas id="chart-disaster"></canvas>
-                </div>
-                <div class="chart-box">
-                    <h3>공정별 분포</h3>
-                    <canvas id="chart-process"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <!-- Weekly Tab (Admin Only) -->
-        <div id="tab-weekly" class="tab-content" style="display:none;">
-            <div class="weekly-header">
-                <h3>위험요소 발굴 및 개선 현황 표</h3>
-                <div class="weekly-controls">
-                    <select id="w-year" onchange="loadWeeklyTab()">
-                        <option value="2026" selected>2026년</option>
-                        <option value="2025">2025년</option>
-                    </select>
-                    <select id="w-quarter" onchange="loadWeeklyTab()">
-                        <option value="1" selected>1분기</option>
-                        <option value="2">2분기</option>
-                        <option value="3">3분기</option>
-                        <option value="4">4분기</option>
-                    </select>
-                    <span class="weekly-sep">|</span>
-                    <label style="font-size:13px;">이번주:</label>
-                    <select id="w-cur-month">
-                        <option value="1">1월</option><option value="2">2월</option><option value="3" selected>3월</option>
-                        <option value="4">4월</option><option value="5">5월</option><option value="6">6월</option>
-                        <option value="7">7월</option><option value="8">8월</option><option value="9">9월</option>
-                        <option value="10">10월</option><option value="11">11월</option><option value="12">12월</option>
-                    </select>
-                    <select id="w-cur-week">
-                        <option value="1">1주</option><option value="2">2주</option><option value="3">3주</option>
-                        <option value="4" selected>4주</option><option value="5">5주</option>
-                    </select>
-                    <button class="btn-weekly-save" onclick="saveWeeklySnapshot()">저장 (확정)</button>
-                </div>
-            </div>
-            <div class="weekly-saved-list">
-                <label>저장 이력:</label>
-                <span id="w-saved-badges"></span>
-            </div>
-            <div id="weekly-compare-select" style="margin-bottom:10px;display:none;">
-                <label style="font-size:13px;">비교 기준:</label>
-                <select id="w-compare" onchange="renderCurrentWeekly()"></select>
-            </div>
-            <div id="weekly-tables" style="overflow-x:auto;"></div>
-        </div>
-
-        <!-- No Data Message -->
-        <div id="no-data" class="no-data" style="display:none;">
-            <p>데이터가 없습니다. 엑셀 파일을 업로드해주세요.</p>
-        </div>
-    </div>
-
-    <!-- Direct Input Modal -->
-    <div id="add-record-modal" class="modal-overlay">
-        <div class="modal-box modal-wide">
-            <h3 id="ar-modal-title">위험요소 직접입력</h3>
-            <p id="ar-modal-desc">개별 위험요소를 직접 등록합니다.</p>
-            <form id="add-record-form" onsubmit="submitAddRecord(event)">
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label>구분 (채널) *</label>
-                        <select id="ar-channel" required>
-                            <option value="정기위험성평가(코스맥스)">정기위험성평가(코스맥스)</option>
-                            <option value="정기위험성평가(협력사)">정기위험성평가(협력사)</option>
-                            <option value="수시위험성평가">수시위험성평가</option>
-                            <option value="안전점검" selected>안전점검</option>
-                            <option value="부서별 위험요소발굴">부서별 위험요소발굴</option>
-                            <option value="근로자 제안">근로자 제안</option>
-                            <option value="5S/EHS평가">5S/EHS평가</option>
+            <!-- ===== PAGE: 현황 요약 ===== -->
+            <div id="page-summary" class="page active">
+                <div class="page-header">
+                    <h2>현황 요약</h2>
+                    <div class="page-actions">
+                        <select id="f-team" onchange="fetchSummary()">
+                            <option value="전체">전체</option>
+                            <option value="환경안전1팀">환경안전1팀</option>
+                            <option value="환경안전2팀">환경안전2팀</option>
                         </select>
+                        <select id="f-year" onchange="fetchSummary()">
+                            <option value="전체">전체</option>
+                            <option value="2026" selected>2026</option>
+                        </select>
+                        <button class="btn-action" onclick="printReport()">리포트 출력</button>
                     </div>
-                    <div class="form-group">
+                </div>
+
+                <!-- Period Summary Cards -->
+                <div class="period-stats">
+                    <div class="period-card accent-blue">
+                        <div class="period-title">이번주</div>
+                        <div class="period-data">
+                            <div class="period-item"><span class="period-label">발굴</span><span class="period-value" id="pw-discovered">0</span></div>
+                            <div class="period-item"><span class="period-label">개선</span><span class="period-value" id="pw-improved">0</span></div>
+                            <div class="period-item"><span class="period-label">개선률</span><span class="period-value accent" id="pw-rate">0%</span></div>
+                        </div>
+                    </div>
+                    <div class="period-card accent-green">
+                        <div class="period-title">이번달</div>
+                        <div class="period-data">
+                            <div class="period-item"><span class="period-label">발굴</span><span class="period-value" id="pm-discovered">0</span></div>
+                            <div class="period-item"><span class="period-label">개선</span><span class="period-value" id="pm-improved">0</span></div>
+                            <div class="period-item"><span class="period-label">개선률</span><span class="period-value accent" id="pm-rate">0%</span></div>
+                        </div>
+                    </div>
+                    <div class="period-card accent-purple">
+                        <div class="period-title">이번년도</div>
+                        <div class="period-data">
+                            <div class="period-item"><span class="period-label">발굴</span><span class="period-value" id="py-discovered">0</span></div>
+                            <div class="period-item"><span class="period-label">개선</span><span class="period-value" id="py-improved">0</span></div>
+                            <div class="period-item"><span class="period-label">개선률</span><span class="period-value accent" id="py-rate">0%</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Grade & Improvement Status -->
+                <div class="summary-cards">
+                    <div class="stat-group">
+                        <div class="stat-group-title">등급 현황</div>
+                        <div class="stat-group-cards" style="align-items:center;">
+                            <div class="stat-card"><div class="stat-label">TOTAL</div><div class="stat-value" id="s-total">0</div></div>
+                            <div class="stat-card">
+                                <div class="stat-label" style="margin-bottom:4px;">개선 전</div>
+                                <canvas id="chart-grade-before" style="width:120px;height:120px;margin:0 auto;"></canvas>
+                            </div>
+                            <div style="font-size:28px;color:#9ca3af;padding:0 4px;align-self:center;">&#8594;</div>
+                            <div class="stat-card">
+                                <div class="stat-label" style="margin-bottom:4px;">현황</div>
+                                <canvas id="chart-grade-after" style="width:120px;height:120px;margin:0 auto;"></canvas>
+                            </div>
+                        </div>
+                        <div class="stat-group-cards grade-detail-row" style="align-items:center;padding-top:6px;border-top:1px solid #f0f0f0;margin-top:4px;">
+                            <div class="stat-card" style="padding:0;"></div>
+                            <div class="stat-card" style="padding:2px 4px;">
+                                <div class="grade-detail-cols">
+                                    <div class="grade-detail-item green"><div class="grade-detail-label">A</div><div class="grade-detail-val" id="s-a">0</div></div>
+                                    <div class="grade-detail-item blue"><div class="grade-detail-label">B</div><div class="grade-detail-val" id="s-b">0</div></div>
+                                    <div class="grade-detail-item orange"><div class="grade-detail-label">C</div><div class="grade-detail-val" id="s-c">0</div></div>
+                                    <div class="grade-detail-item red"><div class="grade-detail-label">D</div><div class="grade-detail-val" id="s-d">0</div></div>
+                                </div>
+                            </div>
+                            <div style="font-size:18px;color:#9ca3af;padding:0 4px;">&#8594;</div>
+                            <div class="stat-card" style="padding:2px 4px;">
+                                <div class="grade-detail-cols">
+                                    <div class="grade-detail-item green"><div class="grade-detail-label">A</div><div class="grade-detail-val" id="s-a-after">0</div></div>
+                                    <div class="grade-detail-item blue"><div class="grade-detail-label">B</div><div class="grade-detail-val" id="s-b-after">0</div></div>
+                                    <div class="grade-detail-item orange"><div class="grade-detail-label">C</div><div class="grade-detail-val" id="s-c-after">0</div></div>
+                                    <div class="grade-detail-item red"><div class="grade-detail-label">D</div><div class="grade-detail-val" id="s-d-after">0</div></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="display:flex;gap:12px;justify-content:center;padding:4px 8px;margin-top:2px;font-size:11px;color:#9ca3af;">
+                            <span><b style="color:#22c55e;">A</b>&middot;<b style="color:#3b82f6;">B</b> 필요 시 개선&middot;추적</span>
+                            <span><b style="color:#f59e0b;">C</b> 추적관리</span>
+                            <span><b style="color:#ef4444;">D</b> 신속개선</span>
+                        </div>
+                    </div>
+                    <div class="stat-group">
+                        <div class="stat-group-title">개선 현황</div>
+                        <div class="stat-group-cards" style="align-items:center;">
+                            <div class="stat-card">
+                                <div class="stat-label" style="margin-bottom:4px;">개선률</div>
+                                <canvas id="chart-completion" style="width:120px;height:120px;margin:0 auto;"></canvas>
+                            </div>
+                        </div>
+                        <div class="stat-group-cards grade-detail-row" style="align-items:center;padding-top:6px;border-top:1px solid #f0f0f0;margin-top:4px;">
+                            <div class="stat-card" style="padding:2px 4px;">
+                                <div class="grade-detail-cols">
+                                    <div class="grade-detail-item teal"><div class="grade-detail-label">개선</div><div class="grade-detail-val" id="s-complete">0</div></div>
+                                    <div class="grade-detail-item red"><div class="grade-detail-label">미개선</div><div class="grade-detail-val" id="s-pending">0</div></div>
+                                    <div class="grade-detail-item rate"><div class="grade-detail-label">개선률</div><div class="grade-detail-val" id="s-improvement">0%</div></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== PAGE: 위험요소 등록 ===== -->
+            <div id="page-register" class="page" style="display:none;">
+                <div class="page-header">
+                    <h2 id="register-page-title">위험요소 등록</h2>
+                    <div class="page-actions">
+                        <button class="btn-action admin-only" onclick="showManageModal()" style="display:none;">데이터 관리</button>
+                    </div>
+                </div>
+
+                <!-- Method Tabs -->
+                <div class="register-methods">
+                    <button class="register-tab active" onclick="switchRegisterMethod('direct',this)">직접입력</button>
+                    <button class="register-tab" onclick="switchRegisterMethod('excel',this)">엑셀 업로드</button>
+                </div>
+
+                <!-- Direct Input -->
+                <div id="method-direct" class="register-section">
+                    <form id="add-record-form" onsubmit="submitAddRecord(event)">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>구분 (채널) *</label>
+                                <select id="ar-channel" required>
+                                    <option value="부서별 위험요소발굴" selected>부서별 위험요소발굴</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>월</label>
+                                <input type="text" id="ar-month" placeholder="예: 4월">
+                            </div>
+                            <div class="form-group">
+                                <label>발굴자</label>
+                                <input type="text" id="ar-person" placeholder="이름">
+                            </div>
+                            <div class="form-group">
+                                <label>발굴일</label>
+                                <input type="date" id="ar-date" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label>장소</label>
+                                <input type="text" id="ar-location" placeholder="예: 화성1공장 2층">
+                            </div>
+                            <div class="form-group">
+                                <label>공정</label>
+                                <input type="text" id="ar-process" placeholder="공정명">
+                            </div>
+                            <div class="form-group">
+                                <label>재해유형</label>
+                                <input type="text" id="ar-disaster" placeholder="예: 끼임, 넘어짐">
+                            </div>
+                            <div class="form-group">
+                                <label>주차</label>
+                                <input type="number" id="ar-week" min="0" max="53" placeholder="0">
+                            </div>
+                            <div class="form-group full-width">
+                                <label>위험요소 내용 *</label>
+                                <textarea id="ar-content" rows="2" placeholder="위험요소 내용을 입력하세요" required></textarea>
+                            </div>
+                            <div class="form-section-title">[개선 전] 위험도</div>
+                            <div class="form-group">
+                                <label>가능성</label>
+                                <input type="number" id="ar-lh-before" min="1" max="5" placeholder="1~5" oninput="calcGrade('before')">
+                            </div>
+                            <div class="form-group">
+                                <label>중대성</label>
+                                <input type="number" id="ar-sv-before" min="1" max="5" placeholder="1~5" oninput="calcGrade('before')">
+                            </div>
+                            <div class="form-group">
+                                <label>위험도 / 등급</label>
+                                <span class="calc-result" id="ar-grade-before">-</span>
+                            </div>
+                            <div class="form-group full-width">
+                                <label>개선대책</label>
+                                <textarea id="ar-improvement" rows="2" placeholder="개선대책 내용"></textarea>
+                            </div>
+                            <div class="form-section-title">[개선 후] 위험도</div>
+                            <div class="form-group">
+                                <label>가능성</label>
+                                <input type="number" id="ar-lh-after" min="1" max="5" placeholder="1~5" oninput="calcGrade('after')">
+                            </div>
+                            <div class="form-group">
+                                <label>중대성</label>
+                                <input type="number" id="ar-sv-after" min="1" max="5" placeholder="1~5" oninput="calcGrade('after')">
+                            </div>
+                            <div class="form-group">
+                                <label>위험도 / 등급</label>
+                                <span class="calc-result" id="ar-grade-after">-</span>
+                            </div>
+                            <div class="form-group">
+                                <label>완료여부</label>
+                                <select id="ar-completion">
+                                    <option value="미완료">미완료</option>
+                                    <option value="완료">완료</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>개선 전 사진</label>
+                                <div class="image-upload-area">
+                                    <input type="file" id="ar-image" accept="image/*" onchange="previewImage('before')" style="display:none">
+                                    <button type="button" class="btn-image-select" onclick="document.getElementById('ar-image').click()">사진 선택</button>
+                                    <span id="ar-image-name" class="image-name">선택된 파일 없음</span>
+                                    <div id="ar-image-preview" class="image-preview" style="display:none;">
+                                        <img id="ar-image-thumb" src="" alt="미리보기">
+                                        <button type="button" class="btn-image-remove" onclick="removeImage('before')">X</button>
+                                    </div>
+                                </div>
+                                <input type="hidden" id="ar-image-url" value="">
+                            </div>
+                            <div class="form-group">
+                                <label>개선 후 사진</label>
+                                <div class="image-upload-area">
+                                    <input type="file" id="ar-image-after" accept="image/*" onchange="previewImage('after')" style="display:none">
+                                    <button type="button" class="btn-image-select" onclick="document.getElementById('ar-image-after').click()">사진 선택</button>
+                                    <span id="ar-image-after-name" class="image-name">선택된 파일 없음</span>
+                                    <div id="ar-image-after-preview" class="image-preview" style="display:none;">
+                                        <img id="ar-image-after-thumb" src="" alt="미리보기">
+                                        <button type="button" class="btn-image-remove" onclick="removeImage('after')">X</button>
+                                    </div>
+                                </div>
+                                <input type="hidden" id="ar-image-after-url" value="">
+                            </div>
+                        </div>
+                        <div class="form-footer">
+                            <button type="button" class="btn-cancel" id="ar-cancel-btn" onclick="cancelEdit()" style="display:none;">취소</button>
+                            <button type="submit" class="btn-submit" id="ar-submit-btn">등록</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Excel Upload -->
+                <div id="method-excel" class="register-section" style="display:none;">
+                    <div class="excel-upload-box">
+                        <div class="upload-row">
+                            <label>채널 선택:</label>
+                            <select id="upload-channel" class="channel-select">
+                                <option value="부서별 위험요소발굴" selected>부서별 위험요소발굴</option>
+                            </select>
+                        </div>
+                        <div class="upload-row">
+                            <button class="btn-upload" onclick="document.getElementById('file-input').click()">엑셀 업로드 (.xlsx, .xlsm)</button>
+                            <input type="file" id="file-input" accept=".xlsx,.xlsm" style="display:none" onchange="uploadFile(this)">
+                        </div>
+                        <div class="upload-row">
+                            <button class="btn-download" onclick="downloadExcel()">엑셀 다운로드</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Data Table Section -->
+                <div class="section-divider"><h3>위험요소 현황</h3></div>
+                <div class="filter-bar">
+                    <div class="filter-item">
+                        <label>채널</label>
+                        <select id="f-channel" onchange="fetchSummary()"><option value="전체">전체</option></select>
+                    </div>
+                    <div class="filter-item">
                         <label>월</label>
-                        <input type="text" id="ar-month" placeholder="예: 3월">
+                        <select id="f-month" onchange="fetchSummary()"><option value="전체">전체</option></select>
                     </div>
-                    <div class="form-group">
-                        <label>발굴자</label>
-                        <input type="text" id="ar-person" placeholder="이름">
-                    </div>
-                    <div class="form-group">
-                        <label>발굴일</label>
-                        <input type="date" id="ar-date">
-                    </div>
-                    <div class="form-group">
+                    <div class="filter-item">
                         <label>장소</label>
-                        <input type="text" id="ar-location" placeholder="예: 화성1공장 2층">
+                        <select id="f-location" onchange="fetchSummary()"><option value="전체">전체</option></select>
                     </div>
-                    <div class="form-group">
-                        <label>공정</label>
-                        <input type="text" id="ar-process" placeholder="공정명">
-                    </div>
-                    <div class="form-group">
-                        <label>재해유형</label>
-                        <input type="text" id="ar-disaster" placeholder="예: 끼임, 넘어짐">
-                    </div>
-                    <div class="form-group">
-                        <label>주차</label>
-                        <input type="number" id="ar-week" min="0" max="53" placeholder="0">
-                    </div>
-                    <div class="form-group full-width">
-                        <label>위험요소 내용 *</label>
-                        <textarea id="ar-content" rows="2" placeholder="위험요소 내용을 입력하세요" required></textarea>
-                    </div>
-                    <div class="form-section-title">[개선 전] 위험도</div>
-                    <div class="form-group">
-                        <label>가능성</label>
-                        <input type="number" id="ar-lh-before" min="1" max="5" placeholder="1~5" oninput="calcGrade('before')">
-                    </div>
-                    <div class="form-group">
-                        <label>중대성</label>
-                        <input type="number" id="ar-sv-before" min="1" max="5" placeholder="1~5" oninput="calcGrade('before')">
-                    </div>
-                    <div class="form-group">
-                        <label>위험도 / 등급</label>
-                        <span class="calc-result" id="ar-grade-before">-</span>
-                    </div>
-                    <div class="form-group full-width">
-                        <label>개선대책</label>
-                        <textarea id="ar-improvement" rows="2" placeholder="개선대책 내용"></textarea>
-                    </div>
-                    <div class="form-section-title">[개선 후] 위험도</div>
-                    <div class="form-group">
-                        <label>가능성</label>
-                        <input type="number" id="ar-lh-after" min="1" max="5" placeholder="1~5" oninput="calcGrade('after')">
-                    </div>
-                    <div class="form-group">
-                        <label>중대성</label>
-                        <input type="number" id="ar-sv-after" min="1" max="5" placeholder="1~5" oninput="calcGrade('after')">
-                    </div>
-                    <div class="form-group">
-                        <label>위험도 / 등급</label>
-                        <span class="calc-result" id="ar-grade-after">-</span>
-                    </div>
-                    <div class="form-group">
-                        <label>완료여부</label>
-                        <select id="ar-completion">
-                            <option value="미완료">미완료</option>
-                            <option value="완료">완료</option>
+                    <div class="filter-item">
+                        <label>등급</label>
+                        <select id="f-grade" onchange="fetchSummary()">
+                            <option value="전체">전체</option>
+                            <option value="A">A등급</option>
+                            <option value="B">B등급</option>
+                            <option value="C">C등급</option>
+                            <option value="D">D등급</option>
                         </select>
                     </div>
-                    <div class="form-group">
-                        <label>개선 전 사진</label>
-                        <div class="image-upload-area">
-                            <input type="file" id="ar-image" accept="image/*" onchange="previewImage('before')" style="display:none">
-                            <button type="button" class="btn-image-select" onclick="document.getElementById('ar-image').click()">사진 선택</button>
-                            <span id="ar-image-name" class="image-name">선택된 파일 없음</span>
-                            <div id="ar-image-preview" class="image-preview" style="display:none;">
-                                <img id="ar-image-thumb" src="" alt="미리보기">
-                                <button type="button" class="btn-image-remove" onclick="removeImage('before')">X</button>
-                            </div>
-                        </div>
-                        <input type="hidden" id="ar-image-url" value="">
+                    <div class="filter-item">
+                        <label>재해유형</label>
+                        <select id="f-disaster" onchange="fetchSummary()"><option value="전체">전체</option></select>
                     </div>
-                    <div class="form-group">
-                        <label>개선 후 사진</label>
-                        <div class="image-upload-area">
-                            <input type="file" id="ar-image-after" accept="image/*" onchange="previewImage('after')" style="display:none">
-                            <button type="button" class="btn-image-select" onclick="document.getElementById('ar-image-after').click()">사진 선택</button>
-                            <span id="ar-image-after-name" class="image-name">선택된 파일 없음</span>
-                            <div id="ar-image-after-preview" class="image-preview" style="display:none;">
-                                <img id="ar-image-after-thumb" src="" alt="미리보기">
-                                <button type="button" class="btn-image-remove" onclick="removeImage('after')">X</button>
-                            </div>
-                        </div>
-                        <input type="hidden" id="ar-image-after-url" value="">
+                    <div class="filter-item">
+                        <label>공정</label>
+                        <select id="f-process" onchange="fetchSummary()"><option value="전체">전체</option></select>
+                    </div>
+                    <div class="filter-item">
+                        <label>완료여부</label>
+                        <select id="f-completion" onchange="fetchSummary()">
+                            <option value="전체">전체</option>
+                            <option value="완료">완료</option>
+                            <option value="미완료">미완료</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label>반복여부</label>
+                        <select id="f-repeat" onchange="fetchSummary()">
+                            <option value="전체">전체</option>
+                            <option value="반복">반복</option>
+                            <option value="단건">단건</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label>키워드</label>
+                        <input type="text" id="f-keyword" placeholder="검색..." onkeydown="if(event.key==='Enter') fetchSummary()">
+                    </div>
+                    <button class="btn-search" onclick="fetchSummary()">검색</button>
+                    <button class="btn-reset" onclick="resetFilters()">초기화</button>
+                </div>
+
+                <div class="table-container">
+                    <table id="data-table">
+                        <thead>
+                            <tr>
+                                <th>No</th><th>월</th><th>담당자</th><th>일시</th><th>장소</th>
+                                <th>위험요소 내용</th><th>재해유형</th><th>위험등급(전)</th><th>위험등급(후)</th>
+                                <th>완료여부</th><th>반복</th><th>주차</th><th>개선 전</th><th>개선 후</th><th>작업</th>
+                            </tr>
+                        </thead>
+                        <tbody id="data-tbody"></tbody>
+                    </table>
+                </div>
+                <div id="no-data" class="no-data" style="display:none;">
+                    <p>데이터가 없습니다. 위험요소를 등록해주세요.</p>
+                </div>
+            </div>
+
+            <!-- ===== PAGE: 위험요소 분석 ===== -->
+            <div id="page-analysis" class="page" style="display:none;">
+                <div class="page-header">
+                    <h2>위험요소 분석</h2>
+                    <div class="page-actions">
+                        <button class="btn-action" onclick="printReport()">리포트 출력</button>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="modal-close" onclick="closeAddRecordModal()">취소</button>
-                    <button type="submit" class="btn-submit" id="ar-submit-btn">등록</button>
+
+                <div class="analysis-tabs">
+                    <button class="analysis-tab active" onclick="switchAnalysisTab('weekly',this)">주간현황</button>
+                    <button class="analysis-tab" onclick="switchAnalysisTab('location',this)">장소별</button>
+                    <button class="analysis-tab" onclick="switchAnalysisTab('weekly-chart',this)">주차별</button>
+                    <button class="analysis-tab" onclick="switchAnalysisTab('channel',this)">채널별</button>
+                    <button class="analysis-tab" onclick="switchAnalysisTab('disaster',this)">재해유형별</button>
+                    <button class="analysis-tab" onclick="switchAnalysisTab('process',this)">공정별</button>
+                    <button class="analysis-tab" onclick="switchAnalysisTab('repeat',this)">반복현황</button>
                 </div>
-            </form>
-        </div>
+
+                <!-- Subtab: Weekly -->
+                <div id="subtab-weekly" class="subtab-content">
+                    <div class="weekly-header">
+                        <div class="weekly-controls">
+                            <select id="w-year" onchange="loadWeeklyTab()">
+                                <option value="2026" selected>2026년</option>
+                                <option value="2025">2025년</option>
+                            </select>
+                            <select id="w-quarter" onchange="loadWeeklyTab()">
+                                <option value="1">1분기</option>
+                                <option value="2" selected>2분기</option>
+                                <option value="3">3분기</option>
+                                <option value="4">4분기</option>
+                            </select>
+                            <span class="weekly-sep">|</span>
+                            <label style="font-size:13px;">이번주:</label>
+                            <select id="w-cur-month">
+                                <option value="1">1월</option><option value="2">2월</option><option value="3">3월</option>
+                                <option value="4" selected>4월</option><option value="5">5월</option><option value="6">6월</option>
+                                <option value="7">7월</option><option value="8">8월</option><option value="9">9월</option>
+                                <option value="10">10월</option><option value="11">11월</option><option value="12">12월</option>
+                            </select>
+                            <select id="w-cur-week">
+                                <option value="1" selected>1주</option><option value="2">2주</option><option value="3">3주</option>
+                                <option value="4">4주</option><option value="5">5주</option>
+                            </select>
+                            <button class="btn-weekly-save" onclick="saveWeeklySnapshot()" style="display:none;">저장 (확정)</button>
+                        </div>
+                    </div>
+                    <div class="weekly-saved-list">
+                        <label>저장 이력:</label>
+                        <span id="w-saved-badges"></span>
+                    </div>
+                    <div id="weekly-compare-select" style="margin-bottom:10px;display:none;">
+                        <label style="font-size:13px;">비교 기준:</label>
+                        <select id="w-compare" onchange="renderCurrentWeekly()"></select>
+                    </div>
+                    <div id="weekly-tables" style="overflow-x:auto;"></div>
+                </div>
+
+                <!-- Subtab: Location -->
+                <div id="subtab-location" class="subtab-content" style="display:none;">
+                    <div class="chart-box">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+                            <h3 style="margin:0;">장소별 위험요소 현황</h3>
+                            <button id="btn-loc-toggle" class="btn-toggle" onclick="toggleLocationView()">재해유형별</button>
+                        </div>
+                        <canvas id="chart-location"></canvas>
+                    </div>
+                </div>
+
+                <!-- Subtab: Weekly Chart -->
+                <div id="subtab-weekly-chart" class="subtab-content" style="display:none;">
+                    <div class="chart-box">
+                        <h3>주차별 발굴 현황</h3>
+                        <canvas id="chart-week"></canvas>
+                    </div>
+                </div>
+
+                <!-- Subtab: Channel -->
+                <div id="subtab-channel" class="subtab-content" style="display:none;">
+                    <div class="table-container">
+                        <h3 class="table-title">채널별 현황 요약</h3>
+                        <table id="channel-summary-table">
+                            <thead>
+                                <tr>
+                                    <th>채널</th><th>발굴건수</th><th>A등급</th><th>B등급</th>
+                                    <th>C등급</th><th>D등급</th><th>완료</th><th>미완료</th><th>개선률</th>
+                                </tr>
+                            </thead>
+                            <tbody id="channel-summary-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Subtab: Disaster -->
+                <div id="subtab-disaster" class="subtab-content" style="display:none;">
+                    <div class="chart-box"><h3>재해유형별 분포</h3><canvas id="chart-disaster"></canvas></div>
+                </div>
+
+                <!-- Subtab: Process -->
+                <div id="subtab-process" class="subtab-content" style="display:none;">
+                    <div class="chart-box"><h3>공정별 분포</h3><canvas id="chart-process"></canvas></div>
+                </div>
+
+                <!-- Subtab: Repeat -->
+                <div id="subtab-repeat" class="subtab-content" style="display:none;">
+                    <div class="repeat-summary-card">
+                        <div class="stat-label">반복 건수</div>
+                        <div class="stat-value purple" id="s-repeat">0</div>
+                    </div>
+                    <div class="table-container">
+                        <h3 class="table-title">반복 위험요소 목록</h3>
+                        <table id="repeat-table">
+                            <thead>
+                                <tr><th>No</th><th>위험요소 내용</th><th>반복횟수</th><th>장소</th><th>재해유형</th><th>등급</th><th>완료여부</th></tr>
+                            </thead>
+                            <tbody id="repeat-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
     </div>
 
-    <!-- Data Management Modal -->
+    <!-- Manage Modal -->
     <div id="manage-modal" class="modal-overlay">
         <div class="modal-box">
             <h3>데이터 관리</h3>
@@ -468,6 +525,6 @@
         </div>
     </div>
 
-    <script src="/static/app.js?v=11"></script>
+    <script src="/static/app.js?v=20"></script>
 </body>
 </html>
