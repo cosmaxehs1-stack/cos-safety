@@ -1472,12 +1472,27 @@ QUARTER_MONTHS = {1: [1, 2, 3], 2: [4, 5, 6], 3: [7, 8, 9], 4: [10, 11, 12]}
 
 
 def calc_week_from_date(date_str: str) -> int:
-    """날짜 문자열에서 해당 월의 주차를 계산 (1일이 포함된 주 = 1주차)"""
+    """날짜 문자열에서 해당 월의 주차를 계산 (목요일 기준, 1월은 예외)"""
     try:
+        from datetime import timedelta
         d = datetime.strptime(date_str, "%Y-%m-%d")
-        day = d.day
-        # 1주차: 1~7, 2주차: 8~14, 3주차: 15~21, 4주차: 22~28, 5주차: 29~
-        return min((day - 1) // 7 + 1, 5)
+        if d.month == 1:
+            # 1월 예외: 1~11일=1주차, 12~18=2주차, 19~25=3주차, 26~=4주차
+            if d.day <= 11:
+                return 1
+            return min((d.day - 12) // 7 + 2, 5)
+        # 나머지 월: 해당 날짜가 속한 주의 목요일을 구해서 주차 판단
+        diff_to_thu = (3 - d.weekday()) % 7
+        if d.weekday() > 3:  # 금,토,일 → 이번 주 목요일은 과거
+            diff_to_thu = diff_to_thu - 7
+        thu = d + timedelta(days=diff_to_thu)
+        if thu.month != d.month:
+            if thu.month > d.month or (thu.month == 1 and d.month == 12):
+                return 5
+            else:
+                return 1
+        week = (thu.day - 1) // 7 + 1
+        return min(week, 5)
     except (ValueError, TypeError):
         return 0
 

@@ -219,8 +219,23 @@ function getWeekFromDate(dateStr) {
     if (!dateStr) return 0;
     const parts = dateStr.split("-");
     if (parts.length < 3) return 0;
+    const month = parseInt(parts[1]);
     const day = parseInt(parts[2]);
-    return Math.min(Math.floor((day - 1) / 7) + 1, 5);
+    if (month === 1) {
+        if (day <= 11) return 1;
+        return Math.min(Math.floor((day - 12) / 7) + 2, 5);
+    }
+    // 목요일 기준: 해당 날짜가 속한 주의 목요일로 주차 판단
+    const d = new Date(parseInt(parts[0]), month - 1, day);
+    const wd = d.getDay(); // 0=일,1=월...4=목,5=금,6=토
+    let diffToThu = (4 - wd + 7) % 7;
+    if (wd === 5 || wd === 6 || wd === 0) diffToThu -= 7; // 금,토,일 → 이번주 목요일은 과거
+    const thu = new Date(d);
+    thu.setDate(d.getDate() + diffToThu);
+    if (thu.getMonth() !== d.getMonth()) {
+        return thu.getMonth() > d.getMonth() ? 5 : 1;
+    }
+    return Math.min(Math.floor((thu.getDate() - 1) / 7) + 1, 5);
 }
 
 function updatePeriodStats(data) {
@@ -649,8 +664,7 @@ function initDateDefaults() {
     const today = new Date();
     const dateStr = today.toISOString().split("T")[0];
     const monthStr = (today.getMonth() + 1) + "월";
-    const day = today.getDate();
-    const weekNum = Math.min(Math.floor((day - 1) / 7) + 1, 5);
+    const weekNum = getWeekFromDate(dateStr);
 
     document.getElementById("ar-date").value = dateStr;
     document.getElementById("ar-month").value = monthStr;
