@@ -633,15 +633,13 @@ async function downloadExcel() {
     const channel = document.getElementById("upload-channel").value;
     try {
         const res = await fetch("/api/download-excel?channel=" + encodeURIComponent(channel), { headers: authHeaders() });
-        if (res.status === 404) { alert("[" + channel + "] 보관된 엑셀 파일이 없습니다."); return; }
+        if (res.status === 404) { alert("[" + channel + "] 데이터가 없습니다."); return; }
         if (!res.ok) { alert("다운로드 실패"); return; }
         const blob = await res.blob();
-        const disposition = res.headers.get("Content-Disposition") || "";
-        let filename = channel + ".xlsm";
-        const match = disposition.match(/filename="?(.+?)"?$/);
-        if (match) filename = match[1];
         const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob); a.download = filename; a.click();
+        a.href = URL.createObjectURL(blob);
+        a.download = "위험요소_" + channel + ".xlsx";
+        a.click();
         URL.revokeObjectURL(a.href);
     } catch (e) { alert("다운로드 실패: " + e.message); }
 }

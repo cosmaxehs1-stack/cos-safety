@@ -63,14 +63,7 @@ def init_db():
             data JSONB NOT NULL
         )
     """)
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS excel_files (
-            channel TEXT PRIMARY KEY,
-            filename TEXT NOT NULL,
-            data BYTEA NOT NULL,
-            updated_at TEXT NOT NULL
-        )
-    """)
+    cur.execute("DROP TABLE IF EXISTS excel_files")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS weekly_snapshots (
             id TEXT PRIMARY KEY,
@@ -488,10 +481,9 @@ async def upload_excel(request: Request, file: UploadFile = File(...), channel: 
 
     # 엑셀 원본 파일 보관 (DB에 바이너리 저장)
     try:
-        save_excel_bytes(channel, content, file.filename)
-        print(f"[upload] 엑셀 파일 보관 완료: {channel}")
+        print(f"[upload] 엑셀 원본 보관 생략 (DB 레코드 기반 다운로드 사용)")
     except Exception as e:
-        print(f"[upload] 엑셀 파일 보관 오류: {e}")
+        pass
 
     for r in records:
         r["channel"] = channel
@@ -658,12 +650,6 @@ async def add_record(request: Request):
     existing.append(record)
     save_data(existing)
 
-    # 엑셀 동기화
-    try:
-        sync_record_to_excel(channel, record, action="upsert")
-    except Exception as e:
-        print(f"[excel-sync] 추가 동기화 오류: {e}")
-
     return {"message": f"위험요소 1건 추가 완료 (No.{record['no']})", "record": record}
 
 
@@ -722,12 +708,6 @@ async def update_record(request: Request):
 
     save_data(data)
 
-    # 엑셀 동기화
-    try:
-        sync_record_to_excel(target.get("channel", ""), target, action="upsert")
-    except Exception as e:
-        print(f"[excel-sync] 수정 동기화 오류: {e}")
-
     return {"message": "수정 완료", "record": target}
 
 
@@ -751,12 +731,6 @@ async def delete_record(request: Request):
 
     data = [r for r in data if r.get("_id") != record_id]
     save_data(data)
-
-    # 엑셀 동기화
-    try:
-        sync_record_to_excel(deleted_record.get("channel", ""), deleted_record, action="delete")
-    except Exception as e:
-        print(f"[excel-sync] 삭제 동기화 오류: {e}")
 
     return {"message": "삭제 완료"}
 
@@ -1697,35 +1671,46 @@ async def health_check():
 
 # --- Excel Download ---
 @app.get("/api/download-excel")
-async def download_excel(request: Request, channel: str = "안전점검"):
+async def download_excel(request: Request, channel: str = "전체"):
     verify_token(request)
-    import io
-    excel_data = load_excel_file(channel)
-    if not excel_data:
-        raise HTTPException(status_code=404, detail=f"[{channel}] 보관된 엑셀 파일이 없습니다.")
+    records = load_data()
+    if channel != "전체":
+        records = [r for r in records if r.get("channel") == channel]
+    if not records:
+        raise HTTPException(status_code=404, detail=f"[{channel}] 데이터가 없습니다.")
 
-    filename = load_excel_filename(channel) or f"{channel}.xlsm"
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "위험요소"
+    headers = ["No", "월", "부서", "담당자", "일시", "장소", "위험요소 내용", "공정", "재해유형",
+               "가능성(전)", "중대성(전)", "위험도(전)", "등급(전)",
+               "개선필요사항", "개선대책", "개선부서", "계획일", "완료일",
+               "가능성(후)", "중대성(후)", "위험도(후)", "등급(후)",
+               "완료여부", "비고", "추적관리자", "주차", "채널"]
+    ws.append(headers)
+    for r in records:
+        ws.append([
+            r.get("no", ""), r.get("month", ""), r.get("department", ""), r.get("person", ""),
+            r.get("date", ""), r.get("location", ""), r.get("content_full", r.get("content", "")),
+            r.get("process", ""), r.get("disaster_type", ""),
+            r.get("likelihood_before", ""), r.get("severity_before", ""),
+            r.get("risk_before", ""), r.get("grade_before", ""),
+            r.get("improvement_needed", ""), r.get("improvement_plan", ""),
+            r.get("improve_dept", ""), r.get("planned_date", ""), r.get("actual_date", ""),
+            r.get("likelihood_after", ""), r.get("severity_after", ""),
+            r.get("risk_after", ""), r.get("grade_after", ""),
+            r.get("completion", ""), r.get("note", ""),
+            r.get("tracking_manager", ""), r.get("week", ""), r.get("channel", ""),
+        ])
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    filename = f"위험요소_{channel}.xlsx"
     return Response(
-        content=excel_data,
-        media_type="application/vnd.ms-excel.sheet.macroEnabled.12",
+        content=buf.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
-
-
-@app.get("/api/excel-channels")
-async def excel_channels(request: Request):
-    """보관된 엑셀이 있는 채널 목록"""
-    verify_token(request)
-    channels_with_excel = []
-    if DATABASE_URL:
-        conn = get_db()
-        cur = conn.cursor()
-        cur.execute("SELECT channel, filename, updated_at FROM excel_files ORDER BY channel")
-        for row in cur.fetchall():
-            channels_with_excel.append({"channel": row[0], "filename": row[1], "updated_at": row[2]})
-        cur.close()
-        conn.close()
-    return {"channels": channels_with_excel}
 
 
 # --- Static Files ---
