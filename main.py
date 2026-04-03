@@ -1092,7 +1092,15 @@ async def get_summary(
     if channel and channel != "전체":
         records = [r for r in records if r.get("channel") == channel]
     if year and year != "전체":
-        records = [r for r in records if (r.get("date") or "")[:4] == year]
+        def match_year(r):
+            d = r.get("date") or ""
+            if len(d) >= 4 and d[:4] == year:
+                return True
+            # date가 없는 레코드는 upload_year 또는 제외하지 않음
+            if not d:
+                return True
+            return False
+        records = [r for r in records if match_year(r)]
     if month and month != "전체":
         records = [r for r in records if r["month"] == month]
     if location and location != "전체":
