@@ -1531,10 +1531,11 @@ def compute_quarter_stats(records: list, year: str, quarter: int) -> dict:
     prev_records = [r for r in records if (r.get("date", "") or "")[:4] == prev_year]
 
     def match_site(r, majors):
-        """1월 고렴창고는 화성/판교(환경안전1팀) 소속"""
+        """1월 고렴창고/기타는 화성/판교(환경안전1팀) 소속"""
         lm = r.get("location_major", "")
-        if lm == "고렴" and r.get("month") == "1월":
-            # 1월 고렴은 화성/판교 그룹에만 포함
+        is_jan = r.get("month") == "1월"
+        # 1월 고렴, 기타(전공장)은 화성/판교 그룹
+        if is_jan and lm in ("고렴", "기타(전공장)"):
             return "화성" in majors or "판교" in majors
         if lm in majors:
             return True
