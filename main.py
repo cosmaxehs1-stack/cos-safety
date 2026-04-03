@@ -1,4 +1,5 @@
 import os
+import io
 import json
 import hashlib
 import secrets
@@ -6,7 +7,7 @@ import uuid
 import zipfile
 import base64
 from datetime import datetime, date
-from typing import Optional
+from typing import Optional, Union
 from xml.etree import ElementTree as ET
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Response
@@ -203,10 +204,11 @@ def extract_location_major(location_group: str) -> str:
 
 
 
-def extract_excel_images(file_path: str) -> dict[str, dict[int, str]]:
+def extract_excel_images(file_source: Union[str, io.BytesIO]) -> dict[str, dict[int, str]]:
     """
     ZIP + XML 기반으로 엑셀 내 이미지를 추출.
     Microsoft 365 richData 형식 (셀 내 이미지) 지원.
+    file_source: 파일 경로(str) 또는 BytesIO 객체.
     Returns {sheet_name: {row_number(1-based): {"before": url, "after": url}}}.
     """
     result: dict[str, dict[int, dict[str, str]]] = {}
@@ -216,7 +218,7 @@ def extract_excel_images(file_path: str) -> dict[str, dict[int, str]]:
     NS_RVREL = "http://schemas.microsoft.com/office/spreadsheetml/2022/richvaluerel"
 
     try:
-        with zipfile.ZipFile(file_path, 'r') as zf:
+        with zipfile.ZipFile(file_source, 'r') as zf:
             namelist = set(zf.namelist())
 
             # 1) Read all media files
@@ -335,11 +337,15 @@ def extract_excel_images(file_path: str) -> dict[str, dict[int, str]]:
     return result
 
 
-def parse_excel(file_path: str) -> list[dict]:
+def parse_excel(file_source: Union[str, io.BytesIO]) -> list[dict]:
     # ZIP 기반으로 이미지 먼저 추출 (openpyxl 의존 X)
-    all_images = extract_excel_images(file_path)
+    if isinstance(file_source, io.BytesIO):
+        file_source.seek(0)
+    all_images = extract_excel_images(file_source)
 
-    wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+    if isinstance(file_source, io.BytesIO):
+        file_source.seek(0)
+    wb = openpyxl.load_workbook(file_source, read_only=True, data_only=True)
     all_records = []
 
     target_sheets = [s for s in wb.sheetnames if s != "미완료"]
@@ -463,41 +469,29 @@ async def upload_excel(request: Request, file: UploadFile = File(...), channel: 
     if not file.filename.endswith((".xlsx", ".xlsm")):
         raise HTTPException(status_code=400, detail="엑셀 파일(.xlsx, .xlsm)만 업로드 가능합니다.")
 
-    # 임시 엑셀 파일 정리
-    old_upload = os.path.join(UPLOAD_DIR, "uploaded.xlsm")
-    if os.path.exists(old_upload):
-        os.remove(old_upload)
-
-    file_path = os.path.join(UPLOAD_DIR, "uploaded.xlsm")
     try:
         content = await file.read()
         print(f"[upload] file={file.filename}, size={len(content)} bytes, channel={channel}")
-        with open(file_path, "wb") as f:
-            f.write(content)
     except Exception as e:
-        print(f"[upload] 파일 저장 오류: {e}")
+        print(f"[upload] 파일 읽기 오류: {e}")
         import traceback; traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"파일 저장 오류: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"파일 읽기 오류: {str(e)}")
 
     try:
-        records = parse_excel(file_path)
+        file_buf = io.BytesIO(content)
+        records = parse_excel(file_buf)
         print(f"[upload] 파싱 완료: {len(records)}건")
     except Exception as e:
         print(f"[upload] 엑셀 파싱 오류: {e}")
         import traceback; traceback.print_exc()
-        if os.path.exists(file_path):
-            os.remove(file_path)
         raise HTTPException(status_code=400, detail=f"엑셀 파싱 오류: {str(e)}")
 
-    # 엑셀 원본 파일 보관 (채널별)
+    # 엑셀 원본 파일 보관 (DB에 바이너리 저장)
     try:
-        save_excel_file(channel, file_path, file.filename)
+        save_excel_bytes(channel, content, file.filename)
         print(f"[upload] 엑셀 파일 보관 완료: {channel}")
     except Exception as e:
         print(f"[upload] 엑셀 파일 보관 오류: {e}")
-    finally:
-        if os.path.exists(file_path):
-            os.remove(file_path)
 
     for r in records:
         r["channel"] = channel
