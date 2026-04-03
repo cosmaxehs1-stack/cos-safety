@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>COS-Safety Dashboard</title>
-    <link rel="stylesheet" href="/static/style.css?v=20">
+    <link rel="stylesheet" href="/static/style.css?v=21">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -37,6 +37,10 @@
                 <a href="#" class="nav-item" data-page="register" onclick="switchPage('register',this);return false;">
                     <span class="nav-icon">&#9998;</span>
                     <span class="nav-text">위험요소 등록</span>
+                </a>
+                <a href="#" class="nav-item" data-page="records" onclick="switchPage('records',this);return false;">
+                    <span class="nav-icon">&#128269;</span>
+                    <span class="nav-text">개별 위험요소 확인</span>
                 </a>
                 <a href="#" class="nav-item" data-page="analysis" onclick="switchPage('analysis',this);return false;">
                     <span class="nav-icon">&#9776;</span>
@@ -176,14 +180,25 @@
                     </div>
                 </div>
 
-                <!-- Method Tabs -->
-                <div class="register-methods">
-                    <button class="register-tab active" onclick="switchRegisterMethod('direct',this)">직접입력</button>
-                    <button class="register-tab" onclick="switchRegisterMethod('excel',this)">엑셀 업로드</button>
+                <!-- Method Selection -->
+                <div id="register-select" class="register-select">
+                    <div class="register-select-card" onclick="showRegisterMethod('direct')">
+                        <div class="register-select-icon">&#9998;</div>
+                        <div class="register-select-title">직접 입력</div>
+                        <div class="register-select-desc">폼에 직접 위험요소를 입력합니다</div>
+                    </div>
+                    <div class="register-select-card" onclick="showRegisterMethod('excel')">
+                        <div class="register-select-icon">&#128196;</div>
+                        <div class="register-select-title">엑셀 업로드</div>
+                        <div class="register-select-desc">엑셀 파일로 일괄 등록합니다</div>
+                    </div>
                 </div>
 
+                <!-- Back button (hidden initially) -->
+                <button id="register-back-btn" class="btn-register-back" style="display:none;" onclick="showRegisterSelect()">&#8592; 등록 방법 선택</button>
+
                 <!-- Direct Input -->
-                <div id="method-direct" class="register-section">
+                <div id="method-direct" class="register-section" style="display:none;">
                     <form id="add-record-form" onsubmit="submitAddRecord(event)">
                         <div class="form-grid">
                             <div class="form-group">
@@ -222,7 +237,7 @@
                             </div>
                             <div class="form-group full-width">
                                 <label>위험요소 내용 *</label>
-                                <textarea id="ar-content" rows="2" placeholder="위험요소 내용을 입력하세요" required></textarea>
+                                <textarea id="ar-content" rows="1" placeholder="위험요소 내용을 입력하세요" required></textarea>
                             </div>
                             <div class="form-section-title">[개선 전] 위험도</div>
                             <div class="form-group">
@@ -239,7 +254,7 @@
                             </div>
                             <div class="form-group full-width">
                                 <label>개선대책</label>
-                                <textarea id="ar-improvement" rows="2" placeholder="개선대책 내용"></textarea>
+                                <textarea id="ar-improvement" rows="1" placeholder="개선대책 내용"></textarea>
                             </div>
                             <div class="form-section-title">[개선 후] 위험도</div>
                             <div class="form-group">
@@ -314,8 +329,14 @@
                     </div>
                 </div>
 
-                <!-- Data Table Section -->
-                <div class="section-divider"><h3>위험요소 현황</h3></div>
+            </div>
+
+            <!-- ===== PAGE: 개별 위험요소 확인 ===== -->
+            <div id="page-records" class="page" style="display:none;">
+                <div class="page-header">
+                    <h2>개별 위험요소 확인</h2>
+                </div>
+
                 <div class="filter-bar">
                     <div class="filter-item">
                         <label>채널</label>
@@ -525,6 +546,6 @@
         </div>
     </div>
 
-    <script src="/static/app.js?v=20"></script>
+    <script src="/static/app.js?v=21"></script>
 </body>
 </html>

@@ -105,6 +105,7 @@ body {
 /* ===== Main Content ===== */
 .main-content {
     flex: 1; margin-left: 220px; padding: 24px 32px; min-height: 100vh;
+    overflow-x: hidden; box-sizing: border-box;
 }
 
 .page { display: none; }
@@ -200,9 +201,35 @@ body {
 .register-tab:hover { color: #333; }
 .register-tab.active { color: #e74c3c; border-bottom-color: #e74c3c; font-weight: 600; }
 
+/* Register Method Selection */
+.register-select {
+    display: flex; gap: 32px; justify-content: center; padding: 60px 0;
+}
+.register-select-card {
+    background: white; border-radius: 16px; padding: 48px 40px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08); cursor: pointer;
+    text-align: center; width: 300px; transition: all 0.2s;
+    border: 2px solid transparent;
+}
+.register-select-card:hover {
+    border-color: #3498db; box-shadow: 0 6px 24px rgba(52,152,219,0.18);
+    transform: translateY(-3px);
+}
+.register-select-icon { font-size: 48px; margin-bottom: 16px; }
+.register-select-title { font-size: 20px; font-weight: 700; color: #1a1a2e; margin-bottom: 10px; }
+.register-select-desc { font-size: 14px; color: #888; line-height: 1.5; }
+
+.btn-register-back {
+    background: none; border: none; cursor: pointer;
+    font-size: 14px; color: #888; padding: 4px 0; margin-bottom: 12px;
+    font-weight: 500;
+}
+.btn-register-back:hover { color: #333; }
+
 .register-section {
-    background: white; border-radius: 12px; padding: 24px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 24px;
+    background: white; border-radius: 12px; padding: 16px 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 16px;
+    overflow-x: hidden; box-sizing: border-box;
 }
 
 .excel-upload-box { display: flex; flex-direction: column; gap: 16px; }
@@ -217,21 +244,23 @@ body {
 
 /* Form */
 .form-grid {
-    display: grid; grid-template-columns: 1fr 1fr 1fr;
-    gap: 12px; padding-right: 4px;
+    display: grid; grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 8px 12px; padding-right: 4px;
+    max-width: 100%; box-sizing: border-box;
 }
-.form-group { display: flex; flex-direction: column; gap: 4px; }
+.form-group { display: flex; flex-direction: column; gap: 2px; }
 .form-group.full-width { grid-column: 1 / -1; }
 .form-group label { font-size: 11px; color: #888; font-weight: 600; text-transform: uppercase; }
 .form-group input, .form-group select, .form-group textarea {
-    padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px;
+    padding: 6px 8px; border: 1px solid #ddd; border-radius: 6px;
     font-size: 13px; outline: none; font-family: inherit;
 }
+.form-group textarea { resize: vertical; }
 .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: #3498db; }
 .form-group input[readonly] { background: #f5f5f5; color: #999; }
 .form-section-title {
     grid-column: 1 / -1; font-size: 12px; font-weight: 700; color: #2c3e50;
-    padding-top: 8px; border-top: 1px solid #e8e8e8;
+    padding-top: 4px; border-top: 1px solid #e8e8e8; margin: 0;
 }
 .calc-result {
     display: flex; align-items: center; font-size: 14px;
@@ -244,7 +273,7 @@ body {
 
 .form-footer {
     display: flex; justify-content: flex-end; gap: 10px;
-    margin-top: 16px; padding-top: 12px; border-top: 1px solid #e8e8e8;
+    margin-top: 8px; padding-top: 8px; border-top: 1px solid #e8e8e8;
 }
 .btn-submit {
     padding: 10px 32px; background: #3498db; color: white;

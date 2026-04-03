@@ -76,6 +76,10 @@ function switchPage(pageName, el) {
     }
     if (pageName === "register") {
         if (lastSummaryData) updateTable(getDisplayRecords(lastSummaryData));
+        showRegisterSelect();
+    }
+    if (pageName === "records") {
+        if (lastSummaryData) updateTable(getDisplayRecords(lastSummaryData));
     }
 }
 
@@ -84,11 +88,22 @@ function toggleSidebar() {
 }
 
 // ===== Register Methods =====
-function switchRegisterMethod(method, btn) {
-    document.querySelectorAll(".register-tab").forEach(t => t.classList.remove("active"));
-    btn.classList.add("active");
+function showRegisterMethod(method) {
+    document.getElementById("register-select").style.display = "none";
+    document.getElementById("register-back-btn").style.display = "inline-block";
     document.getElementById("method-direct").style.display = method === "direct" ? "block" : "none";
     document.getElementById("method-excel").style.display = method === "excel" ? "block" : "none";
+}
+
+function showRegisterSelect() {
+    document.getElementById("register-select").style.display = "flex";
+    document.getElementById("register-back-btn").style.display = "none";
+    document.getElementById("method-direct").style.display = "none";
+    document.getElementById("method-excel").style.display = "none";
+}
+
+function switchRegisterMethod(method, btn) {
+    showRegisterMethod(method);
 }
 
 // ===== Analysis Sub-Tabs =====
