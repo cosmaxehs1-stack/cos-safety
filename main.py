@@ -1530,13 +1530,23 @@ def compute_quarter_stats(records: list, year: str, quarter: int) -> dict:
     prev_year = str(int(year) - 1)
     prev_records = [r for r in records if (r.get("date", "") or "")[:4] == prev_year]
 
+    def match_site(r, majors):
+        """1월 고렴창고는 화성/판교(환경안전1팀) 소속"""
+        lm = r.get("location_major", "")
+        if lm == "고렴" and r.get("month") == "1월":
+            # 1월 고렴은 화성/판교 그룹에만 포함
+            return "화성" in majors or "판교" in majors
+        if lm in majors:
+            return True
+        return False
+
     result = {}
     for site_name, majors in SITE_GROUPS.items():
         site_recs = filtered
         site_prev = prev_records
         if majors:
-            site_recs = [r for r in filtered if r.get("location_major", "") in majors]
-            site_prev = [r for r in prev_records if r.get("location_major", "") in majors]
+            site_recs = [r for r in filtered if match_site(r, majors)]
+            site_prev = [r for r in prev_records if match_site(r, majors)]
 
         site_data = {}
         for ch_name in CHANNEL_ORDER:
