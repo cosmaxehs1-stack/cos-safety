@@ -17,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import openpyxl
 import psycopg2
 import psycopg2.extras
+import psycopg2.pool
 
 app = FastAPI(title="COS-Safety Dashboard")
 
@@ -41,7 +42,26 @@ os.makedirs(IMAGE_DIR, exist_ok=True)
 
 
 # --- Database ---
+_db_pool = None
+
+def _get_pool():
+    global _db_pool
+    if _db_pool is None and DATABASE_URL:
+        _db_pool = psycopg2.pool.ThreadedConnectionPool(1, 10, DATABASE_URL, connect_timeout=10)
+    return _db_pool
+
 def get_db(retries=3):
+    pool = _get_pool()
+    if pool:
+        for attempt in range(retries):
+            try:
+                conn = pool.getconn()
+                conn.autocommit = False
+                return conn
+            except Exception as e:
+                print(f"[DB] 연결 실패 (시도 {attempt+1}/{retries}): {e}")
+                if attempt == retries - 1:
+                    raise
     for attempt in range(retries):
         try:
             conn = psycopg2.connect(DATABASE_URL, connect_timeout=10)
@@ -50,6 +70,18 @@ def get_db(retries=3):
             print(f"[DB] 연결 실패 (시도 {attempt+1}/{retries}): {e}")
             if attempt == retries - 1:
                 raise
+
+def release_db(conn):
+    pool = _get_pool()
+    if pool:
+        try:
+            pool.putconn(conn)
+        except Exception:
+            try: conn.close()
+            except: pass
+    else:
+        try: conn.close()
+        except: pass
 
 
 def init_db():
@@ -77,7 +109,7 @@ def init_db():
     """)
     conn.commit()
     cur.close()
-    conn.close()
+    release_db(conn)
 
 
 @app.on_event("startup")
@@ -792,7 +824,7 @@ def load_data() -> list[dict]:
                             (json.dumps(r, ensure_ascii=False), r["_id"]))
         conn.commit()
     cur.close()
-    conn.close()
+    release_db(conn)
     return data
 
 
@@ -805,14 +837,18 @@ def save_data(data: list[dict]):
     conn = get_db()
     cur = conn.cursor()
     cur.execute("DELETE FROM records")
-    for r in data:
-        rid = r.get("_id") or uuid.uuid4().hex
-        r["_id"] = rid
-        cur.execute("INSERT INTO records (_id, data) VALUES (%s, %s)",
-                    (rid, json.dumps(r, ensure_ascii=False)))
+    if data:
+        args = []
+        for r in data:
+            rid = r.get("_id") or uuid.uuid4().hex
+            r["_id"] = rid
+            args.append((rid, json.dumps(r, ensure_ascii=False)))
+        psycopg2.extras.execute_values(
+            cur, "INSERT INTO records (_id, data) VALUES %s", args, template="(%s, %s)", page_size=500
+        )
     conn.commit()
     cur.close()
-    conn.close()
+    release_db(conn)
 
 
 # --- Excel File Storage ---
@@ -831,7 +867,7 @@ def save_excel_file(channel: str, file_path: str, filename: str):
         )
         conn.commit()
         cur.close()
-        conn.close()
+        release_db(conn)
     else:
         safe_name = channel.replace("/", "_").replace(" ", "_")
         dest = os.path.join(UPLOAD_DIR, f"excel_{safe_name}.xlsm")
@@ -847,7 +883,7 @@ def load_excel_file(channel: str) -> Optional[bytes]:
         cur.execute("SELECT data, filename FROM excel_files WHERE channel = %s", (channel,))
         row = cur.fetchone()
         cur.close()
-        conn.close()
+        release_db(conn)
         if row:
             return row[0]
         return None
@@ -868,7 +904,7 @@ def load_excel_filename(channel: str) -> Optional[str]:
         cur.execute("SELECT filename FROM excel_files WHERE channel = %s", (channel,))
         row = cur.fetchone()
         cur.close()
-        conn.close()
+        release_db(conn)
         return row[0] if row else None
     return None
 
@@ -886,7 +922,7 @@ def save_excel_bytes(channel: str, data: bytes, filename: str = "updated.xlsm"):
         )
         conn.commit()
         cur.close()
-        conn.close()
+        release_db(conn)
     else:
         safe_name = channel.replace("/", "_").replace(" ", "_")
         dest = os.path.join(UPLOAD_DIR, f"excel_{safe_name}.xlsm")
@@ -1569,10 +1605,10 @@ async def weekly_save(request: Request):
         cur.execute("SELECT id FROM weekly_snapshots WHERE id = %s", (snapshot_id,))
         if cur.fetchone():
             cur.close()
-            conn.close()
+            release_db(conn)
             raise HTTPException(status_code=409, detail=f"{snapshot_id}는 이미 저장되었습니다.")
         cur.close()
-        conn.close()
+        release_db(conn)
 
     records = load_data()
     stats = compute_quarter_stats(records, str(year), quarter)
@@ -1590,7 +1626,7 @@ async def weekly_save(request: Request):
         )
         conn.commit()
         cur.close()
-        conn.close()
+        release_db(conn)
 
     return {"message": f"{snapshot_id} 저장 완료", "id": snapshot_id}
 
@@ -1609,7 +1645,7 @@ async def weekly_list(request: Request, year: int = 2026, quarter: int = 0):
         cur.execute("SELECT id, year, quarter, month, week, saved_at FROM weekly_snapshots WHERE year = %s ORDER BY quarter, month, week", (year,))
     rows = [dict(r) for r in cur.fetchall()]
     cur.close()
-    conn.close()
+    release_db(conn)
     return {"snapshots": rows}
 
 
@@ -1624,7 +1660,7 @@ async def weekly_get(request: Request, id: str = ""):
     cur.execute("SELECT * FROM weekly_snapshots WHERE id = %s", (id,))
     row = cur.fetchone()
     cur.close()
-    conn.close()
+    release_db(conn)
     if not row:
         raise HTTPException(status_code=404, detail="스냅샷을 찾을 수 없습니다.")
     row = dict(row)
@@ -1644,7 +1680,7 @@ async def weekly_delete(request: Request, id: str = ""):
     cur.execute("DELETE FROM weekly_snapshots WHERE id = %s", (id,))
     conn.commit()
     cur.close()
-    conn.close()
+    release_db(conn)
     return {"message": f"{id} 삭제 완료"}
 
 
@@ -1663,7 +1699,7 @@ async def health_check():
             result["table_exists"] = True
             result["record_count"] = count
             cur.close()
-            conn.close()
+            release_db(conn)
         except Exception as e:
             result["error"] = str(e)
     return result
