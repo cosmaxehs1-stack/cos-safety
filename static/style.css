@@ -288,6 +288,12 @@ body {
 }
 .btn-cancel:hover { background: #7f8c8d; }
 
+.btn-img-load {
+    background: none; border: 1px solid #ddd; border-radius: 4px;
+    cursor: pointer; padding: 2px 8px; font-size: 14px;
+}
+.btn-img-load:hover { background: #f0f0f0; }
+
 /* Image Upload */
 .image-upload-area { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .btn-image-select {

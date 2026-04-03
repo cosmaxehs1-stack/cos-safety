@@ -1049,6 +1049,24 @@ async def get_data(request: Request):
     return {"records": records, "total": len(records)}
 
 
+@app.get("/api/record-image/{record_id}")
+async def get_record_image(request: Request, record_id: str, field: str = "image"):
+    verify_token(request)
+    if DATABASE_URL:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT data FROM records WHERE _id = %s", (record_id,))
+        row = cur.fetchone()
+        cur.close()
+        release_db(conn)
+        if row:
+            r = json.loads(row[0]) if isinstance(row[0], str) else row[0]
+            img = r.get(field, "")
+            if img:
+                return {"url": img}
+    return {"url": ""}
+
+
 @app.get("/api/summary")
 async def get_summary(
     request: Request,
@@ -1354,16 +1372,23 @@ async def get_summary(
         else:
             channel_grade_stats[ch]["incomplete"] += 1
 
-    # Filter options
-    all_records = load_data()
-    channels = sorted(set(r.get("channel", "미분류") for r in all_records))
-    years = sorted(set(r["date"][:4] for r in all_records if r.get("date") and len(r["date"]) >= 4))
-    months = sorted(set(r["month"] for r in all_records))
-    locations = sorted(set(r["location_group"] for r in all_records))
-    disaster_types = sorted(set(r["disaster_type"] for r in all_records if r["disaster_type"]))
-    processes = sorted(set(r["process"] for r in all_records if r["process"]))
-    persons = sorted(set(r["person"] for r in all_records if r["person"]))
-    weeks = sorted(set(r["week"] for r in all_records if r["week"] > 0))
+    # Filter options (use already loaded records from top of function)
+    all_records_for_filters = load_data()
+    channels = sorted(set(r.get("channel", "미분류") for r in all_records_for_filters))
+    years = sorted(set(r["date"][:4] for r in all_records_for_filters if r.get("date") and len(r["date"]) >= 4))
+    months = sorted(set(r["month"] for r in all_records_for_filters))
+    locations = sorted(set(r["location_group"] for r in all_records_for_filters))
+    disaster_types = sorted(set(r["disaster_type"] for r in all_records_for_filters if r["disaster_type"]))
+    processes = sorted(set(r["process"] for r in all_records_for_filters if r["process"]))
+    persons = sorted(set(r["person"] for r in all_records_for_filters if r["person"]))
+    weeks = sorted(set(r["week"] for r in all_records_for_filters if r["week"] > 0))
+
+    # Strip large image data from summary response to reduce payload size
+    for r in records:
+        r["has_image"] = bool(r.get("image"))
+        r["has_image_after"] = bool(r.get("image_after"))
+        r.pop("image", None)
+        r.pop("image_after", None)
 
     return {
         "total": total,

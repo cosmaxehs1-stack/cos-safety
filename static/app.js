@@ -570,8 +570,8 @@ function updateTable(records) {
     tbody.innerHTML = "";
     records.forEach(r => {
         const tr = document.createElement("tr");
-        const imgBefore = r.image ? '<img src="' + escapeHtml(r.image) + '" class="table-thumb" onclick="showImageModal(\'' + escapeHtml(r.image) + '\')">' : '-';
-        const imgAfter = r.image_after ? '<img src="' + escapeHtml(r.image_after) + '" class="table-thumb" onclick="showImageModal(\'' + escapeHtml(r.image_after) + '\')">' : '-';
+        const imgBefore = r.has_image ? '<button class="btn-img-load" onclick="loadRecordImage(\'' + escapeHtml(r._id) + '\',\'image\',this)">📷</button>' : '-';
+        const imgAfter = r.has_image_after ? '<button class="btn-img-load" onclick="loadRecordImage(\'' + escapeHtml(r._id) + '\',\'image_after\',this)">📷</button>' : '-';
         const rid = escapeHtml(r._id || "");
         tr.innerHTML =
             '<td>' + r.no + '</td><td>' + escapeHtml(r.month) + '</td><td>' + escapeHtml(r.person) + '</td>' +
@@ -803,17 +803,28 @@ function editRecord(id) {
     calcGrade("before");
     calcGrade("after");
 
-    if (r.image) {
-        document.getElementById("ar-image-url").value = r.image;
-        document.getElementById("ar-image-name").textContent = "기존 사진";
-        document.getElementById("ar-image-thumb").src = r.image;
-        document.getElementById("ar-image-preview").style.display = "flex";
+    // Lazy load images for edit
+    if (r.has_image) {
+        fetch("/api/record-image/" + id + "?field=image", { headers: authHeaders() })
+            .then(res => res.json()).then(data => {
+                if (data.url) {
+                    document.getElementById("ar-image-url").value = data.url;
+                    document.getElementById("ar-image-name").textContent = "기존 사진";
+                    document.getElementById("ar-image-thumb").src = data.url;
+                    document.getElementById("ar-image-preview").style.display = "flex";
+                }
+            });
     }
-    if (r.image_after) {
-        document.getElementById("ar-image-after-url").value = r.image_after;
-        document.getElementById("ar-image-after-name").textContent = "기존 사진";
-        document.getElementById("ar-image-after-thumb").src = r.image_after;
-        document.getElementById("ar-image-after-preview").style.display = "flex";
+    if (r.has_image_after) {
+        fetch("/api/record-image/" + id + "?field=image_after", { headers: authHeaders() })
+            .then(res => res.json()).then(data => {
+                if (data.url) {
+                    document.getElementById("ar-image-after-url").value = data.url;
+                    document.getElementById("ar-image-after-name").textContent = "기존 사진";
+                    document.getElementById("ar-image-after-thumb").src = data.url;
+                    document.getElementById("ar-image-after-preview").style.display = "flex";
+                }
+            });
     }
 
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -833,6 +844,26 @@ async function deleteRecord(id) {
         alert(data.message);
         fetchSummary();
     } catch (e) { alert("삭제 실패: " + e.message); }
+}
+
+// ===== Lazy Image Loading =====
+async function loadRecordImage(recordId, field, btn) {
+    btn.textContent = "...";
+    try {
+        const res = await fetch("/api/record-image/" + recordId + "?field=" + field, { headers: authHeaders() });
+        const data = await res.json();
+        if (data.url) {
+            const img = document.createElement("img");
+            img.src = data.url;
+            img.className = "table-thumb";
+            img.onclick = function() { showImageModal(data.url); };
+            btn.replaceWith(img);
+        } else {
+            btn.textContent = "-";
+        }
+    } catch (e) {
+        btn.textContent = "오류";
+    }
 }
 
 // ===== Image Viewer =====
