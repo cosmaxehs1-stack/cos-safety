@@ -205,9 +205,14 @@ def extract_location_group(location: str) -> str:
     return "기타(전공장)"
 
 
-def extract_team(location_group: str) -> str:
+def extract_team(location_group: str, month: str = "") -> str:
     """소분류 장소 그룹에서 담당 팀을 반환"""
-    if location_group in ("평택1공장", "평택2공장", "고렴창고"):
+    if location_group in ("평택1공장", "평택2공장"):
+        return "환경안전2팀"
+    if location_group == "고렴창고":
+        # 1월은 환경안전1팀, 나머지는 환경안전2팀
+        if month == "1월":
+            return "환경안전1팀"
         return "환경안전2팀"
     return "환경안전1팀"
 
@@ -1088,7 +1093,7 @@ async def get_summary(
 
     # Apply filters
     if team and team != "전체":
-        records = [r for r in records if extract_team(r.get("location_group", "")) == team]
+        records = [r for r in records if extract_team(r.get("location_group", ""), r.get("month", "")) == team]
     if channel and channel != "전체":
         records = [r for r in records if r.get("channel") == channel]
     if year and year != "전체":
