@@ -1162,7 +1162,7 @@ function renderQuarterTable(data, prevData) {
 
     const months = data.months || [];
     const channels = data.channel_order || [];
-    const siteNames = ["전체","화성/판교","평택/고렴"];
+    const siteNames = ["전체","환경안전1팀","환경안전2팀"];
     const curMonth = parseInt(document.getElementById("w-cur-month").value);
     const curWeek = parseInt(document.getElementById("w-cur-week").value);
 
