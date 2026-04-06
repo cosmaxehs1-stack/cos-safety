@@ -662,13 +662,27 @@ async function downloadExcel() {
 // ===== Direct Input =====
 function initDateDefaults() {
     const today = new Date();
-    const dateStr = today.toISOString().split("T")[0];
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const dd = String(today.getDate()).padStart(2, "0");
+    const dateStr = yyyy + "-" + mm + "-" + dd;
     const monthStr = (today.getMonth() + 1) + "월";
     const weekNum = getWeekFromDate(dateStr);
 
     document.getElementById("ar-date").value = dateStr;
     document.getElementById("ar-month").value = monthStr;
-    document.getElementById("ar-week").value = weekNum;
+    document.getElementById("ar-week").value = monthStr + " " + weekNum + "주차";
+}
+
+function updateWeekFromDate() {
+    const dateVal = document.getElementById("ar-date").value;
+    if (dateVal) {
+        const weekNum = getWeekFromDate(dateVal);
+        const parts = dateVal.split("-");
+        const monthLabel = parseInt(parts[1]) + "월";
+        document.getElementById("ar-week").value = monthLabel + " " + weekNum + "주차";
+        document.getElementById("ar-month").value = monthLabel;
+    }
 }
 
 function resetForm() {
@@ -806,7 +820,7 @@ function editRecord(id) {
     document.getElementById("ar-content").value = r.content_full || "";
     document.getElementById("ar-process").value = r.process || "";
     document.getElementById("ar-disaster").value = r.disaster_type || "";
-    document.getElementById("ar-week").value = r.week || "";
+    document.getElementById("ar-week").value = r.date ? parseInt(r.date.split("-")[1]) + "월 " + getWeekFromDate(r.date) + "주차" : "";
     document.getElementById("ar-lh-before").value = r.likelihood_before || "";
     document.getElementById("ar-sv-before").value = r.severity_before || "";
     document.getElementById("ar-improvement").value = r.improvement_plan || "";

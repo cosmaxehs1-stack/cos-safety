@@ -216,12 +216,23 @@
                                 <input type="text" id="ar-person" placeholder="이름">
                             </div>
                             <div class="form-group">
-                                <label>발굴일</label>
+                                <label>작성일</label>
                                 <input type="date" id="ar-date" readonly>
                             </div>
                             <div class="form-group">
                                 <label>장소</label>
-                                <input type="text" id="ar-location" placeholder="예: 화성1공장 2층">
+                                <select id="ar-location">
+                                    <option value="">선택하세요</option>
+                                    <option value="화성1공장">화성1공장</option>
+                                    <option value="화성2공장">화성2공장</option>
+                                    <option value="화성3공장">화성3공장</option>
+                                    <option value="화성5공장">화성5공장</option>
+                                    <option value="평택1공장">평택1공장</option>
+                                    <option value="평택2공장">평택2공장</option>
+                                    <option value="고렴창고">고렴창고</option>
+                                    <option value="판교사업장">판교사업장</option>
+                                    <option value="기타">기타</option>
+                                </select>
                             </div>
                             <div class="form-group">
                                 <label>공정</label>
@@ -233,7 +244,7 @@
                             </div>
                             <div class="form-group">
                                 <label>주차</label>
-                                <input type="number" id="ar-week" min="0" max="53" placeholder="0">
+                                <input type="text" id="ar-week" readonly>
                             </div>
                             <div class="form-group full-width">
                                 <label>위험요소 내용 *</label>
@@ -482,7 +493,7 @@
                 <!-- Subtab: Weekly Chart -->
                 <div id="subtab-weekly-chart" class="subtab-content" style="display:none;">
                     <div class="chart-box">
-                        <h3>주차별 발굴 현황</h3>
+                        <h3>주차별 현황</h3>
                         <canvas id="chart-week"></canvas>
                     </div>
                 </div>
