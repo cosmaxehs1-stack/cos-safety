@@ -38,10 +38,20 @@
                     <span class="nav-icon">&#9998;</span>
                     <span class="nav-text">위험요소 등록</span>
                 </a>
-                <a href="#" class="nav-item" data-page="records" onclick="switchPage('records',this);return false;">
+                <a href="#" class="nav-item has-sub" data-page="records" onclick="toggleRecordsSub(this);return false;">
                     <span class="nav-icon">&#128269;</span>
                     <span class="nav-text">개별 위험요소 확인</span>
                 </a>
+                <div class="nav-sub" id="records-sub">
+                    <a href="#" class="nav-sub-item" onclick="openRecordsChannel('전체',this);return false;">전체</a>
+                    <a href="#" class="nav-sub-item" onclick="openRecordsChannel('안전점검',this);return false;">안전점검</a>
+                    <a href="#" class="nav-sub-item" onclick="openRecordsChannel('부서별 위험요소발굴',this);return false;">부서별 위험요소발굴</a>
+                    <a href="#" class="nav-sub-item" onclick="openRecordsChannel('근로자 제안',this);return false;">근로자 제안</a>
+                    <a href="#" class="nav-sub-item" onclick="openRecordsChannel('5S/EHS평가',this);return false;">5S/EHS평가</a>
+                    <a href="#" class="nav-sub-item" onclick="openRecordsChannel('정기위험성평가(코스맥스)',this);return false;">정기위험성평가(코스맥스)</a>
+                    <a href="#" class="nav-sub-item" onclick="openRecordsChannel('정기위험성평가(협력사)',this);return false;">정기위험성평가(협력사)</a>
+                    <a href="#" class="nav-sub-item" onclick="openRecordsChannel('수시위험성평가',this);return false;">수시위험성평가</a>
+                </div>
                 <a href="#" class="nav-item" data-page="analysis" onclick="switchPage('analysis',this);return false;">
                     <span class="nav-icon">&#9776;</span>
                     <span class="nav-text">위험요소 분석</span>
@@ -233,8 +243,8 @@
                                     <input type="text" id="ar-week" readonly>
                                 </div>
                                 <div class="form-group">
-                                    <label>장소</label>
-                                    <select id="ar-location">
+                                    <label>사업장</label>
+                                    <select id="ar-location" onchange="updateWorkplaceOptions()">
                                         <option value="">선택하세요</option>
                                         <option value="화성1공장">화성1공장</option>
                                         <option value="화성2공장">화성2공장</option>
@@ -248,12 +258,10 @@
                                     </select>
                                 </div>
                                 <div class="form-group">
-                                    <label>공정</label>
-                                    <input type="text" id="ar-process" placeholder="공정명">
-                                </div>
-                                <div class="form-group">
-                                    <label>재해유형</label>
-                                    <input type="text" id="ar-disaster" placeholder="예: 끼임, 넘어짐">
+                                    <label>작업장</label>
+                                    <select id="ar-workplace">
+                                        <option value="">사업장을 먼저 선택하세요</option>
+                                    </select>
                                 </div>
                             </div>
                             <div class="wizard-nav">
@@ -268,6 +276,16 @@
                             <input type="hidden" id="ar-lh-before" value="">
                             <input type="hidden" id="ar-sv-before" value="">
 
+                            <div class="form-grid" style="margin-bottom:12px;">
+                                <div class="form-group">
+                                    <label>기인물</label>
+                                    <input type="text" id="ar-cause-object" placeholder="예: 컨베이어, 지게차">
+                                </div>
+                                <div class="form-group">
+                                    <label>재해유형</label>
+                                    <input type="text" id="ar-disaster" placeholder="예: 끼임, 넘어짐">
+                                </div>
+                            </div>
                             <div class="form-group full-width" style="margin-bottom:16px;">
                                 <label>위험요소 내용 *</label>
                                 <textarea id="ar-content" rows="3" placeholder="위험요소 내용을 입력하세요" required></textarea>
@@ -279,27 +297,27 @@
                                     <div class="rating-card" onclick="selectRating('lh','before',5)">
                                         <div class="rating-card-num">5</div>
                                         <div class="rating-card-title">최상</div>
-                                        <div class="rating-card-desc">안전장치 없음, 표지·수칙 없음</div>
+                                        <div class="rating-card-desc">거의 매일 발생 가능. 안전장치·수칙 없음</div>
                                     </div>
                                     <div class="rating-card" onclick="selectRating('lh','before',4)">
                                         <div class="rating-card-num">4</div>
                                         <div class="rating-card-title">상</div>
-                                        <div class="rating-card-desc">안전장치 설치했으나 해체됨</div>
+                                        <div class="rating-card-desc">주 1회 정도 발생 가능. 장치 있으나 해체됨</div>
                                     </div>
                                     <div class="rating-card" onclick="selectRating('lh','before',3)">
                                         <div class="rating-card-num">3</div>
                                         <div class="rating-card-title">중</div>
-                                        <div class="rating-card-desc">보호되어 있으나 해체 가능</div>
+                                        <div class="rating-card-desc">월 1회 정도 발생 가능. 보호장치 있으나 해체 가능</div>
                                     </div>
                                     <div class="rating-card" onclick="selectRating('lh','before',2)">
                                         <div class="rating-card-num">2</div>
                                         <div class="rating-card-title">하</div>
-                                        <div class="rating-card-desc">장치 정비됨, 가능성 낮음</div>
+                                        <div class="rating-card-desc">연 1~2회 발생 가능. 장치 정비됨</div>
                                     </div>
                                     <div class="rating-card" onclick="selectRating('lh','before',1)">
                                         <div class="rating-card-num">1</div>
                                         <div class="rating-card-title">최하</div>
-                                        <div class="rating-card-desc">완전 밀폐, 접근 곤란</div>
+                                        <div class="rating-card-desc">거의 발생 안 함. 완전 밀폐, 접근 곤란</div>
                                     </div>
                                 </div>
                             </div>
@@ -371,27 +389,27 @@
                                     <div class="rating-card" onclick="selectRating('lh','after',5)">
                                         <div class="rating-card-num">5</div>
                                         <div class="rating-card-title">최상</div>
-                                        <div class="rating-card-desc">안전장치 없음, 표지·수칙 없음</div>
+                                        <div class="rating-card-desc">거의 매일 발생 가능. 안전장치·수칙 없음</div>
                                     </div>
                                     <div class="rating-card" onclick="selectRating('lh','after',4)">
                                         <div class="rating-card-num">4</div>
                                         <div class="rating-card-title">상</div>
-                                        <div class="rating-card-desc">안전장치 설치했으나 해체됨</div>
+                                        <div class="rating-card-desc">주 1회 정도 발생 가능. 장치 있으나 해체됨</div>
                                     </div>
                                     <div class="rating-card" onclick="selectRating('lh','after',3)">
                                         <div class="rating-card-num">3</div>
                                         <div class="rating-card-title">중</div>
-                                        <div class="rating-card-desc">보호되어 있으나 해체 가능</div>
+                                        <div class="rating-card-desc">월 1회 정도 발생 가능. 보호장치 있으나 해체 가능</div>
                                     </div>
                                     <div class="rating-card" onclick="selectRating('lh','after',2)">
                                         <div class="rating-card-num">2</div>
                                         <div class="rating-card-title">하</div>
-                                        <div class="rating-card-desc">장치 정비됨, 가능성 낮음</div>
+                                        <div class="rating-card-desc">연 1~2회 발생 가능. 장치 정비됨</div>
                                     </div>
                                     <div class="rating-card" onclick="selectRating('lh','after',1)">
                                         <div class="rating-card-num">1</div>
                                         <div class="rating-card-title">최하</div>
-                                        <div class="rating-card-desc">완전 밀폐, 접근 곤란</div>
+                                        <div class="rating-card-desc">거의 발생 안 함. 완전 밀폐, 접근 곤란</div>
                                     </div>
                                 </div>
                             </div>
@@ -484,11 +502,11 @@
             <!-- ===== PAGE: 개별 위험요소 확인 ===== -->
             <div id="page-records" class="page" style="display:none;">
                 <div class="page-header">
-                    <h2>개별 위험요소 확인</h2>
+                    <h2 id="records-page-title">개별 위험요소 확인</h2>
                 </div>
 
                 <div class="filter-bar">
-                    <div class="filter-item">
+                    <div class="filter-item" id="f-channel-wrap" style="display:none;">
                         <label>채널</label>
                         <select id="f-channel" onchange="fetchSummary()"><option value="전체">전체</option></select>
                     </div>
@@ -706,11 +724,11 @@
                 <table class="criteria-table">
                     <thead><tr><th>등급</th><th>구분</th><th>내용</th></tr></thead>
                     <tbody>
-                        <tr><td class="criteria-grade">5</td><td>최상<br><span class="criteria-sub">매우 높음</span></td><td>피해가 일어날 가능성이 매우 높음. 해당 안전장치가 되어있지 않고, 안전보건표지가 없으며 안전수칙·작업표준 등도 없음.</td></tr>
-                        <tr><td class="criteria-grade">4</td><td>상<br><span class="criteria-sub">높음</span></td><td>피해가 일어날 가능성이 높음. 가드·방호덮개, 기타 안전장치를 설치하였으나 해체되어 있으며, 안전수칙·작업표준 등은 있지만 지키기 어렵고 많은 주의를 해야 함.</td></tr>
-                        <tr><td class="criteria-grade">3</td><td>중<br><span class="criteria-sub">보통</span></td><td>부조리하게 발생할 가능성이 있음. 가드·방호덮개 등으로 보호되어 있고 안전장치가 설치되어 있지만, 쉽게 해체하여 위험에 접근·접촉이 있을 수 있으며, 안전수칙·작업표준 등은 있지만 일부 준수하기 어려움.</td></tr>
-                        <tr><td class="criteria-grade">2</td><td>하<br><span class="criteria-sub">낮음</span></td><td>피해가 발생할 가능성이 낮음. 가드·방호장치 등으로 보호되어 있고, 안전장치가 설치되어 있으며, 안전수칙·작업표준 등이 정비되어 있고 준수하기 쉬우나 피해의 가능성이 남아있음.</td></tr>
-                        <tr><td class="criteria-grade">1</td><td>최하<br><span class="criteria-sub">매우 낮음</span></td><td>피해가 발생할 가능성이 매우 낮음. 가드·방호덮개 등으로 둘러싸여 있고 안전장치가 설치되어 있으며, 위험영역에 출입이 곤란한 상태로 안전조치가 잘 되어 있음.</td></tr>
+                        <tr><td class="criteria-grade">5</td><td>최상<br><span class="criteria-sub">매우 높음</span></td><td><strong>거의 매일 발생 가능.</strong> 해당 안전장치가 되어있지 않고, 안전보건표지가 없으며 안전수칙·작업표준 등도 없음.</td></tr>
+                        <tr><td class="criteria-grade">4</td><td>상<br><span class="criteria-sub">높음</span></td><td><strong>주 1회 정도 발생 가능.</strong> 가드·방호덮개, 기타 안전장치를 설치하였으나 해체되어 있으며, 안전수칙·작업표준 등은 있지만 지키기 어렵고 많은 주의를 해야 함.</td></tr>
+                        <tr><td class="criteria-grade">3</td><td>중<br><span class="criteria-sub">보통</span></td><td><strong>월 1회 정도 발생 가능.</strong> 가드·방호덮개 등으로 보호되어 있고 안전장치가 설치되어 있지만, 쉽게 해체하여 위험에 접근·접촉이 있을 수 있으며, 안전수칙·작업표준 등은 있지만 일부 준수하기 어려움.</td></tr>
+                        <tr><td class="criteria-grade">2</td><td>하<br><span class="criteria-sub">낮음</span></td><td><strong>연 1~2회 발생 가능.</strong> 가드·방호장치 등으로 보호되어 있고, 안전장치가 설치되어 있으며, 안전수칙·작업표준 등이 정비되어 있고 준수하기 쉬우나 피해의 가능성이 남아있음.</td></tr>
+                        <tr><td class="criteria-grade">1</td><td>최하<br><span class="criteria-sub">매우 낮음</span></td><td><strong>거의 발생하지 않음.</strong> 가드·방호덮개 등으로 둘러싸여 있고 안전장치가 설치되어 있으며, 위험영역에 출입이 곤란한 상태로 안전조치가 잘 되어 있음.</td></tr>
                     </tbody>
                 </table>
             </div>

@@ -622,7 +622,9 @@ async def add_record(request: Request):
     person = body.get("person", "").strip()
     date_val = body.get("date", "").strip()
     location = body.get("location", "").strip()
+    workplace = body.get("workplace", "").strip()
     content = body.get("content", "").strip()
+    cause_object = body.get("cause_object", "").strip()
     process = body.get("process", "").strip()
     disaster_type = body.get("disaster_type", "").strip()
     improvement_plan = body.get("improvement_plan", "").strip()
@@ -655,10 +657,12 @@ async def add_record(request: Request):
         "person": person,
         "date": parse_date(date_val),
         "location": location,
+        "workplace": workplace,
         "location_group": extract_location_group(location),
         "location_major": extract_location_major(extract_location_group(location)),
         "content": content[:100],
         "content_full": content,
+        "cause_object": cause_object,
         "process": process,
         "disaster_type": disaster_type,
         "likelihood_before": likelihood_before,
@@ -708,8 +712,8 @@ async def update_record(request: Request):
         raise HTTPException(status_code=404, detail="레코드를 찾을 수 없습니다.")
 
     # Update editable fields
-    for field in ("channel", "month", "person", "date", "location", "content",
-                  "process", "disaster_type", "improvement_plan", "completion", "image", "image_after"):
+    for field in ("channel", "month", "person", "date", "location", "workplace", "content",
+                  "cause_object", "process", "disaster_type", "improvement_plan", "completion", "image", "image_after"):
         if field in body:
             target[field] = body[field].strip() if isinstance(body[field], str) else body[field]
 

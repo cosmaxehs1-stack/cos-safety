@@ -201,6 +201,23 @@ body {
 .register-tab:hover { color: #333; }
 .register-tab.active { color: #e74c3c; border-bottom-color: #e74c3c; font-weight: 600; }
 
+/* Sidebar Sub Navigation */
+.nav-sub {
+    display: none; flex-direction: column; overflow: hidden;
+    background: rgba(0,0,0,0.15);
+}
+.nav-sub.open { display: flex; }
+.nav-sub-item {
+    padding: 8px 20px 8px 48px; color: rgba(255,255,255,0.5);
+    text-decoration: none; font-size: 13px; font-weight: 500;
+    transition: all 0.2s; border-left: 3px solid transparent;
+}
+.nav-sub-item:hover { color: white; background: rgba(255,255,255,0.05); }
+.nav-sub-item.active {
+    color: white; background: rgba(255,255,255,0.1);
+    border-left-color: #3498db;
+}
+
 /* Register Method Selection */
 .register-select {
     display: flex; gap: 32px; justify-content: center; padding: 60px 0;

@@ -78,8 +78,10 @@ function switchPage(pageName, el) {
         if (lastSummaryData) updateTable(getDisplayRecords(lastSummaryData));
         showRegisterSelect();
     }
-    if (pageName === "records") {
-        if (lastSummaryData) updateTable(getDisplayRecords(lastSummaryData));
+    if (pageName !== "records") {
+        // Collapse records sub when navigating away
+        document.getElementById("records-sub").classList.remove("open");
+        document.querySelectorAll(".nav-sub-item").forEach(function(s) { s.classList.remove("active"); });
     }
 }
 
@@ -172,6 +174,39 @@ function populateFilter(selectId, options, keepValue) {
 }
 
 // ===== Fetch Data =====
+// Records sidebar sub-navigation
+function toggleRecordsSub(el) {
+    var sub = document.getElementById("records-sub");
+    sub.classList.toggle("open");
+    // Activate nav item without loading data
+    document.querySelectorAll(".nav-item").forEach(function(n) { n.classList.remove("active"); });
+    if (el) el.classList.add("active");
+}
+
+function openRecordsChannel(channel, el) {
+    // Activate sub-item
+    document.querySelectorAll(".nav-sub-item").forEach(function(s) { s.classList.remove("active"); });
+    if (el) el.classList.add("active");
+    // Keep parent nav-item active
+    var parent = document.querySelector('.nav-item[data-page="records"]');
+    document.querySelectorAll(".nav-item").forEach(function(n) { n.classList.remove("active"); });
+    if (parent) parent.classList.add("active");
+    // Switch page and set filter
+    var page = document.getElementById("page-records");
+    document.querySelectorAll(".page").forEach(function(p) { p.style.display = "none"; p.classList.remove("active"); });
+    if (page) { page.style.display = "block"; page.classList.add("active"); }
+    currentPage = "records";
+    document.getElementById("f-channel").value = channel;
+    // 기본 필터: 현재 월
+    var currentMonth = (new Date().getMonth() + 1) + "월";
+    document.getElementById("f-month").value = currentMonth;
+    document.getElementById("records-page-title").textContent =
+        channel === "전체" ? "개별 위험요소 확인 - 전체" : "개별 위험요소 확인 - " + channel;
+    fetchSummary();
+    // Close mobile sidebar
+    document.getElementById("sidebar").classList.remove("open");
+}
+
 async function fetchSummary() {
     const filters = getFilters();
     const params = new URLSearchParams();
@@ -660,6 +695,30 @@ async function downloadExcel() {
 }
 
 // ===== Direct Input =====
+// 작업장 옵션
+var WORKPLACE_MAP = {
+    "화성1공장": ["1F","2F","3F","4F","옥상","기계실","외부","기타"],
+    "화성2공장": ["1F","2F","3F","4F","옥상","기계실","외부","기타"],
+    "화성3공장": ["1F","2F","3F","4F","옥상","기계실","외부","기타"],
+    "화성5공장": ["1F","2F","3F","4F","옥상","기계실","외부","기타"],
+    "평택1공장": ["1F","2F","3F","4F","옥상","기계실","외부","기타"],
+    "평택2공장": ["1F","2F","3F","4F","옥상","기계실","외부","기타"],
+    "고렴창고": ["1F","2F","외부","기타"],
+    "판교사업장": ["사무실","기타"],
+    "기타": ["기타"]
+};
+function updateWorkplaceOptions() {
+    var loc = document.getElementById("ar-location").value;
+    var wp = document.getElementById("ar-workplace");
+    wp.innerHTML = '<option value="">선택하세요</option>';
+    var list = WORKPLACE_MAP[loc] || [];
+    list.forEach(function(v) {
+        var opt = document.createElement("option");
+        opt.value = v; opt.textContent = v;
+        wp.appendChild(opt);
+    });
+}
+
 function initDateDefaults() {
     const today = new Date();
     const yyyy = today.getFullYear();
@@ -799,8 +858,10 @@ async function submitAddRecord(e) {
         person: document.getElementById("ar-person").value,
         date: document.getElementById("ar-date").value,
         location: document.getElementById("ar-location").value,
+        workplace: document.getElementById("ar-workplace").value,
         content: document.getElementById("ar-content").value,
-        process: document.getElementById("ar-process").value,
+        cause_object: document.getElementById("ar-cause-object").value,
+        process: "",
         disaster_type: document.getElementById("ar-disaster").value,
         likelihood_before: parseInt(document.getElementById("ar-lh-before").value) || 0,
         severity_before: parseInt(document.getElementById("ar-sv-before").value) || 0,
@@ -854,8 +915,10 @@ function editRecord(id) {
     document.getElementById("ar-person").value = r.person || "";
     document.getElementById("ar-date").value = r.date || "";
     document.getElementById("ar-location").value = r.location || "";
+    updateWorkplaceOptions();
+    document.getElementById("ar-workplace").value = r.workplace || "";
     document.getElementById("ar-content").value = r.content_full || "";
-    document.getElementById("ar-process").value = r.process || "";
+    document.getElementById("ar-cause-object").value = r.cause_object || "";
     document.getElementById("ar-disaster").value = r.disaster_type || "";
     document.getElementById("ar-week").value = r.date ? parseInt(r.date.split("-")[1]) + "월 " + getWeekFromDate(r.date) + "주차" : "";
     document.getElementById("ar-improvement").value = r.improvement_plan || "";
