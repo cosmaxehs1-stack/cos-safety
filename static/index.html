@@ -197,97 +197,145 @@
                 <!-- Back button (hidden initially) -->
                 <button id="register-back-btn" class="btn-register-back" style="display:none;" onclick="showRegisterSelect()">&#8592; 등록 방법 선택</button>
 
-                <!-- Direct Input -->
+                <!-- Direct Input (Wizard) -->
                 <div id="method-direct" class="register-section" style="display:none;">
                     <form id="add-record-form" onsubmit="submitAddRecord(event)">
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label>구분 (채널) *</label>
-                                <select id="ar-channel" required>
-                                    <option value="부서별 위험요소발굴" selected>부서별 위험요소발굴</option>
-                                </select>
+
+                        <!-- Step Indicator -->
+                        <div class="wizard-steps">
+                            <div class="wizard-step active" data-step="1"><span class="wizard-step-num">1</span><span class="wizard-step-label">기본정보</span></div>
+                            <div class="wizard-step-line"></div>
+                            <div class="wizard-step" data-step="2"><span class="wizard-step-num">2</span><span class="wizard-step-label">개선 전</span></div>
+                            <div class="wizard-step-line"></div>
+                            <div class="wizard-step" data-step="3"><span class="wizard-step-num">3</span><span class="wizard-step-label">개선 후</span></div>
+                        </div>
+
+                        <!-- STEP 1: 기본정보 -->
+                        <div class="wizard-page" id="wizard-page-1">
+                            <div class="wizard-page-title">기본 정보를 입력하세요</div>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>구분 (채널) *</label>
+                                    <select id="ar-channel" required>
+                                        <option value="부서별 위험요소발굴" selected>부서별 위험요소발굴</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>발굴자</label>
+                                    <input type="text" id="ar-person" placeholder="이름">
+                                </div>
+                                <div class="form-group">
+                                    <label>작성일</label>
+                                    <input type="date" id="ar-date" readonly>
+                                </div>
+                                <div class="form-group">
+                                    <label>주차</label>
+                                    <input type="text" id="ar-week" readonly>
+                                </div>
+                                <div class="form-group">
+                                    <label>장소</label>
+                                    <select id="ar-location">
+                                        <option value="">선택하세요</option>
+                                        <option value="화성1공장">화성1공장</option>
+                                        <option value="화성2공장">화성2공장</option>
+                                        <option value="화성3공장">화성3공장</option>
+                                        <option value="화성5공장">화성5공장</option>
+                                        <option value="평택1공장">평택1공장</option>
+                                        <option value="평택2공장">평택2공장</option>
+                                        <option value="고렴창고">고렴창고</option>
+                                        <option value="판교사업장">판교사업장</option>
+                                        <option value="기타">기타</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>공정</label>
+                                    <input type="text" id="ar-process" placeholder="공정명">
+                                </div>
+                                <div class="form-group">
+                                    <label>재해유형</label>
+                                    <input type="text" id="ar-disaster" placeholder="예: 끼임, 넘어짐">
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label>월</label>
-                                <input type="text" id="ar-month" placeholder="예: 4월">
+                            <div class="wizard-nav">
+                                <div></div>
+                                <button type="button" class="btn-wizard-next" onclick="wizardGo(2)">다음 &#8594;</button>
                             </div>
-                            <div class="form-group">
-                                <label>발굴자</label>
-                                <input type="text" id="ar-person" placeholder="이름">
-                            </div>
-                            <div class="form-group">
-                                <label>작성일</label>
-                                <input type="date" id="ar-date" readonly>
-                            </div>
-                            <div class="form-group">
-                                <label>장소</label>
-                                <select id="ar-location">
-                                    <option value="">선택하세요</option>
-                                    <option value="화성1공장">화성1공장</option>
-                                    <option value="화성2공장">화성2공장</option>
-                                    <option value="화성3공장">화성3공장</option>
-                                    <option value="화성5공장">화성5공장</option>
-                                    <option value="평택1공장">평택1공장</option>
-                                    <option value="평택2공장">평택2공장</option>
-                                    <option value="고렴창고">고렴창고</option>
-                                    <option value="판교사업장">판교사업장</option>
-                                    <option value="기타">기타</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>공정</label>
-                                <input type="text" id="ar-process" placeholder="공정명">
-                            </div>
-                            <div class="form-group">
-                                <label>재해유형</label>
-                                <input type="text" id="ar-disaster" placeholder="예: 끼임, 넘어짐">
-                            </div>
-                            <div class="form-group">
-                                <label>주차</label>
-                                <input type="text" id="ar-week" readonly>
-                            </div>
-                            <div class="form-group full-width">
+                        </div>
+
+                        <!-- STEP 2: 개선 전 -->
+                        <div class="wizard-page" id="wizard-page-2" style="display:none;">
+                            <div class="wizard-page-title">[개선 전] 위험요소 정보</div>
+                            <input type="hidden" id="ar-lh-before" value="">
+                            <input type="hidden" id="ar-sv-before" value="">
+
+                            <div class="form-group full-width" style="margin-bottom:16px;">
                                 <label>위험요소 내용 *</label>
-                                <textarea id="ar-content" rows="1" placeholder="위험요소 내용을 입력하세요" required></textarea>
+                                <textarea id="ar-content" rows="3" placeholder="위험요소 내용을 입력하세요" required></textarea>
                             </div>
-                            <div class="form-section-title">[개선 전] 위험도</div>
-                            <div class="form-group">
-                                <label>가능성</label>
-                                <input type="number" id="ar-lh-before" min="1" max="5" placeholder="1~5" oninput="calcGrade('before')">
+
+                            <div class="rating-section">
+                                <div class="rating-label">가능성 <span class="rating-sub">(빈도)</span></div>
+                                <div class="rating-cards" id="cards-lh-before">
+                                    <div class="rating-card" onclick="selectRating('lh','before',5)">
+                                        <div class="rating-card-num">5</div>
+                                        <div class="rating-card-title">최상</div>
+                                        <div class="rating-card-desc">안전장치 없음, 표지·수칙 없음</div>
+                                    </div>
+                                    <div class="rating-card" onclick="selectRating('lh','before',4)">
+                                        <div class="rating-card-num">4</div>
+                                        <div class="rating-card-title">상</div>
+                                        <div class="rating-card-desc">안전장치 설치했으나 해체됨</div>
+                                    </div>
+                                    <div class="rating-card" onclick="selectRating('lh','before',3)">
+                                        <div class="rating-card-num">3</div>
+                                        <div class="rating-card-title">중</div>
+                                        <div class="rating-card-desc">보호되어 있으나 해체 가능</div>
+                                    </div>
+                                    <div class="rating-card" onclick="selectRating('lh','before',2)">
+                                        <div class="rating-card-num">2</div>
+                                        <div class="rating-card-title">하</div>
+                                        <div class="rating-card-desc">장치 정비됨, 가능성 낮음</div>
+                                    </div>
+                                    <div class="rating-card" onclick="selectRating('lh','before',1)">
+                                        <div class="rating-card-num">1</div>
+                                        <div class="rating-card-title">최하</div>
+                                        <div class="rating-card-desc">완전 밀폐, 접근 곤란</div>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label>중대성</label>
-                                <input type="number" id="ar-sv-before" min="1" max="5" placeholder="1~5" oninput="calcGrade('before')">
+
+                            <div class="rating-section">
+                                <div class="rating-label">중대성 <span class="rating-sub">(강도)</span></div>
+                                <div class="rating-cards" id="cards-sv-before">
+                                    <div class="rating-card" onclick="selectRating('sv','before',4)">
+                                        <div class="rating-card-num">4</div>
+                                        <div class="rating-card-title">최대</div>
+                                        <div class="rating-card-desc">사망 또는 영구 장애</div>
+                                    </div>
+                                    <div class="rating-card" onclick="selectRating('sv','before',3)">
+                                        <div class="rating-card-num">3</div>
+                                        <div class="rating-card-title">휴업 필요</div>
+                                        <div class="rating-card-desc">중대 부상, 완치 가능</div>
+                                    </div>
+                                    <div class="rating-card" onclick="selectRating('sv','before',2)">
+                                        <div class="rating-card-num">2</div>
+                                        <div class="rating-card-title">휴업 불필요</div>
+                                        <div class="rating-card-desc">통원치료 수준 부상</div>
+                                    </div>
+                                    <div class="rating-card" onclick="selectRating('sv','before',1)">
+                                        <div class="rating-card-num">1</div>
+                                        <div class="rating-card-title">소</div>
+                                        <div class="rating-card-desc">경미, 업무 전환 불필요</div>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label>위험도 / 등급</label>
+
+                            <div class="rating-result-bar">
+                                <span>위험도 / 등급:</span>
                                 <span class="calc-result" id="ar-grade-before">-</span>
                             </div>
-                            <div class="form-group full-width">
-                                <label>개선대책</label>
-                                <textarea id="ar-improvement" rows="1" placeholder="개선대책 내용"></textarea>
-                            </div>
-                            <div class="form-section-title">[개선 후] 위험도</div>
-                            <div class="form-group">
-                                <label>가능성</label>
-                                <input type="number" id="ar-lh-after" min="1" max="5" placeholder="1~5" oninput="calcGrade('after')">
-                            </div>
-                            <div class="form-group">
-                                <label>중대성</label>
-                                <input type="number" id="ar-sv-after" min="1" max="5" placeholder="1~5" oninput="calcGrade('after')">
-                            </div>
-                            <div class="form-group">
-                                <label>위험도 / 등급</label>
-                                <span class="calc-result" id="ar-grade-after">-</span>
-                            </div>
-                            <div class="form-group">
-                                <label>완료여부</label>
-                                <select id="ar-completion">
-                                    <option value="미완료">미완료</option>
-                                    <option value="완료">완료</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
+
+                            <div class="form-group full-width" style="margin-top:12px;">
                                 <label>개선 전 사진</label>
                                 <div class="image-upload-area">
                                     <input type="file" id="ar-image" accept="image/*" onchange="previewImage('before')" style="display:none">
@@ -300,7 +348,93 @@
                                 </div>
                                 <input type="hidden" id="ar-image-url" value="">
                             </div>
-                            <div class="form-group">
+                            <div class="form-group full-width" style="margin-top:8px;">
+                                <label>개선대책</label>
+                                <textarea id="ar-improvement" rows="3" placeholder="개선대책 내용"></textarea>
+                            </div>
+
+                            <div class="wizard-nav">
+                                <button type="button" class="btn-wizard-prev" onclick="wizardGo(1)">&#8592; 이전</button>
+                                <button type="button" class="btn-wizard-next" onclick="wizardGo(3)">다음 &#8594;</button>
+                            </div>
+                        </div>
+
+                        <!-- STEP 3: 개선 후 -->
+                        <div class="wizard-page" id="wizard-page-3" style="display:none;">
+                            <div class="wizard-page-title">[개선 후] 위험도 평가</div>
+                            <input type="hidden" id="ar-lh-after" value="">
+                            <input type="hidden" id="ar-sv-after" value="">
+
+                            <div class="rating-section">
+                                <div class="rating-label">가능성 <span class="rating-sub">(빈도)</span></div>
+                                <div class="rating-cards" id="cards-lh-after">
+                                    <div class="rating-card" onclick="selectRating('lh','after',5)">
+                                        <div class="rating-card-num">5</div>
+                                        <div class="rating-card-title">최상</div>
+                                        <div class="rating-card-desc">안전장치 없음, 표지·수칙 없음</div>
+                                    </div>
+                                    <div class="rating-card" onclick="selectRating('lh','after',4)">
+                                        <div class="rating-card-num">4</div>
+                                        <div class="rating-card-title">상</div>
+                                        <div class="rating-card-desc">안전장치 설치했으나 해체됨</div>
+                                    </div>
+                                    <div class="rating-card" onclick="selectRating('lh','after',3)">
+                                        <div class="rating-card-num">3</div>
+                                        <div class="rating-card-title">중</div>
+                                        <div class="rating-card-desc">보호되어 있으나 해체 가능</div>
+                                    </div>
+                                    <div class="rating-card" onclick="selectRating('lh','after',2)">
+                                        <div class="rating-card-num">2</div>
+                                        <div class="rating-card-title">하</div>
+                                        <div class="rating-card-desc">장치 정비됨, 가능성 낮음</div>
+                                    </div>
+                                    <div class="rating-card" onclick="selectRating('lh','after',1)">
+                                        <div class="rating-card-num">1</div>
+                                        <div class="rating-card-title">최하</div>
+                                        <div class="rating-card-desc">완전 밀폐, 접근 곤란</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="rating-section">
+                                <div class="rating-label">중대성 <span class="rating-sub">(강도)</span></div>
+                                <div class="rating-cards" id="cards-sv-after">
+                                    <div class="rating-card" onclick="selectRating('sv','after',4)">
+                                        <div class="rating-card-num">4</div>
+                                        <div class="rating-card-title">최대</div>
+                                        <div class="rating-card-desc">사망 또는 영구 장애</div>
+                                    </div>
+                                    <div class="rating-card" onclick="selectRating('sv','after',3)">
+                                        <div class="rating-card-num">3</div>
+                                        <div class="rating-card-title">휴업 필요</div>
+                                        <div class="rating-card-desc">중대 부상, 완치 가능</div>
+                                    </div>
+                                    <div class="rating-card" onclick="selectRating('sv','after',2)">
+                                        <div class="rating-card-num">2</div>
+                                        <div class="rating-card-title">휴업 불필요</div>
+                                        <div class="rating-card-desc">통원치료 수준 부상</div>
+                                    </div>
+                                    <div class="rating-card" onclick="selectRating('sv','after',1)">
+                                        <div class="rating-card-num">1</div>
+                                        <div class="rating-card-title">소</div>
+                                        <div class="rating-card-desc">경미, 업무 전환 불필요</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="rating-result-bar">
+                                <span>위험도 / 등급:</span>
+                                <span class="calc-result" id="ar-grade-after">-</span>
+                            </div>
+
+                            <div class="form-group" style="margin-top:12px;">
+                                <label>완료여부</label>
+                                <select id="ar-completion">
+                                    <option value="미완료">미완료</option>
+                                    <option value="완료">완료</option>
+                                </select>
+                            </div>
+                            <div class="form-group full-width" style="margin-top:8px;">
                                 <label>개선 후 사진</label>
                                 <div class="image-upload-area">
                                     <input type="file" id="ar-image-after" accept="image/*" onchange="previewImage('after')" style="display:none">
@@ -313,11 +447,16 @@
                                 </div>
                                 <input type="hidden" id="ar-image-after-url" value="">
                             </div>
+
+                            <div class="wizard-nav">
+                                <button type="button" class="btn-wizard-prev" onclick="wizardGo(2)">&#8592; 이전</button>
+                                <div class="wizard-nav-right">
+                                    <button type="button" class="btn-cancel" id="ar-cancel-btn" onclick="cancelEdit()" style="display:none;">취소</button>
+                                    <button type="submit" class="btn-submit" id="ar-submit-btn">등록</button>
+                                </div>
+                            </div>
                         </div>
-                        <div class="form-footer">
-                            <button type="button" class="btn-cancel" id="ar-cancel-btn" onclick="cancelEdit()" style="display:none;">취소</button>
-                            <button type="submit" class="btn-submit" id="ar-submit-btn">등록</button>
-                        </div>
+
                     </form>
                 </div>
 
@@ -557,6 +696,39 @@
         </div>
     </div>
 
-    <script src="/static/app.js?v=21"></script>
+    <!-- 위험성평가 기준 모달 -->
+    <div id="criteria-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
+        <div class="criteria-modal-content">
+            <button onclick="document.getElementById('criteria-modal').style.display='none'" class="criteria-close-btn">&times;</button>
+            <h3 class="criteria-title">위험성평가 기준 <span style="font-weight:400;font-size:13px;color:#888;">(빈도 x 강도 판단법)</span></h3>
+            <div class="criteria-section">
+                <h4 class="criteria-section-title">가능성 (빈도)</h4>
+                <table class="criteria-table">
+                    <thead><tr><th>등급</th><th>구분</th><th>내용</th></tr></thead>
+                    <tbody>
+                        <tr><td class="criteria-grade">5</td><td>최상<br><span class="criteria-sub">매우 높음</span></td><td>피해가 일어날 가능성이 매우 높음. 해당 안전장치가 되어있지 않고, 안전보건표지가 없으며 안전수칙·작업표준 등도 없음.</td></tr>
+                        <tr><td class="criteria-grade">4</td><td>상<br><span class="criteria-sub">높음</span></td><td>피해가 일어날 가능성이 높음. 가드·방호덮개, 기타 안전장치를 설치하였으나 해체되어 있으며, 안전수칙·작업표준 등은 있지만 지키기 어렵고 많은 주의를 해야 함.</td></tr>
+                        <tr><td class="criteria-grade">3</td><td>중<br><span class="criteria-sub">보통</span></td><td>부조리하게 발생할 가능성이 있음. 가드·방호덮개 등으로 보호되어 있고 안전장치가 설치되어 있지만, 쉽게 해체하여 위험에 접근·접촉이 있을 수 있으며, 안전수칙·작업표준 등은 있지만 일부 준수하기 어려움.</td></tr>
+                        <tr><td class="criteria-grade">2</td><td>하<br><span class="criteria-sub">낮음</span></td><td>피해가 발생할 가능성이 낮음. 가드·방호장치 등으로 보호되어 있고, 안전장치가 설치되어 있으며, 안전수칙·작업표준 등이 정비되어 있고 준수하기 쉬우나 피해의 가능성이 남아있음.</td></tr>
+                        <tr><td class="criteria-grade">1</td><td>최하<br><span class="criteria-sub">매우 낮음</span></td><td>피해가 발생할 가능성이 매우 낮음. 가드·방호덮개 등으로 둘러싸여 있고 안전장치가 설치되어 있으며, 위험영역에 출입이 곤란한 상태로 안전조치가 잘 되어 있음.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="criteria-section">
+                <h4 class="criteria-section-title">중대성 (강도)</h4>
+                <table class="criteria-table">
+                    <thead><tr><th>등급</th><th>구분</th><th>내용</th></tr></thead>
+                    <tbody>
+                        <tr><td class="criteria-grade">4</td><td>최대<br><span class="criteria-sub">사망/장애</span></td><td>사망 또는 영구적 근로불능으로 연결되는 부상/질병(업무에 복귀 불가능). 장애에 해당하는 부상/질병.</td></tr>
+                        <tr><td class="criteria-grade">3</td><td>휴업 필요<br><span class="criteria-sub">휴업/질병</span></td><td>휴업을 수반하는 중대한 부상 또는 질병. (장기 시간이면 직장 복귀 가능, 완치 가능)</td></tr>
+                        <tr><td class="criteria-grade">2</td><td>휴업 불필요<br><span class="criteria-sub">통원치료</span></td><td>응급조치 이상의 치료가 필요한 부상. 휴업이 수반되지 않는 부상 또는 질병.</td></tr>
+                        <tr><td class="criteria-grade">1</td><td>소<br><span class="criteria-sub">비치료</span></td><td>치료 후 바로 원래의 작업을 수행 가능. 아주 경미한 부상 또는 질병. (업무 전환 불필요)</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js?v=22"></script>
 </body>
 </html>

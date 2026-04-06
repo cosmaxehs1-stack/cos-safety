@@ -670,7 +670,6 @@ function initDateDefaults() {
     const weekNum = getWeekFromDate(dateStr);
 
     document.getElementById("ar-date").value = dateStr;
-    document.getElementById("ar-month").value = monthStr;
     document.getElementById("ar-week").value = monthStr + " " + weekNum + "주차";
 }
 
@@ -681,8 +680,25 @@ function updateWeekFromDate() {
         const parts = dateVal.split("-");
         const monthLabel = parseInt(parts[1]) + "월";
         document.getElementById("ar-week").value = monthLabel + " " + weekNum + "주차";
-        document.getElementById("ar-month").value = monthLabel;
     }
+}
+
+// Wizard navigation
+var currentWizardStep = 1;
+function wizardGo(step) {
+    // Hide all pages
+    for (var i = 1; i <= 3; i++) {
+        document.getElementById("wizard-page-" + i).style.display = (i === step) ? "block" : "none";
+    }
+    // Update step indicators
+    document.querySelectorAll(".wizard-step").forEach(function(el) {
+        var s = parseInt(el.getAttribute("data-step"));
+        el.classList.remove("active", "done");
+        if (s === step) el.classList.add("active");
+        else if (s < step) el.classList.add("done");
+    });
+    currentWizardStep = step;
+    window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function resetForm() {
@@ -701,6 +717,8 @@ function resetForm() {
     document.getElementById("ar-submit-btn").textContent = "등록";
     document.getElementById("ar-cancel-btn").style.display = "none";
     document.getElementById("register-page-title").textContent = "위험요소 등록";
+    clearRatingCards();
+    wizardGo(1);
     initDateDefaults();
     updateChannelOptions();
 }
@@ -708,6 +726,26 @@ function resetForm() {
 function cancelEdit() {
     resetForm();
     window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+// Rating card selection
+function selectRating(type, phase, value) {
+    var containerId = "cards-" + type + "-" + phase;
+    var container = document.getElementById(containerId);
+    container.querySelectorAll(".rating-card").forEach(function(c) { c.classList.remove("selected"); });
+    // Find clicked card by value
+    var cards = container.querySelectorAll(".rating-card");
+    cards.forEach(function(c) {
+        if (c.querySelector(".rating-card-num").textContent.trim() == value) {
+            c.classList.add("selected");
+        }
+    });
+    document.getElementById("ar-" + type + "-" + phase).value = value;
+    calcGrade(phase);
+}
+
+function clearRatingCards() {
+    document.querySelectorAll(".rating-card").forEach(function(c) { c.classList.remove("selected"); });
 }
 
 function calcGrade(phase) {
@@ -757,7 +795,7 @@ async function submitAddRecord(e) {
     e.preventDefault();
     const payload = {
         channel: document.getElementById("ar-channel").value,
-        month: document.getElementById("ar-month").value,
+        month: (function(){ var d = document.getElementById("ar-date").value; return d ? parseInt(d.split("-")[1]) + "월" : ""; })(),
         person: document.getElementById("ar-person").value,
         date: document.getElementById("ar-date").value,
         location: document.getElementById("ar-location").value,
@@ -813,7 +851,6 @@ function editRecord(id) {
     updateChannelOptions(true);
 
     document.getElementById("ar-channel").value = r.channel || "부서별 위험요소발굴";
-    document.getElementById("ar-month").value = r.month || "";
     document.getElementById("ar-person").value = r.person || "";
     document.getElementById("ar-date").value = r.date || "";
     document.getElementById("ar-location").value = r.location || "";
@@ -821,15 +858,14 @@ function editRecord(id) {
     document.getElementById("ar-process").value = r.process || "";
     document.getElementById("ar-disaster").value = r.disaster_type || "";
     document.getElementById("ar-week").value = r.date ? parseInt(r.date.split("-")[1]) + "월 " + getWeekFromDate(r.date) + "주차" : "";
-    document.getElementById("ar-lh-before").value = r.likelihood_before || "";
-    document.getElementById("ar-sv-before").value = r.severity_before || "";
     document.getElementById("ar-improvement").value = r.improvement_plan || "";
-    document.getElementById("ar-lh-after").value = r.likelihood_after || "";
-    document.getElementById("ar-sv-after").value = r.severity_after || "";
     document.getElementById("ar-completion").value = r.completion || "미완료";
 
-    calcGrade("before");
-    calcGrade("after");
+    clearRatingCards();
+    if (r.likelihood_before) selectRating("lh", "before", r.likelihood_before);
+    if (r.severity_before) selectRating("sv", "before", r.severity_before);
+    if (r.likelihood_after) selectRating("lh", "after", r.likelihood_after);
+    if (r.severity_after) selectRating("sv", "after", r.severity_after);
 
     // Lazy load images for edit
     if (r.has_image) {
