@@ -2,10 +2,12 @@ import os
 import io
 import json
 import hashlib
+import re
 import secrets
 import uuid
 import zipfile
 import base64
+from collections import Counter
 from datetime import datetime, date
 from typing import Optional, Union
 from xml.etree import ElementTree as ET
@@ -36,6 +38,13 @@ ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin2026")
 DATABASE_URL = os.environ.get("DATABASE_URL")
 SESSION_TOKENS: set[str] = set()
 ADMIN_TOKENS: set[str] = set()
+
+# --- Data Cache ---
+_data_cache: list[dict] | None = None
+_data_cache_time: float = 0
+_DATA_CACHE_TTL = 2.0  # seconds
+
+import time as _time
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(IMAGE_DIR, exist_ok=True)
@@ -807,7 +816,17 @@ def _cleanup_records(data: list[dict]) -> tuple[list[dict], list[str]]:
     return data, dirty_ids
 
 
+def invalidate_data_cache():
+    global _data_cache, _data_cache_time
+    _data_cache = None
+    _data_cache_time = 0
+
 def load_data() -> list[dict]:
+    global _data_cache, _data_cache_time
+    now = _time.time()
+    if _data_cache is not None and (now - _data_cache_time) < _DATA_CACHE_TTL:
+        return [dict(r) for r in _data_cache]  # shallow copy
+
     if not DATABASE_URL:
         if not os.path.exists(DATA_FILE):
             return []
@@ -817,7 +836,9 @@ def load_data() -> list[dict]:
         if dirty_ids:
             with open(DATA_FILE, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
-        return data
+        _data_cache = data
+        _data_cache_time = now
+        return [dict(r) for r in data]
 
     conn = get_db()
     cur = conn.cursor()
@@ -834,10 +855,13 @@ def load_data() -> list[dict]:
         conn.commit()
     cur.close()
     release_db(conn)
+    _data_cache = data
+    _data_cache_time = now
     return data
 
 
 def save_data(data: list[dict]):
+    invalidate_data_cache()
     if not DATABASE_URL:
         with open(DATA_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
@@ -1091,9 +1115,11 @@ async def get_summary(
     keyword: Optional[str] = None,
     completion: Optional[str] = None,
     team: Optional[str] = None,
+    page: Optional[str] = None,
 ):
     verify_token(request)
     records = load_data()
+    _all_records_cache = list(records)  # 필터 옵션용 원본 보관 (load_data 이중 호출 방지)
 
     # Apply filters
     if team and team != "전체":
@@ -1133,8 +1159,6 @@ async def get_summary(
                    or kw in r.get("improvement_plan", "").lower()]
 
     # Detect repeated risks by normalized content
-    import re
-    from collections import Counter
 
     def normalize_content(text):
         if not text:
@@ -1187,210 +1211,202 @@ async def get_summary(
     incomplete = sum(1 for r in records if r["completion"] != "완료")
     improvement_rate = round(complete / total * 100, 1) if total > 0 else 0
 
-    # Cumulative remaining incomplete by grade per month
+    # Shared month sort helper
     def month_sort_key(m):
         try:
             return int(m.replace("월", ""))
         except (ValueError, AttributeError):
             return 0
     all_months = sorted(set(r["month"] for r in records), key=month_sort_key)
-    grade_cumulative = {}  # {month: {D: n, C: n, B: n, A: n, total: n}}
-    cumul = {"A": 0, "B": 0, "C": 0, "D": 0}
-    cumul_total = 0
-    cumul_complete = 0
-    for m in all_months:
-        month_recs = [r for r in records if r["month"] == m]
-        for r in month_recs:
+
+    need_analysis = page in (None, "summary", "analysis")
+    # --- Heavy analysis stats (skip for records page) ---
+    if need_analysis:
+        grade_cumulative = {}
+        cumul = {"A": 0, "B": 0, "C": 0, "D": 0}
+        cumul_total = 0
+        cumul_complete = 0
+        for m in all_months:
+            month_recs = [r for r in records if r["month"] == m]
+            for r in month_recs:
+                g = r["grade_before"] if r["grade_before"] in ("A", "B", "C", "D") else None
+                if g and r["completion"] != "완료":
+                    cumul[g] += 1
+            cumul_total += len(month_recs)
+            cumul_complete += sum(1 for r in month_recs if r["completion"] == "완료")
+            grade_cumulative[m] = {
+                "A": cumul["A"], "B": cumul["B"], "C": cumul["C"], "D": cumul["D"],
+                "total_remaining": cumul_total - cumul_complete,
+            }
+
+        d_grade_total = 0
+        d_after = {"A": 0, "B": 0, "C": 0, "D": 0, "미완료": 0}
+        for r in records:
+            if r["grade_before"] == "D":
+                d_grade_total += 1
+                ga = r.get("grade_after")
+                if ga in ("A", "B", "C", "D"):
+                    d_after[ga] += 1
+                else:
+                    d_after["미완료"] += 1
+
+        d_grade_monthly = {}
+        for m in all_months:
+            month_d_recs = [r for r in records if r["month"] == m and r["grade_before"] == "D"]
+            before_count = len(month_d_recs)
+            after = {"A": 0, "B": 0, "C": 0, "D": 0, "미완료": 0}
+            for r in month_d_recs:
+                ga = r.get("grade_after")
+                if ga in ("A", "B", "C", "D"):
+                    after[ga] += 1
+                else:
+                    after["미완료"] += 1
+            d_grade_monthly[m] = {"before": before_count, "after": after}
+
+        def grade_to_num(g):
+            return {"A": 1, "B": 2, "C": 3, "D": 4}.get(g, 0)
+
+        risk_trend: dict[str, dict[str, float]] = {}
+        for m in all_months:
+            month_recs = [r for r in records if r["month"] == m]
+            before_scores = [r["risk_before"] for r in month_recs if r["risk_before"] and r["risk_before"] > 0]
+            after_scores = [r["risk_after"] for r in month_recs if r["risk_after"] and r["risk_after"] > 0]
+            before_grades = [grade_to_num(r["grade_before"]) for r in month_recs if r["grade_before"] in ("A","B","C","D")]
+            after_grades = [grade_to_num(r.get("grade_after","")) for r in month_recs if r.get("grade_after") in ("A","B","C","D")]
+            risk_trend[m] = {
+                "avg_before": round(sum(before_scores) / len(before_scores), 1) if before_scores else 0,
+                "avg_after": round(sum(after_scores) / len(after_scores), 1) if after_scores else 0,
+                "avg_grade_before": round(sum(before_grades) / len(before_grades), 2) if before_grades else 0,
+                "avg_grade_after": round(sum(after_grades) / len(after_grades), 2) if after_grades else 0,
+            }
+
+        monthly_effort = {}
+        for m in all_months:
+            month_recs = [r for r in records if r["month"] == m]
+            found = len(month_recs)
+            completed = sum(1 for r in month_recs if r["completion"] == "완료")
+            rate = round(completed / found * 100, 1) if found > 0 else 0
+            monthly_effort[m] = {"found": found, "completed": completed, "rate": rate}
+
+        location_stats: dict[str, dict[str, int]] = {}
+        for r in records:
+            lg = r["location_group"]
+            if lg not in location_stats:
+                location_stats[lg] = {"A": 0, "B": 0, "C": 0, "D": 0, "-": 0}
+            g = r["grade_before"] if r["grade_before"] in ("A", "B", "C", "D") else "-"
+            location_stats[lg][g] += 1
+
+        location_disaster_stats: dict[str, dict[str, int]] = {}
+        all_disaster_types_set: set[str] = set()
+        for r in records:
+            lg = r["location_group"]
+            dt = r["disaster_type"] if r["disaster_type"] else "미분류"
+            all_disaster_types_set.add(dt)
+            if lg not in location_disaster_stats:
+                location_disaster_stats[lg] = {}
+            location_disaster_stats[lg][dt] = location_disaster_stats[lg].get(dt, 0) + 1
+
+        MAJOR_ORDER = ["화성", "평택", "고렴", "판교"]
+        location_major_stats: dict[str, dict[str, int]] = {}
+        location_major_disaster_stats: dict[str, dict[str, int]] = {}
+        location_hierarchy: dict[str, list[str]] = {m: [] for m in MAJOR_ORDER}
+        for r in records:
+            lg = r["location_group"]
+            lm = r.get("location_major") or extract_location_major(lg)
+            if lm not in location_major_stats:
+                location_major_stats[lm] = {"A": 0, "B": 0, "C": 0, "D": 0, "-": 0}
+            g = r["grade_before"] if r["grade_before"] in ("A", "B", "C", "D") else "-"
+            location_major_stats[lm][g] += 1
+            dt = r["disaster_type"] if r["disaster_type"] else "미분류"
+            if lm not in location_major_disaster_stats:
+                location_major_disaster_stats[lm] = {}
+            location_major_disaster_stats[lm][dt] = location_major_disaster_stats[lm].get(dt, 0) + 1
+            if lm in location_hierarchy and lg not in location_hierarchy[lm]:
+                location_hierarchy[lm].append(lg)
+        for m in location_hierarchy:
+            location_hierarchy[m].sort()
+
+        grade_trend: dict[str, dict[str, int]] = {}
+        grade_trend_after: dict[str, dict[str, int]] = {}
+        for r in records:
+            m = r["month"]
+            if m not in grade_trend:
+                grade_trend[m] = {"A": 0, "B": 0, "C": 0, "D": 0}
             g = r["grade_before"] if r["grade_before"] in ("A", "B", "C", "D") else None
-            if g and r["completion"] != "완료":
-                cumul[g] += 1
-        cumul_total += len(month_recs)
-        cumul_complete += sum(1 for r in month_recs if r["completion"] == "완료")
-        grade_cumulative[m] = {
-            "A": cumul["A"], "B": cumul["B"], "C": cumul["C"], "D": cumul["D"],
-            "total_remaining": cumul_total - cumul_complete,
-        }
+            if g:
+                grade_trend[m][g] += 1
+            if m not in grade_trend_after:
+                grade_trend_after[m] = {"A": 0, "B": 0, "C": 0, "D": 0}
+            ga = r["grade_after"] if r.get("grade_after") in ("A", "B", "C", "D") else None
+            if ga:
+                grade_trend_after[m][ga] += 1
+        grade_trend = dict(sorted(grade_trend.items(), key=lambda x: month_sort_key(x[0])))
 
-    # D-grade breakdown: what happened to D-grade items after improvement
-    d_grade_total = 0
-    d_after = {"A": 0, "B": 0, "C": 0, "D": 0, "미완료": 0}
-    for r in records:
-        if r["grade_before"] == "D":
-            d_grade_total += 1
-            ga = r.get("grade_after")
-            if ga in ("A", "B", "C", "D"):
-                d_after[ga] += 1
+        week_stats: dict[str, int] = {}
+        for r in records:
+            m = r["month"]
+            w = r["week"]
+            if w > 0:
+                key = f"{m} {w}주차"
+                week_stats[key] = week_stats.get(key, 0) + 1
+        def week_sort_key(k):
+            parts = k.split()
+            try: mon = int(parts[0].replace("월", ""))
+            except (ValueError, IndexError): mon = 999
+            try: wk = int(parts[1].replace("주차", ""))
+            except (ValueError, IndexError): wk = 999
+            return (mon, wk)
+        week_stats = dict(sorted(week_stats.items(), key=lambda x: week_sort_key(x[0])))
+
+        disaster_stats: dict[str, int] = {}
+        for r in records:
+            dt = r["disaster_type"] if r["disaster_type"] else "미분류"
+            disaster_stats[dt] = disaster_stats.get(dt, 0) + 1
+
+        process_stats: dict[str, int] = {}
+        for r in records:
+            p = r["process"] if r["process"] else "미분류"
+            process_stats[p] = process_stats.get(p, 0) + 1
+
+        channel_stats: dict[str, int] = {}
+        for r in records:
+            ch = r.get("channel", "미분류")
+            channel_stats[ch] = channel_stats.get(ch, 0) + 1
+
+        channel_grade_stats: dict[str, dict[str, int]] = {}
+        for r in records:
+            ch = r.get("channel", "미분류")
+            if ch not in channel_grade_stats:
+                channel_grade_stats[ch] = {"A": 0, "B": 0, "C": 0, "D": 0, "-": 0, "complete": 0, "incomplete": 0}
+            g = r["grade_before"] if r["grade_before"] in ("A", "B", "C", "D") else "-"
+            channel_grade_stats[ch][g] += 1
+            if r["completion"] == "완료":
+                channel_grade_stats[ch]["complete"] += 1
             else:
-                d_after["미완료"] += 1
+                channel_grade_stats[ch]["incomplete"] += 1
+    else:
+        # records page — skip heavy stats
+        grade_cumulative = {}
+        d_grade_total = 0
+        d_after = {}
+        d_grade_monthly = {}
+        risk_trend = {}
+        monthly_effort = {}
+        location_stats = {}
+        location_disaster_stats = {}
+        location_major_stats = {}
+        location_major_disaster_stats = {}
+        location_hierarchy = {}
+        grade_trend = {}
+        grade_trend_after = {}
+        week_stats = {}
+        disaster_stats = {}
+        process_stats = {}
+        channel_stats = {}
+        channel_grade_stats = {}
 
-    # D-grade monthly breakdown: per month, before D count vs after grade distribution
-    d_grade_monthly = {}
-    for m in all_months:
-        month_d_recs = [r for r in records if r["month"] == m and r["grade_before"] == "D"]
-        before_count = len(month_d_recs)
-        after = {"A": 0, "B": 0, "C": 0, "D": 0, "미완료": 0}
-        for r in month_d_recs:
-            ga = r.get("grade_after")
-            if ga in ("A", "B", "C", "D"):
-                after[ga] += 1
-            else:
-                after["미완료"] += 1
-        d_grade_monthly[m] = {"before": before_count, "after": after}
-
-    # Grade to number: A=1, B=2, C=3, D=4
-    def grade_to_num(g):
-        return {"A": 1, "B": 2, "C": 3, "D": 4}.get(g, 0)
-
-    # Monthly average risk score and grade (before vs after)
-    risk_trend: dict[str, dict[str, float]] = {}
-    for m in all_months:
-        month_recs = [r for r in records if r["month"] == m]
-        before_scores = [r["risk_before"] for r in month_recs if r["risk_before"] and r["risk_before"] > 0]
-        after_scores = [r["risk_after"] for r in month_recs if r["risk_after"] and r["risk_after"] > 0]
-        before_grades = [grade_to_num(r["grade_before"]) for r in month_recs if r["grade_before"] in ("A","B","C","D")]
-        after_grades = [grade_to_num(r.get("grade_after","")) for r in month_recs if r.get("grade_after") in ("A","B","C","D")]
-        risk_trend[m] = {
-            "avg_before": round(sum(before_scores) / len(before_scores), 1) if before_scores else 0,
-            "avg_after": round(sum(after_scores) / len(after_scores), 1) if after_scores else 0,
-            "avg_grade_before": round(sum(before_grades) / len(before_grades), 2) if before_grades else 0,
-            "avg_grade_after": round(sum(after_grades) / len(after_grades), 2) if after_grades else 0,
-        }
-
-    # Monthly effort: 발굴 vs 개선 건수 per month
-    monthly_effort = {}
-    for m in all_months:
-        month_recs = [r for r in records if r["month"] == m]
-        found = len(month_recs)
-        completed = sum(1 for r in month_recs if r["completion"] == "완료")
-        rate = round(completed / found * 100, 1) if found > 0 else 0
-        monthly_effort[m] = {
-            "found": found,
-            "completed": completed,
-            "rate": rate,
-        }
-
-    # By location group (소분류)
-    location_stats: dict[str, dict[str, int]] = {}
-    for r in records:
-        lg = r["location_group"]
-        if lg not in location_stats:
-            location_stats[lg] = {"A": 0, "B": 0, "C": 0, "D": 0, "-": 0}
-        g = r["grade_before"] if r["grade_before"] in ("A", "B", "C", "D") else "-"
-        location_stats[lg][g] += 1
-
-    # By location x disaster type (소분류)
-    location_disaster_stats: dict[str, dict[str, int]] = {}
-    all_disaster_types_set: set[str] = set()
-    for r in records:
-        lg = r["location_group"]
-        dt = r["disaster_type"] if r["disaster_type"] else "미분류"
-        all_disaster_types_set.add(dt)
-        if lg not in location_disaster_stats:
-            location_disaster_stats[lg] = {}
-        location_disaster_stats[lg][dt] = location_disaster_stats[lg].get(dt, 0) + 1
-
-    # By location major (대분류)
-    MAJOR_ORDER = ["화성", "평택", "고렴", "판교"]
-    location_major_stats: dict[str, dict[str, int]] = {}
-    location_major_disaster_stats: dict[str, dict[str, int]] = {}
-    location_hierarchy: dict[str, list[str]] = {m: [] for m in MAJOR_ORDER}
-    for r in records:
-        lg = r["location_group"]
-        lm = r.get("location_major") or extract_location_major(lg)
-        if lm not in location_major_stats:
-            location_major_stats[lm] = {"A": 0, "B": 0, "C": 0, "D": 0, "-": 0}
-        g = r["grade_before"] if r["grade_before"] in ("A", "B", "C", "D") else "-"
-        location_major_stats[lm][g] += 1
-        # disaster
-        dt = r["disaster_type"] if r["disaster_type"] else "미분류"
-        if lm not in location_major_disaster_stats:
-            location_major_disaster_stats[lm] = {}
-        location_major_disaster_stats[lm][dt] = location_major_disaster_stats[lm].get(dt, 0) + 1
-        # hierarchy
-        if lm in location_hierarchy and lg not in location_hierarchy[lm]:
-            location_hierarchy[lm].append(lg)
-    # Sort sub-locations
-    for m in location_hierarchy:
-        location_hierarchy[m].sort()
-
-    # Grade trend by month (before & after)
-    grade_trend: dict[str, dict[str, int]] = {}
-    grade_trend_after: dict[str, dict[str, int]] = {}
-    for r in records:
-        m = r["month"]
-        if m not in grade_trend:
-            grade_trend[m] = {"A": 0, "B": 0, "C": 0, "D": 0}
-        g = r["grade_before"] if r["grade_before"] in ("A", "B", "C", "D") else None
-        if g:
-            grade_trend[m][g] += 1
-        if m not in grade_trend_after:
-            grade_trend_after[m] = {"A": 0, "B": 0, "C": 0, "D": 0}
-        ga = r["grade_after"] if r.get("grade_after") in ("A", "B", "C", "D") else None
-        if ga:
-            grade_trend_after[m][ga] += 1
-    # Sort months naturally (try numeric sort, then string)
-    def month_sort_key(m):
-        try:
-            return int(m.replace("월", ""))
-        except (ValueError, AttributeError):
-            return 999
-    grade_trend = dict(sorted(grade_trend.items(), key=lambda x: month_sort_key(x[0])))
-
-    # By week
-    week_stats: dict[str, int] = {}
-    for r in records:
-        m = r["month"]
-        w = r["week"]
-        if w > 0:
-            key = f"{m} {w}주차"
-            week_stats[key] = week_stats.get(key, 0) + 1
-    # Sort by month then week
-    def week_sort_key(k):
-        parts = k.split()
-        try:
-            mon = int(parts[0].replace("월", ""))
-        except (ValueError, IndexError):
-            mon = 999
-        try:
-            wk = int(parts[1].replace("주차", ""))
-        except (ValueError, IndexError):
-            wk = 999
-        return (mon, wk)
-    week_stats = dict(sorted(week_stats.items(), key=lambda x: week_sort_key(x[0])))
-
-    # By disaster type
-    disaster_stats: dict[str, int] = {}
-    for r in records:
-        dt = r["disaster_type"] if r["disaster_type"] else "미분류"
-        disaster_stats[dt] = disaster_stats.get(dt, 0) + 1
-
-    # By process
-    process_stats: dict[str, int] = {}
-    for r in records:
-        p = r["process"] if r["process"] else "미분류"
-        process_stats[p] = process_stats.get(p, 0) + 1
-
-    # By channel
-    channel_stats: dict[str, int] = {}
-    for r in records:
-        ch = r.get("channel", "미분류")
-        channel_stats[ch] = channel_stats.get(ch, 0) + 1
-
-    # Channel-grade breakdown
-    channel_grade_stats: dict[str, dict[str, int]] = {}
-    for r in records:
-        ch = r.get("channel", "미분류")
-        if ch not in channel_grade_stats:
-            channel_grade_stats[ch] = {"A": 0, "B": 0, "C": 0, "D": 0, "-": 0, "complete": 0, "incomplete": 0}
-        g = r["grade_before"] if r["grade_before"] in ("A", "B", "C", "D") else "-"
-        channel_grade_stats[ch][g] += 1
-        if r["completion"] == "완료":
-            channel_grade_stats[ch]["complete"] += 1
-        else:
-            channel_grade_stats[ch]["incomplete"] += 1
-
-    # Filter options (use already loaded records from top of function)
-    all_records_for_filters = load_data()
+    # Filter options (use already loaded records from top — no second load_data call)
+    all_records_for_filters = _all_records_cache
     channels = sorted(set(r.get("channel", "미분류") for r in all_records_for_filters))
     years = sorted(set(r["date"][:4] for r in all_records_for_filters if r.get("date") and len(r["date"]) >= 4))
     months = sorted(set(r["month"] for r in all_records_for_filters))

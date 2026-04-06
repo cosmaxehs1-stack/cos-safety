@@ -505,14 +505,22 @@
                     <h2 id="records-page-title">개별 위험요소 확인</h2>
                 </div>
 
+                <div class="year-month-selector">
+                    <div class="year-selector">
+                        <label>연도</label>
+                        <select id="f-rec-year" onchange="onRecordYearChange()">
+                            <option value="전체">전체</option>
+                        </select>
+                    </div>
+                    <div class="month-sheet-tabs" id="month-sheet-tabs">
+                        <div class="month-tab active" data-month="전체" onclick="selectMonthTab(this)">전체</div>
+                    </div>
+                </div>
+
                 <div class="filter-bar">
                     <div class="filter-item" id="f-channel-wrap" style="display:none;">
                         <label>채널</label>
                         <select id="f-channel" onchange="fetchSummary()"><option value="전체">전체</option></select>
-                    </div>
-                    <div class="filter-item">
-                        <label>월</label>
-                        <select id="f-month" onchange="fetchSummary()"><option value="전체">전체</option></select>
                     </div>
                     <div class="filter-item">
                         <label>장소</label>

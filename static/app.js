@@ -130,8 +130,8 @@ function getFilters() {
     return {
         team: getFilterValue("f-team"),
         channel: getFilterValue("f-channel"),
-        year: getFilterValue("f-year"),
-        month: getFilterValue("f-month"),
+        year: currentPage === "records" ? getFilterValue("f-rec-year") : getFilterValue("f-year"),
+        month: getSelectedMonth(),
         location: getFilterValue("f-location"),
         grade: getFilterValue("f-grade"),
         disaster_type: getFilterValue("f-disaster"),
@@ -147,9 +147,57 @@ function setFilterValue(id, val) {
     if (el) el.value = val;
 }
 
+// ===== Month Sheet Tabs =====
+function selectMonthTab(tabEl) {
+    document.querySelectorAll(".month-tab").forEach(function(t) { t.classList.remove("active"); });
+    tabEl.classList.add("active");
+    // Scroll tab into view
+    tabEl.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+    fetchSummary();
+}
+
+function getSelectedMonth() {
+    var active = document.querySelector(".month-tab.active");
+    return active ? active.getAttribute("data-month") : "전체";
+}
+
+function updateMonthTabs(months) {
+    var container = document.getElementById("month-sheet-tabs");
+    if (!container) return;
+    var currentMonth = getSelectedMonth();
+    var selectedYear = getFilterValue("f-rec-year");
+    var now = new Date();
+    var thisYear = String(now.getFullYear());
+    var thisMonth = now.getMonth() + 1; // 1~12
+
+    // 선택 연도가 현재 연도면 당월까지만 표시
+    var maxMonth = (selectedYear === thisYear) ? thisMonth : 12;
+
+    container.innerHTML = '<div class="month-tab' + (currentMonth === "전체" ? " active" : "") + '" data-month="전체" onclick="selectMonthTab(this)">전체</div>';
+    for (var i = 1; i <= maxMonth; i++) {
+        var m = i + "월";
+        var isActive = (m === currentMonth) ? " active" : "";
+        container.innerHTML += '<div class="month-tab' + isActive + '" data-month="' + m + '" onclick="selectMonthTab(this)">' + m + '</div>';
+    }
+
+    // 선택된 월이 범위를 넘으면 전체로 리셋
+    if (currentMonth !== "전체" && parseInt(currentMonth) > maxMonth) {
+        container.querySelector('.month-tab[data-month="전체"]').classList.add("active");
+    }
+}
+
+function onRecordYearChange() {
+    updateMonthTabs();
+    fetchSummary();
+}
+
 function resetFilters() {
     setFilterValue("f-channel", "전체");
-    setFilterValue("f-month", "전체");
+    setFilterValue("f-rec-year", "전체");
+    // Reset month tab to 전체
+    document.querySelectorAll(".month-tab").forEach(function(t) { t.classList.remove("active"); });
+    var allTab = document.querySelector('.month-tab[data-month="전체"]');
+    if (allTab) allTab.classList.add("active");
     setFilterValue("f-location", "전체");
     setFilterValue("f-grade", "전체");
     setFilterValue("f-disaster", "전체");
@@ -197,9 +245,16 @@ function openRecordsChannel(channel, el) {
     if (page) { page.style.display = "block"; page.classList.add("active"); }
     currentPage = "records";
     document.getElementById("f-channel").value = channel;
-    // 기본 필터: 현재 월
+    // 기본 필터: 현재 연도
+    var currentYear = String(new Date().getFullYear());
+    setFilterValue("f-rec-year", currentYear);
+    // 기본 필터: 현재 월 탭 선택
     var currentMonth = (new Date().getMonth() + 1) + "월";
-    document.getElementById("f-month").value = currentMonth;
+    var monthTab = document.querySelector('.month-tab[data-month="' + currentMonth + '"]');
+    if (monthTab) {
+        document.querySelectorAll(".month-tab").forEach(function(t) { t.classList.remove("active"); });
+        monthTab.classList.add("active");
+    }
     document.getElementById("records-page-title").textContent =
         channel === "전체" ? "개별 위험요소 확인 - 전체" : "개별 위험요소 확인 - " + channel;
     fetchSummary();
@@ -213,6 +268,7 @@ async function fetchSummary() {
     Object.entries(filters).forEach(([k, v]) => {
         if (v && v !== "전체" && v !== "0") params.append(k, v);
     });
+    params.append("page", currentPage || "summary");
 
     try {
         const res = await fetch("/api/summary?" + params.toString(), { headers: authHeaders() });
@@ -650,8 +706,11 @@ function escapeHtml(str) {
 // ===== Filter Update =====
 function updateFilters(filters) {
     if (filters.channels) populateFilter("f-channel", filters.channels, true);
-    if (filters.years) populateFilter("f-year", filters.years, true);
-    populateFilter("f-month", filters.months, true);
+    if (filters.years) {
+        populateFilter("f-year", filters.years, true);
+        populateFilter("f-rec-year", filters.years, true);
+    }
+    updateMonthTabs(filters.months);
     populateFilter("f-location", filters.locations, true);
     populateFilter("f-disaster", filters.disaster_types, true);
     populateFilter("f-process", filters.processes, true);
