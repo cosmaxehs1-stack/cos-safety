@@ -510,17 +510,28 @@
                     <h2 id="records-page-title">개별 위험요소 확인</h2>
                 </div>
 
-                <!-- 시간 선택: 연도 + 월 탭 + 주차 카드 -->
+                <!-- 시간 선택: 연도 + 월 + 주차 -->
                 <div class="time-selector">
-                    <div class="time-top">
-                        <select id="f-rec-year" class="year-select" onchange="onRecordYearChange()">
-                            <option value="전체">전체</option>
-                        </select>
-                        <div class="month-sheet-tabs" id="month-sheet-tabs">
-                            <div class="month-tab active" data-month="전체" onclick="selectMonthTab(this)">전체</div>
+                    <div class="time-dropdowns">
+                        <div class="time-item">
+                            <label>연도</label>
+                            <select id="f-rec-year" onchange="onRecordYearChange()">
+                                <option value="전체">전체</option>
+                            </select>
+                        </div>
+                        <div class="time-item">
+                            <label>월</label>
+                            <select id="f-rec-month" onchange="onRecordMonthChange()">
+                                <option value="전체">전체</option>
+                            </select>
+                        </div>
+                        <div class="time-item">
+                            <label>주차</label>
+                            <select id="f-rec-week" onchange="onRecordWeekChange()">
+                                <option value="0">전체</option>
+                            </select>
                         </div>
                     </div>
-                    <div class="week-cards" id="week-cards"></div>
                 </div>
 
                 <!-- 요약 카드 + 필터 토글 -->

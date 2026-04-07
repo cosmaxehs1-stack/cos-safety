@@ -500,32 +500,14 @@ body {
 
 /* ===== Time Selector ===== */
 .time-selector { margin-bottom: 12px; }
-.time-top { display: flex; align-items: center; gap: 8px; }
-.year-select {
-    padding: 6px 10px; border: 1px solid #ccc; border-radius: 8px 8px 0 0;
-    font-size: 13px; font-weight: 700; outline: none; background: #2c3e50; color: white;
-    border-bottom: none; cursor: pointer;
+.time-dropdowns { display: flex; gap: 12px; align-items: flex-end; }
+.time-item { display: flex; flex-direction: column; gap: 4px; }
+.time-item label { font-size: 11px; color: #888; font-weight: 600; text-transform: uppercase; }
+.time-item select {
+    padding: 7px 12px; border: 1px solid #ddd; border-radius: 6px;
+    font-size: 13px; font-weight: 600; outline: none; background: white; min-width: 80px;
 }
-
-/* ===== Month Sheet Tabs ===== */
-.month-sheet-tabs {
-    display: flex; align-items: flex-end; gap: 0; margin-bottom: -1px;
-    padding: 0 4px; overflow-x: auto; scrollbar-width: none;
-}
-.month-sheet-tabs::-webkit-scrollbar { display: none; }
-.month-tab {
-    padding: 8px 18px; background: #e8eaed; color: #666;
-    border: 1px solid #ccc; border-bottom: 1px solid #ccc;
-    border-radius: 8px 8px 0 0; cursor: pointer;
-    font-size: 13px; font-weight: 600; white-space: nowrap;
-    transition: background 0.15s, color 0.15s;
-    margin-right: -1px; position: relative;
-}
-.month-tab:hover { background: #f0f0f0; color: #333; }
-.month-tab.active {
-    background: white; color: #e74c3c; border-bottom-color: white;
-    z-index: 1;
-}
+.time-item select:focus { border-color: #e74c3c; }
 
 /* ===== Records Toolbar ===== */
 .records-toolbar {
@@ -577,21 +559,6 @@ body {
 /* Collapsible filter */
 .filter-collapsed { display: none !important; }
 .filter-expanded { display: flex !important; }
-
-/* ===== Week Cards ===== */
-.week-cards {
-    display: flex; gap: 6px; padding: 8px 0 0; flex-wrap: wrap;
-}
-.week-card {
-    padding: 4px 12px; background: #f0f2f5; color: #666;
-    border: 1px solid #ddd; border-radius: 16px; cursor: pointer;
-    font-size: 11px; font-weight: 600; white-space: nowrap;
-    transition: all 0.15s;
-}
-.week-card:hover { background: #e8e8e8; color: #333; }
-.week-card.active { background: #2c3e50; color: white; border-color: #2c3e50; }
-.week-card.current { border-color: #e74c3c; }
-.week-card.current.active { background: #e74c3c; border-color: #e74c3c; }
 
 /* ===== Filter Bar ===== */
 .filter-bar {
@@ -858,8 +825,8 @@ td.red { color: #e74c3c; font-weight: 600; }
     .period-stats { grid-template-columns: 1fr; gap: 10px; }
     .period-value { font-size: 22px; }
     .summary-cards { grid-template-columns: 1fr; }
-    .month-tab { padding: 6px 12px; font-size: 12px; }
     .filter-bar { padding: 10px 12px; gap: 8px; }
+    .time-dropdowns { flex-wrap: wrap; }
     .filter-item select, .filter-item input { min-width: 70px; padding: 6px 8px; font-size: 12px; }
     .form-grid { grid-template-columns: 1fr; }
     .analysis-tabs { overflow-x: auto; }

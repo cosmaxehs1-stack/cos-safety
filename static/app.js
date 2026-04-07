@@ -154,73 +154,45 @@ function setFilterValue(id, val) {
     if (el) el.value = val;
 }
 
-// ===== Month Sheet Tabs =====
-function selectMonthTab(tabEl) {
-    document.querySelectorAll(".month-tab").forEach(function(t) { t.classList.remove("active"); });
-    tabEl.classList.add("active");
-    tabEl.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
-    // 월 변경 시 주차 초기화
-    document.querySelectorAll(".week-card").forEach(function(c) { c.classList.remove("active"); });
-    var weekAll = document.querySelector('.week-card[data-week="0"]');
-    if (weekAll) weekAll.classList.add("active");
-    fetchSummary();
-}
-
+// ===== Month & Week Dropdowns =====
 function getSelectedMonth() {
-    var active = document.querySelector(".month-tab.active");
-    return active ? active.getAttribute("data-month") : "전체";
+    return getFilterValue("f-rec-month");
 }
 
-function updateMonthTabs(months) {
-    var container = document.getElementById("month-sheet-tabs");
-    if (!container) return;
-    var currentMonth = getSelectedMonth();
+function getSelectedWeek() {
+    var val = getFilterValue("f-rec-week");
+    return parseInt(val) || 0;
+}
+
+function updateMonthDropdown() {
+    var sel = document.getElementById("f-rec-month");
+    if (!sel) return;
+    var prev = sel.value;
     var selectedYear = getFilterValue("f-rec-year");
     var now = new Date();
     var thisYear = String(now.getFullYear());
-    var thisMonth = now.getMonth() + 1; // 1~12
-
-    // 선택 연도가 현재 연도면 당월까지만 표시
+    var thisMonth = now.getMonth() + 1;
     var maxMonth = (selectedYear === thisYear) ? thisMonth : 12;
 
-    container.innerHTML = '<div class="month-tab' + (currentMonth === "전체" ? " active" : "") + '" data-month="전체" onclick="selectMonthTab(this)">전체</div>';
+    sel.innerHTML = '<option value="전체">전체</option>';
     for (var i = 1; i <= maxMonth; i++) {
         var m = i + "월";
-        var isActive = (m === currentMonth) ? " active" : "";
-        container.innerHTML += '<div class="month-tab' + isActive + '" data-month="' + m + '" onclick="selectMonthTab(this)">' + m + '</div>';
+        sel.innerHTML += '<option value="' + m + '"' + (m === prev ? ' selected' : '') + '>' + m + '</option>';
     }
-
-    // 선택된 월이 범위를 넘으면 전체로 리셋
-    if (currentMonth !== "전체" && parseInt(currentMonth) > maxMonth) {
-        container.querySelector('.month-tab[data-month="전체"]').classList.add("active");
-    }
+    if (prev !== "전체" && parseInt(prev) > maxMonth) sel.value = "전체";
 }
 
-function onRecordYearChange() {
-    updateMonthTabs();
-    fetchSummary();
-}
-
-// ===== Week Cards =====
-function getSelectedWeek() {
-    var active = document.querySelector(".week-card.active");
-    return active ? parseInt(active.getAttribute("data-week")) : 0;
-}
-
-function selectWeekCard(el) {
-    document.querySelectorAll(".week-card").forEach(function(c) { c.classList.remove("active"); });
-    el.classList.add("active");
-    fetchSummary();
-}
-
-function updateWeekCards(records) {
-    var container = document.getElementById("week-cards");
-    if (!container) return;
+function updateWeekDropdown(records) {
+    var sel = document.getElementById("f-rec-week");
+    if (!sel) return;
+    var prev = parseInt(sel.value) || 0;
     var selectedMonth = getSelectedMonth();
-    // 월이 전체이면 주차 카드 숨김
-    if (selectedMonth === "전체") { container.innerHTML = ""; return; }
 
-    // 해당 월의 주차 수집
+    if (selectedMonth === "전체") {
+        sel.innerHTML = '<option value="0">전체</option>';
+        return;
+    }
+
     var weeks = {};
     (records || []).forEach(function(r) {
         if (r.month === selectedMonth) {
@@ -229,31 +201,38 @@ function updateWeekCards(records) {
         }
     });
     var weekList = Object.keys(weeks).map(Number).sort(function(a,b){ return a-b; });
-    // 최소 1~현재주차까지는 표시
+
     var now = new Date();
     var curMonthStr = (now.getMonth() + 1) + "월";
     var curYear = String(now.getFullYear());
     var selYear = getFilterValue("f-rec-year");
-    var curWeek = 0;
     if ((selYear === curYear || selYear === "전체") && selectedMonth === curMonthStr) {
-        curWeek = getWeekFromDate(now.toISOString().split("T")[0]);
+        var curWeek = getWeekFromDate(now.toISOString().split("T")[0]);
         for (var i = 1; i <= curWeek; i++) {
             if (!weeks[i]) weekList.push(i);
         }
         weekList = weekList.filter(function(v, idx, arr) { return arr.indexOf(v) === idx; }).sort(function(a,b){ return a-b; });
     }
 
-    if (weekList.length === 0) { container.innerHTML = ""; return; }
-
-    var prevWeek = getSelectedWeek();
-    var html = '<div class="week-card' + (prevWeek === 0 ? ' active' : '') + '" data-week="0" onclick="selectWeekCard(this)">전체</div>';
+    sel.innerHTML = '<option value="0">전체</option>';
     weekList.forEach(function(w) {
-        var isCurrent = (w === curWeek && selectedMonth === curMonthStr && (selYear === curYear || selYear === "전체"));
-        var isActive = (w === prevWeek) ? " active" : "";
-        var currentCls = isCurrent ? " current" : "";
-        html += '<div class="week-card' + isActive + currentCls + '" data-week="' + w + '" onclick="selectWeekCard(this)">' + w + '주차' + (isCurrent ? ' ★' : '') + '</div>';
+        sel.innerHTML += '<option value="' + w + '"' + (w === prev ? ' selected' : '') + '>' + w + '주차</option>';
     });
-    container.innerHTML = html;
+}
+
+function onRecordYearChange() {
+    updateMonthDropdown();
+    setFilterValue("f-rec-week", "0");
+    fetchSummary();
+}
+
+function onRecordMonthChange() {
+    setFilterValue("f-rec-week", "0");
+    fetchSummary();
+}
+
+function onRecordWeekChange() {
+    fetchSummary();
 }
 
 function resetFilters() {
@@ -261,10 +240,8 @@ function resetFilters() {
     _activeStatusFilter = "";
     setFilterValue("f-channel", "전체");
     setFilterValue("f-rec-year", "전체");
-    // Reset month tab to 전체
-    document.querySelectorAll(".month-tab").forEach(function(t) { t.classList.remove("active"); });
-    var allTab = document.querySelector('.month-tab[data-month="전체"]');
-    if (allTab) allTab.classList.add("active");
+    setFilterValue("f-rec-month", "전체");
+    setFilterValue("f-rec-week", "0");
     setFilterValue("f-location", "전체");
     setFilterValue("f-grade", "전체");
     setFilterValue("f-disaster", "전체");
@@ -272,10 +249,6 @@ function resetFilters() {
     setFilterValue("f-completion", "전체");
     setFilterValue("f-repeat", "전체");
     setFilterValue("f-keyword", "");
-    // 주차 카드 초기화
-    document.querySelectorAll(".week-card").forEach(function(c) { c.classList.remove("active"); });
-    var weekAll = document.querySelector('.week-card[data-week="0"]');
-    if (weekAll) weekAll.classList.add("active");
     fetchSummary();
 }
 
@@ -319,13 +292,11 @@ function openRecordsChannel(channel, el) {
     // 기본 필터: 현재 연도
     var currentYear = String(new Date().getFullYear());
     setFilterValue("f-rec-year", currentYear);
-    // 기본 필터: 현재 월 탭 선택
+    // 기본 필터: 현재 월 선택
     var currentMonth = (new Date().getMonth() + 1) + "월";
-    var monthTab = document.querySelector('.month-tab[data-month="' + currentMonth + '"]');
-    if (monthTab) {
-        document.querySelectorAll(".month-tab").forEach(function(t) { t.classList.remove("active"); });
-        monthTab.classList.add("active");
-    }
+    updateMonthDropdown();
+    setFilterValue("f-rec-month", currentMonth);
+    setFilterValue("f-rec-week", "0");
     document.getElementById("records-page-title").textContent =
         channel === "전체" ? "개별 위험요소 확인 - 전체" : "개별 위험요소 확인 - " + channel;
     fetchSummary();
@@ -362,7 +333,7 @@ async function fetchSummary() {
         var displayRecords = getDisplayRecords(data);
         updateTable(displayRecords);
         updateFilters(data.filters);
-        updateWeekCards(data.records);
+        updateWeekDropdown(data.records);
         // 카드는 팀 필터 없는 레코드 기준
         var savedTeam = _activeTeamFilter;
         _activeTeamFilter = "";
@@ -939,7 +910,7 @@ function updateFilters(filters) {
         populateFilter("f-year", filters.years, true);
         populateFilter("f-rec-year", filters.years, true);
     }
-    updateMonthTabs(filters.months);
+    updateMonthDropdown();
     populateFilter("f-location", filters.locations, true);
     populateFilter("f-disaster", filters.disaster_types, true);
     populateFilter("f-process", filters.processes, true);
