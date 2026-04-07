@@ -834,6 +834,32 @@ td.red { color: #e74c3c; font-weight: 600; }
     .register-select-card { padding: 24px 20px; }
     .register-select-title { font-size: 16px; }
     .register-select-desc { font-size: 13px; }
+
+    /* 현황요약 모바일 */
+    .stat-group { padding: 12px 14px; }
+    .stat-group-cards { flex-direction: column; gap: 8px; }
+    .stat-group-cards.grade-detail-row { flex-direction: row; }
+    .stat-value { font-size: 24px; }
+    .grade-detail-val { font-size: 14px; }
+    .grade-detail-label { font-size: 10px; }
+    .chart-grid { grid-template-columns: 1fr; }
+    .chart-box { padding: 12px 10px; }
+
+    /* 테이블 모바일 */
+    .table-container { font-size: 11px; }
+    #data-table th, #channel-summary-table th, #repeat-table th { padding: 8px 6px; font-size: 11px; }
+    #data-table td, #channel-summary-table td, #repeat-table td { padding: 6px 6px; font-size: 11px; }
+
+    /* 미니 카드 모바일 */
+    .records-toolbar { flex-direction: column; align-items: stretch; }
+    .mini-stats { flex-direction: column; }
+    .ms-grid { width: 100%; }
+    .toolbar-actions { justify-content: flex-end; }
+    .search-inline { width: 100%; flex: 1; }
+
+    /* 페이지 액션 */
+    .page-actions { width: 100%; }
+    .page-actions select { flex: 1; min-width: 0; }
 }
 
 /* ===== Print ===== */
