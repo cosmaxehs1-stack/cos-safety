@@ -11,27 +11,27 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Noto Sans KR', 'Segoe UI', -apple-system, sans-serif; background: #fff; color: #333; line-height: 1.7; }
-        .wrap { max-width: 1000px; margin: 0 auto; padding: 40px 48px; }
+        .wrap { max-width: 1000px; margin: 0 auto; padding: 20px 32px; }
 
         /* Header */
-        .report-header { padding: 0 0 32px; margin-bottom: 40px; }
+        .report-header { padding: 0 0 16px; margin-bottom: 20px; }
         .report-header .header-num { font-size: 13px; color: #999; margin-bottom: 4px; }
-        .report-header h1 { font-size: 32px; font-weight: 700; color: #000; letter-spacing: -0.5px; line-height: 1.3; }
-        .report-header .header-sub { font-size: 20px; color: #C1C6C7; font-weight: 400; margin-top: 2px; }
-        .report-header p { color: #999; font-size: 13px; margin-top: 12px; }
-        .print-btn { padding: 10px 24px; background: #EA1D22; color: #fff; border: none; border-radius: 2px; cursor: pointer; font-size: 13px; font-weight: 600; float: right; margin-top: -48px; }
+        .report-header h1 { font-size: 24px; font-weight: 700; color: #000; letter-spacing: -0.5px; line-height: 1.3; }
+        .report-header .header-sub { font-size: 14px; color: #C1C6C7; font-weight: 400; margin-top: 2px; }
+        .report-header p { color: #999; font-size: 12px; margin-top: 8px; }
+        .print-btn { padding: 8px 20px; background: #EA1D22; color: #fff; border: none; border-radius: 2px; cursor: pointer; font-size: 12px; font-weight: 600; float: right; margin-top: -36px; }
         .print-btn:hover { background: #c4181c; }
-        .header-line { border: none; border-top: 2px solid #EA1D22; margin-top: 20px; }
+        .header-line { border: none; border-top: 2px solid #EA1D22; margin-top: 12px; }
 
         /* Section */
-        .section { margin-bottom: 48px; }
-        .section-line { border: none; border-top: 1.5px solid #EA1D22; margin-bottom: 20px; }
-        .section-title { color: #000; font-size: 22px; font-weight: 700; margin: 0 0 6px; padding: 0; border: none; }
-        .section-sub { font-size: 14px; color: #999; margin-bottom: 24px; }
+        .section { margin-bottom: 24px; }
+        .section-line { border: none; border-top: 1.5px solid #EA1D22; margin-bottom: 10px; }
+        .section-title { color: #000; font-size: 18px; font-weight: 700; margin: 0 0 2px; padding: 0; border: none; }
+        .section-sub { font-size: 12px; color: #999; margin-bottom: 12px; }
 
         /* Summary Cards */
-        .summary-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin-bottom: 28px; }
-        .s-card { padding: 20px 16px; text-align: left; border-right: 1px solid #eee; }
+        .summary-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin-bottom: 16px; }
+        .s-card { padding: 12px 16px; text-align: left; border-right: 1px solid #eee; }
         .s-card:last-child { border-right: none; }
         .s-label { font-size: 12px; color: #999; margin-bottom: 6px; font-weight: 500; }
         .s-value { font-size: 32px; font-weight: 700; color: #000; }
@@ -39,9 +39,9 @@
         .s-value.teal, .s-value.green, .s-value.blue { color: #000; }
 
         /* Chart Box */
-        .chart-box { padding: 24px 0; margin-bottom: 20px; }
-        .chart-box h3 { font-size: 13px; color: #999; margin-bottom: 16px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-        .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-bottom: 24px; }
+        .chart-box { padding: 12px 0; margin-bottom: 8px; }
+        .chart-box h3 { font-size: 12px; color: #999; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+        .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 12px; }
 
         /* Bar Chart */
         .bar-chart { padding: 8px 0; }
@@ -200,13 +200,6 @@
         html += '<div class="chart-box"><h3>채널별 위험요소 건수</h3><canvas id="c-channel"></canvas></div>';
         html += '<div class="chart-box"><h3>주차별 발굴 현황</h3><canvas id="c-weekly-top"></canvas></div>';
         html += '</div>';
-        html += '<table class="rtable"><thead><tr><th>채널</th><th>건수</th><th>비율</th><th>A</th><th>B</th><th>C</th><th>D</th></tr></thead><tbody>';
-        channelList.forEach(([ch, cnt]) => {
-            const g = channelGradeStats[ch] || {};
-            html += '<tr><td>' + esc(ch) + '</td><td>' + cnt + '</td><td>' + (total ? (cnt / total * 100).toFixed(1) : '0') + '%</td>';
-            html += '<td>' + (g.A || 0) + '</td><td>' + (g.B || 0) + '</td><td>' + (g.C || 0) + '</td><td>' + (g.D || 0) + '</td></tr>';
-        });
-        html += '</tbody></table>';
 
         html += '</div>';
 
@@ -223,11 +216,6 @@
             html += '</div>';
         });
         html += '</div></div>';
-        html += '<table class="rtable"><thead><tr><th>구분</th><th>건수</th><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th></tr></thead><tbody>';
-        companies.forEach(c => {
-            html += '<tr><td>' + esc(c.name) + '</td><td>' + c.total + '</td><td>' + c.A + '</td><td>' + c.B + '</td><td>' + c.C + '</td><td>' + c.D + '</td><td>0</td></tr>';
-        });
-        html += '</tbody></table>';
 
         html += '</div>';
 
@@ -251,11 +239,6 @@
         html += '<div class="chart-box"><h3>대분류별 위험요소 분포</h3><canvas id="c-catpie"></canvas></div>';
         html += '<div class="chart-box"><h3>세부 위험유형 TOP 10</h3><canvas id="c-cattop"></canvas></div>';
         html += '</div>';
-        html += '<table class="rtable"><thead><tr><th>대분류</th><th>중분류</th><th>건수</th><th>비율</th></tr></thead><tbody>';
-        cats.forEach(c => {
-            html += '<tr><td>' + esc(c.m) + '</td><td>' + esc(c.s) + '</td><td>' + c.c + '</td><td>' + c.p + '%</td></tr>';
-        });
-        html += '</tbody></table>';
 
         html += '</div>';
 
