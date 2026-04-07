@@ -1,4 +1,11 @@
 let TOKEN = sessionStorage.getItem("token") || "";
+
+// 바깥 클릭 시 info tooltip 닫기
+document.addEventListener("click", function(e) {
+    if (!e.target.classList.contains("info-btn")) {
+        document.querySelectorAll(".info-tooltip.show").forEach(function(t) { t.classList.remove("show"); });
+    }
+});
 let chartInstances = {};
 let locationViewMode = "grade";
 let lastSummaryData = null;
@@ -151,8 +158,11 @@ function setFilterValue(id, val) {
 function selectMonthTab(tabEl) {
     document.querySelectorAll(".month-tab").forEach(function(t) { t.classList.remove("active"); });
     tabEl.classList.add("active");
-    // Scroll tab into view
     tabEl.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+    // 월 변경 시 주차 초기화
+    document.querySelectorAll(".week-card").forEach(function(c) { c.classList.remove("active"); });
+    var weekAll = document.querySelector('.week-card[data-week="0"]');
+    if (weekAll) weekAll.classList.add("active");
     fetchSummary();
 }
 
@@ -191,6 +201,61 @@ function onRecordYearChange() {
     fetchSummary();
 }
 
+// ===== Week Cards =====
+function getSelectedWeek() {
+    var active = document.querySelector(".week-card.active");
+    return active ? parseInt(active.getAttribute("data-week")) : 0;
+}
+
+function selectWeekCard(el) {
+    document.querySelectorAll(".week-card").forEach(function(c) { c.classList.remove("active"); });
+    el.classList.add("active");
+    fetchSummary();
+}
+
+function updateWeekCards(records) {
+    var container = document.getElementById("week-cards");
+    if (!container) return;
+    var selectedMonth = getSelectedMonth();
+    // 월이 전체이면 주차 카드 숨김
+    if (selectedMonth === "전체") { container.innerHTML = ""; return; }
+
+    // 해당 월의 주차 수집
+    var weeks = {};
+    (records || []).forEach(function(r) {
+        if (r.month === selectedMonth) {
+            var w = r.week > 0 ? r.week : getWeekFromDate(r.date);
+            if (w > 0) weeks[w] = true;
+        }
+    });
+    var weekList = Object.keys(weeks).map(Number).sort(function(a,b){ return a-b; });
+    // 최소 1~현재주차까지는 표시
+    var now = new Date();
+    var curMonthStr = (now.getMonth() + 1) + "월";
+    var curYear = String(now.getFullYear());
+    var selYear = getFilterValue("f-rec-year");
+    var curWeek = 0;
+    if ((selYear === curYear || selYear === "전체") && selectedMonth === curMonthStr) {
+        curWeek = getWeekFromDate(now.toISOString().split("T")[0]);
+        for (var i = 1; i <= curWeek; i++) {
+            if (!weeks[i]) weekList.push(i);
+        }
+        weekList = weekList.filter(function(v, idx, arr) { return arr.indexOf(v) === idx; }).sort(function(a,b){ return a-b; });
+    }
+
+    if (weekList.length === 0) { container.innerHTML = ""; return; }
+
+    var prevWeek = getSelectedWeek();
+    var html = '<div class="week-card' + (prevWeek === 0 ? ' active' : '') + '" data-week="0" onclick="selectWeekCard(this)">전체</div>';
+    weekList.forEach(function(w) {
+        var isCurrent = (w === curWeek && selectedMonth === curMonthStr && (selYear === curYear || selYear === "전체"));
+        var isActive = (w === prevWeek) ? " active" : "";
+        var currentCls = isCurrent ? " current" : "";
+        html += '<div class="week-card' + isActive + currentCls + '" data-week="' + w + '" onclick="selectWeekCard(this)">' + w + '주차' + (isCurrent ? ' ★' : '') + '</div>';
+    });
+    container.innerHTML = html;
+}
+
 function resetFilters() {
     setFilterValue("f-channel", "전체");
     setFilterValue("f-rec-year", "전체");
@@ -205,6 +270,10 @@ function resetFilters() {
     setFilterValue("f-completion", "전체");
     setFilterValue("f-repeat", "전체");
     setFilterValue("f-keyword", "");
+    // 주차 카드 초기화
+    document.querySelectorAll(".week-card").forEach(function(c) { c.classList.remove("active"); });
+    var weekAll = document.querySelector('.week-card[data-week="0"]');
+    if (weekAll) weekAll.classList.add("active");
     fetchSummary();
 }
 
@@ -269,6 +338,8 @@ async function fetchSummary() {
         if (v && v !== "전체" && v !== "0") params.append(k, v);
     });
     params.append("page", currentPage || "summary");
+    var selW = getSelectedWeek();
+    if (selW > 0) params.append("sel_week", selW);
 
     try {
         const res = await fetch("/api/summary?" + params.toString(), { headers: authHeaders() });
@@ -286,8 +357,11 @@ async function fetchSummary() {
         updateStats(data);
         updatePeriodStats(data);
         updateSummaryCharts(data);
-        updateTable(getDisplayRecords(data));
+        var displayRecords = getDisplayRecords(data);
+        updateTable(displayRecords);
         updateFilters(data.filters);
+        updateWeekCards(data.records);
+        updateViewSummaryFromRecords(displayRecords, data.view_summary);
 
         if (currentPage === "analysis") {
             updateAnalysisCharts(data);
@@ -302,7 +376,77 @@ function getDisplayRecords(data) {
     const repeatFilter = getFilterValue("f-repeat");
     if (repeatFilter === "반복") records = records.filter(r => r.is_repeat);
     else if (repeatFilter === "단건") records = records.filter(r => !r.is_repeat);
+
+    var selWeek = getSelectedWeek();
+    if (selWeek > 0) {
+        records = records.filter(function(r) {
+            var w = r.week > 0 ? r.week : getWeekFromDate(r.date);
+            return w === selWeek;
+        });
+    }
     return records;
+}
+
+// ===== Mini Stats + Filter Toggle =====
+function toggleFilters() {
+    var panel = document.getElementById("filter-panel");
+    if (panel.classList.contains("filter-collapsed")) {
+        panel.classList.remove("filter-collapsed");
+        panel.classList.add("filter-expanded");
+    } else {
+        panel.classList.remove("filter-expanded");
+        panel.classList.add("filter-collapsed");
+    }
+}
+
+function getTeamFromLocation(loc) {
+    if (loc === "평택1공장" || loc === "평택2공장") return "2팀";
+    if (loc === "고렴창고") return "2팀"; // 간소화 (1월 예외는 서버에서 처리)
+    return "1팀";
+}
+
+function updateViewSummaryFromRecords(records, vs) {
+    var container = document.getElementById("channel-team-summary");
+    if (!container) return;
+
+    var total = records.length;
+    if (total === 0) { container.innerHTML = ""; return; }
+
+    var complete = 0, team1 = 0, team1_complete = 0, team2 = 0, team2_complete = 0;
+
+    records.forEach(function(r) {
+        var isComplete = r.completion === "완료";
+        if (isComplete) complete++;
+        var tm = getTeamFromLocation(r.location_group || "");
+        if (tm === "1팀") {
+            team1++;
+            if (isComplete) team1_complete++;
+        } else {
+            team2++;
+            if (isComplete) team2_complete++;
+        }
+    });
+    var incomplete = total - complete;
+
+    var selWeek = getSelectedWeek();
+    var label = selWeek > 0 ? selWeek + '주차' : '조회결과';
+
+    container.innerHTML =
+        '<div class="ms-card">' +
+        '<span class="ms-label">' + label + ' <b class="ms-num">' + total + '</b></span>' +
+        '<span class="ms-pair green">개선 <b>' + complete + '</b></span>' +
+        '<span class="ms-pair red">미완료 <b>' + incomplete + '</b></span>' +
+        '</div>' +
+        '<div class="ms-card">' +
+        '<span class="ms-label">1팀</span>' +
+        '<span class="ms-pair">발굴 <b>' + team1 + '</b></span>' +
+        '<span class="ms-pair green">개선 <b>' + team1_complete + '</b></span>' +
+        '</div>' +
+        '<div class="ms-card">' +
+        '<span class="ms-label">2팀</span>' +
+        '<span class="ms-pair">발굴 <b>' + team2 + '</b></span>' +
+        '<span class="ms-pair green">개선 <b>' + team2_complete + '</b></span>' +
+        '</div>';
 }
 
 // ===== Period Stats =====
@@ -336,6 +480,11 @@ function updatePeriodStats(data) {
     const curMonthStr = curMonth + "월";
     const curWeek = getWeekFromDate(now.toISOString().split("T")[0]);
 
+    // 타이틀 설정
+    setText("pt-week", curMonthStr + " " + curWeek + "주차");
+    setText("pt-month", curMonthStr);
+    setText("pt-year", curYear + "년");
+
     const records = data.records || [];
 
     // This year
@@ -359,9 +508,32 @@ function updatePeriodStats(data) {
     const weekImp = weekRecs.filter(r => r.completion === "완료").length;
     const weekRate = weekDisc > 0 ? Math.round(weekImp / weekDisc * 100) : 0;
 
+    // 이전 발굴 개선: 이번주 이전에 발굴된 건 중, actual_date가 이번주인 건
+    const prevWeekImproved = records.filter(r => {
+        if (r.completion !== "완료" || !r.actual_date) return false;
+        // 발굴일이 이번주 이전인지
+        var rd = r.date || "";
+        if (!rd.startsWith(curYear)) return false;
+        var rMonth = r.month;
+        var rWeek = r.week > 0 ? r.week : getWeekFromDate(rd);
+        var isBeforeThisWeek = false;
+        var rMonthNum = parseInt(rMonth);
+        if (rMonthNum < curMonth) isBeforeThisWeek = true;
+        else if (rMonthNum === curMonth && rWeek < curWeek) isBeforeThisWeek = true;
+        if (!isBeforeThisWeek) return false;
+        // actual_date가 이번주인지
+        if (!r.actual_date.startsWith(curYear)) return false;
+        var aMonth = parseInt(r.actual_date.split("-")[1]);
+        if (aMonth !== curMonth) return false;
+        return getWeekFromDate(r.actual_date) === curWeek;
+    }).length;
+
     setText("pw-discovered", weekDisc);
     setText("pw-improved", weekImp);
     setText("pw-rate", weekRate + "%");
+    setText("pw-prev-improved", prevWeekImproved);
+    var prevWrap = document.getElementById("pw-prev-wrap");
+    if (prevWrap) prevWrap.style.display = prevWeekImproved > 0 ? "flex" : "none";
     setText("pm-discovered", monthDisc);
     setText("pm-improved", monthImp);
     setText("pm-rate", monthRate + "%");
@@ -687,6 +859,7 @@ function updateTable(records) {
             '<td><span class="grade-badge grade-' + r.grade_before + '">' + r.grade_before + '</span></td>' +
             '<td><span class="grade-badge grade-' + (r.grade_after || "-") + '">' + (r.grade_after || "-") + '</span></td>' +
             '<td class="' + (r.completion === "완료" ? "status-complete" : "status-incomplete") + '">' + (r.completion || "-") + '</td>' +
+            '<td>' + (r.actual_date || "-") + '</td>' +
             '<td>' + (r.is_repeat ? '<span class="repeat-badge">' + r.repeat_count + '회</span>' : '<span class="repeat-badge single">1회</span>') + '</td>' +
             '<td>' + (r.week || "-") + '</td>' +
             '<td>' + imgBefore + '</td><td>' + imgAfter + '</td>' +

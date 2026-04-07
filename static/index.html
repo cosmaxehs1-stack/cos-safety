@@ -93,15 +93,20 @@
                 <!-- Period Summary Cards -->
                 <div class="period-stats">
                     <div class="period-card accent-blue">
-                        <div class="period-title">이번주</div>
+                        <div class="period-title" id="pt-week">4월 2주차</div>
                         <div class="period-data">
                             <div class="period-item"><span class="period-label">발굴</span><span class="period-value" id="pw-discovered">0</span></div>
                             <div class="period-item"><span class="period-label">개선</span><span class="period-value" id="pw-improved">0</span></div>
                             <div class="period-item"><span class="period-label">개선률</span><span class="period-value accent" id="pw-rate">0%</span></div>
                         </div>
+                        <div class="period-extra" id="pw-prev-wrap">
+                            + <span class="period-extra-value" id="pw-prev-improved">0</span>건 추가 개선
+                            <span class="info-btn" onclick="event.stopPropagation(); this.nextElementSibling.classList.toggle('show')">?</span>
+                            <span class="info-tooltip">해당 주차 이전에 발굴된 위험요소 중, 이번주에 개선 완료 처리된 건수입니다.</span>
+                        </div>
                     </div>
                     <div class="period-card accent-green">
-                        <div class="period-title">이번달</div>
+                        <div class="period-title" id="pt-month">4월</div>
                         <div class="period-data">
                             <div class="period-item"><span class="period-label">발굴</span><span class="period-value" id="pm-discovered">0</span></div>
                             <div class="period-item"><span class="period-label">개선</span><span class="period-value" id="pm-improved">0</span></div>
@@ -109,7 +114,7 @@
                         </div>
                     </div>
                     <div class="period-card accent-purple">
-                        <div class="period-title">이번년도</div>
+                        <div class="period-title" id="pt-year">2026년</div>
                         <div class="period-data">
                             <div class="period-item"><span class="period-label">발굴</span><span class="period-value" id="py-discovered">0</span></div>
                             <div class="period-item"><span class="period-label">개선</span><span class="period-value" id="py-improved">0</span></div>
@@ -505,19 +510,31 @@
                     <h2 id="records-page-title">개별 위험요소 확인</h2>
                 </div>
 
-                <div class="year-month-selector">
-                    <div class="year-selector">
-                        <label>연도</label>
-                        <select id="f-rec-year" onchange="onRecordYearChange()">
+                <!-- 시간 선택: 연도 + 월 탭 + 주차 카드 -->
+                <div class="time-selector">
+                    <div class="time-top">
+                        <select id="f-rec-year" class="year-select" onchange="onRecordYearChange()">
                             <option value="전체">전체</option>
                         </select>
+                        <div class="month-sheet-tabs" id="month-sheet-tabs">
+                            <div class="month-tab active" data-month="전체" onclick="selectMonthTab(this)">전체</div>
+                        </div>
                     </div>
-                    <div class="month-sheet-tabs" id="month-sheet-tabs">
-                        <div class="month-tab active" data-month="전체" onclick="selectMonthTab(this)">전체</div>
+                    <div class="week-cards" id="week-cards"></div>
+                </div>
+
+                <!-- 요약 카드 + 필터 토글 -->
+                <div class="records-toolbar">
+                    <div class="mini-stats" id="channel-team-summary"></div>
+                    <div class="toolbar-actions">
+                        <input type="text" id="f-keyword" class="search-inline" placeholder="키워드 검색..." onkeydown="if(event.key==='Enter') fetchSummary()">
+                        <button class="btn-filter-toggle" onclick="toggleFilters()">필터</button>
+                        <button class="btn-reset-sm" onclick="resetFilters()">초기화</button>
                     </div>
                 </div>
 
-                <div class="filter-bar">
+                <!-- 접히는 필터 -->
+                <div class="filter-bar filter-collapsed" id="filter-panel">
                     <div class="filter-item" id="f-channel-wrap" style="display:none;">
                         <label>채널</label>
                         <select id="f-channel" onchange="fetchSummary()"><option value="전체">전체</option></select>
@@ -560,12 +577,7 @@
                             <option value="단건">단건</option>
                         </select>
                     </div>
-                    <div class="filter-item">
-                        <label>키워드</label>
-                        <input type="text" id="f-keyword" placeholder="검색..." onkeydown="if(event.key==='Enter') fetchSummary()">
-                    </div>
-                    <button class="btn-search" onclick="fetchSummary()">검색</button>
-                    <button class="btn-reset" onclick="resetFilters()">초기화</button>
+                    <button class="btn-search" onclick="fetchSummary()">적용</button>
                 </div>
 
                 <div class="table-container">
@@ -574,7 +586,7 @@
                             <tr>
                                 <th>No</th><th>월</th><th>담당자</th><th>일시</th><th>장소</th>
                                 <th>위험요소 내용</th><th>재해유형</th><th>위험등급(전)</th><th>위험등급(후)</th>
-                                <th>완료여부</th><th>반복</th><th>주차</th><th>개선 전</th><th>개선 후</th><th>작업</th>
+                                <th>완료여부</th><th>완료일</th><th>반복</th><th>주차</th><th>개선 전</th><th>개선 후</th><th>작업</th>
                             </tr>
                         </thead>
                         <tbody id="data-tbody"></tbody>

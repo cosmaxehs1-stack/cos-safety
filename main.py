@@ -1116,6 +1116,7 @@ async def get_summary(
     completion: Optional[str] = None,
     team: Optional[str] = None,
     page: Optional[str] = None,
+    sel_week: Optional[int] = None,
 ):
     verify_token(request)
     records = load_data()
@@ -1416,6 +1417,50 @@ async def get_summary(
     persons = sorted(set(r["person"] for r in all_records_for_filters if r["person"]))
     weeks = sorted(set(r["week"] for r in all_records_for_filters if r["week"] > 0))
 
+    # Simple view summary (current filtered records)
+    today = date.today()
+    cur_month_str = f"{today.month}월"
+    cur_week = calc_week_from_date(today.isoformat())
+    # 선택된 주차가 있으면 그 주차, 없으면 이번주
+    target_week = sel_week if sel_week and sel_week > 0 else cur_week
+
+    view_summary = {
+        "total": total, "complete": complete, "incomplete": incomplete,
+        "team1": 0, "team1_complete": 0,
+        "team2": 0, "team2_complete": 0,
+        "week_discovered": 0, "week_improved": 0,
+        "week_team1_discovered": 0, "week_team1_improved": 0,
+        "week_team2_discovered": 0, "week_team2_improved": 0,
+    }
+    for r in records:
+        tm = extract_team(r.get("location_group", ""), r.get("month", ""))
+        is_team1 = (tm == "환경안전1팀")
+        if is_team1:
+            view_summary["team1"] += 1
+            if r["completion"] == "완료":
+                view_summary["team1_complete"] += 1
+        else:
+            view_summary["team2"] += 1
+            if r["completion"] == "완료":
+                view_summary["team2_complete"] += 1
+        # 이번주 판별
+        r_date = r.get("date", "")
+        r_month = r.get("month", "")
+        if r_date and r_date[:4] == str(today.year) and r_month == cur_month_str:
+            r_week = r.get("week", 0) or calc_week_from_date(r_date)
+            if r_week == target_week:
+                view_summary["week_discovered"] += 1
+                if is_team1:
+                    view_summary["week_team1_discovered"] += 1
+                else:
+                    view_summary["week_team2_discovered"] += 1
+                if r["completion"] == "완료":
+                    view_summary["week_improved"] += 1
+                    if is_team1:
+                        view_summary["week_team1_improved"] += 1
+                    else:
+                        view_summary["week_team2_improved"] += 1
+
     # Strip large image data from summary response to reduce payload size
     for r in records:
         r["has_image"] = bool(r.get("image"))
@@ -1447,6 +1492,7 @@ async def get_summary(
         "d_grade_monthly": d_grade_monthly,
         "complete": complete,
         "incomplete": incomplete,
+        "view_summary": view_summary,
         "location_stats": location_stats,
         "location_disaster_stats": location_disaster_stats,
         "location_major_stats": location_major_stats,

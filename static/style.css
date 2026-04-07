@@ -151,6 +151,26 @@ body {
 .period-label { font-size: 11px; color: #999; font-weight: 600; }
 .period-value { font-size: 28px; font-weight: 800; color: #1a1a2e; }
 .period-value.accent { color: #27ae60; }
+.period-extra {
+    margin-top: 10px; padding-top: 10px; border-top: 1px dashed #e0e0e0;
+    font-size: 13px; color: #3498db; font-weight: 600;
+    cursor: pointer; display: flex; align-items: center; gap: 2px;
+}
+.period-extra-value { font-weight: 800; font-size: 16px; }
+.info-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 16px; height: 16px; border-radius: 50%; background: #ccc; color: white;
+    font-size: 10px; font-weight: 700; cursor: pointer; margin-left: 4px; flex-shrink: 0;
+}
+.info-btn:hover { background: #3498db; }
+.info-tooltip {
+    display: none; position: absolute; bottom: calc(100% + 8px); left: 0; right: 0;
+    background: #333; color: white; font-size: 12px; font-weight: 400;
+    padding: 10px 12px; border-radius: 8px; line-height: 1.5;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 10;
+}
+.info-tooltip.show { display: block; }
+.period-extra { position: relative; }
 
 /* ===== Summary Cards ===== */
 .summary-cards {
@@ -478,20 +498,14 @@ body {
 }
 .channel-select:focus { border-color: #e74c3c; }
 
-/* ===== Year-Month Selector ===== */
-.year-month-selector { margin-bottom: 0; }
-.year-selector {
-    display: flex; align-items: center; gap: 8px;
-    margin-bottom: 8px;
+/* ===== Time Selector ===== */
+.time-selector { margin-bottom: 12px; }
+.time-top { display: flex; align-items: center; gap: 8px; }
+.year-select {
+    padding: 6px 10px; border: 1px solid #ccc; border-radius: 8px 8px 0 0;
+    font-size: 13px; font-weight: 700; outline: none; background: #2c3e50; color: white;
+    border-bottom: none; cursor: pointer;
 }
-.year-selector label {
-    font-size: 12px; color: #888; font-weight: 600; text-transform: uppercase;
-}
-.year-selector select {
-    padding: 6px 12px; border: 1px solid #ddd; border-radius: 6px;
-    font-size: 13px; font-weight: 600; outline: none; background: white;
-}
-.year-selector select:focus { border-color: #e74c3c; }
 
 /* ===== Month Sheet Tabs ===== */
 .month-sheet-tabs {
@@ -512,6 +526,59 @@ body {
     background: white; color: #e74c3c; border-bottom-color: white;
     z-index: 1;
 }
+
+/* ===== Records Toolbar ===== */
+.records-toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; margin-bottom: 12px; flex-wrap: wrap;
+}
+.mini-stats { display: flex; gap: 8px; flex-wrap: wrap; }
+.ms-card {
+    background: white; border-radius: 8px; padding: 8px 14px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06); display: flex; align-items: center; gap: 8px;
+    font-size: 12px; white-space: nowrap;
+}
+.ms-card .ms-label { color: #888; font-weight: 600; }
+.ms-card .ms-num { font-weight: 700; font-size: 15px; color: #333; }
+.ms-pair { color: #555; }
+.ms-pair b { font-size: 14px; color: #333; }
+.ms-pair.green, .ms-pair.green b { color: #27ae60; }
+.ms-pair.red, .ms-pair.red b { color: #e74c3c; }
+.toolbar-actions { display: flex; gap: 6px; align-items: center; }
+.search-inline {
+    padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px;
+    font-size: 12px; width: 140px; outline: none;
+}
+.search-inline:focus { border-color: #e74c3c; }
+.btn-filter-toggle {
+    padding: 6px 12px; background: white; color: #555; border: 1px solid #ddd;
+    border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;
+}
+.btn-filter-toggle:hover { background: #f5f5f5; }
+.btn-reset-sm {
+    padding: 6px 10px; background: white; color: #999; border: 1px solid #ddd;
+    border-radius: 6px; cursor: pointer; font-size: 11px;
+}
+.btn-reset-sm:hover { background: #f5f5f5; }
+
+/* Collapsible filter */
+.filter-collapsed { display: none !important; }
+.filter-expanded { display: flex !important; }
+
+/* ===== Week Cards ===== */
+.week-cards {
+    display: flex; gap: 6px; padding: 8px 0 0; flex-wrap: wrap;
+}
+.week-card {
+    padding: 4px 12px; background: #f0f2f5; color: #666;
+    border: 1px solid #ddd; border-radius: 16px; cursor: pointer;
+    font-size: 11px; font-weight: 600; white-space: nowrap;
+    transition: all 0.15s;
+}
+.week-card:hover { background: #e8e8e8; color: #333; }
+.week-card.active { background: #2c3e50; color: white; border-color: #2c3e50; }
+.week-card.current { border-color: #e74c3c; }
+.week-card.current.active { background: #e74c3c; border-color: #e74c3c; }
 
 /* ===== Filter Bar ===== */
 .filter-bar {
