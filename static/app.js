@@ -257,6 +257,8 @@ function updateWeekCards(records) {
 }
 
 function resetFilters() {
+    _activeTeamFilter = "";
+    _activeStatusFilter = "";
     setFilterValue("f-channel", "전체");
     setFilterValue("f-rec-year", "전체");
     // Reset month tab to 전체
@@ -361,7 +363,12 @@ async function fetchSummary() {
         updateTable(displayRecords);
         updateFilters(data.filters);
         updateWeekCards(data.records);
-        updateViewSummaryFromRecords(displayRecords, data.view_summary);
+        // 카드는 팀 필터 없는 레코드 기준
+        var savedTeam = _activeTeamFilter;
+        _activeTeamFilter = "";
+        var allRecords = getDisplayRecords(data);
+        _activeTeamFilter = savedTeam;
+        updateViewSummaryFromRecords(allRecords, data.view_summary);
 
         if (currentPage === "analysis") {
             updateAnalysisCharts(data);
@@ -384,6 +391,17 @@ function getDisplayRecords(data) {
             return w === selWeek;
         });
     }
+
+    var teamFilter = getActiveTeamFilter();
+    if (teamFilter) {
+        records = records.filter(function(r) {
+            return getTeamFromLocation(r.location_group || "") === teamFilter;
+        });
+    }
+    var statusFilter = getActiveStatusFilter();
+    if (statusFilter === "개선") {
+        records = records.filter(function(r) { return r.completion === "완료"; });
+    }
     return records;
 }
 
@@ -396,6 +414,34 @@ function toggleFilters() {
     } else {
         panel.classList.remove("filter-expanded");
         panel.classList.add("filter-collapsed");
+    }
+}
+
+var _activeTeamFilter = "";  // "", "1팀", "2팀"
+var _activeStatusFilter = ""; // "", "발굴"(전체), "개선"(완료만)
+
+function getActiveTeamFilter() { return _activeTeamFilter; }
+function getActiveStatusFilter() { return _activeStatusFilter; }
+
+function toggleTeamFilter(team, status) {
+    if (_activeTeamFilter === team && _activeStatusFilter === (status || "")) {
+        _activeTeamFilter = "";
+        _activeStatusFilter = "";
+    } else {
+        _activeTeamFilter = team;
+        _activeStatusFilter = status || "";
+    }
+    if (lastSummaryData) {
+        var displayRecords = getDisplayRecords(lastSummaryData);
+        updateTable(displayRecords);
+        var savedTeam = _activeTeamFilter;
+        var savedStatus = _activeStatusFilter;
+        _activeTeamFilter = "";
+        _activeStatusFilter = "";
+        var allRecords = getDisplayRecords(lastSummaryData);
+        _activeTeamFilter = savedTeam;
+        _activeStatusFilter = savedStatus;
+        updateViewSummaryFromRecords(allRecords, lastSummaryData.view_summary);
     }
 }
 
@@ -429,23 +475,33 @@ function updateViewSummaryFromRecords(records, vs) {
     var incomplete = total - complete;
 
     var selWeek = getSelectedWeek();
-    var label = selWeek > 0 ? selWeek + '주차' : '조회결과';
+
+    var at = getActiveTeamFilter();
+    var as = getActiveStatusFilter();
+
+    function cell(team, status, label, count, color) {
+        var isActive = (at === team && as === status);
+        var cls = 'ms-cell' + (color ? ' ' + color : '') + (isActive ? ' ms-cell-active' : '');
+        return '<div class="' + cls + '" onclick="toggleTeamFilter(\'' + team + '\', \'' + status + '\')"><div class="ms-cell-label">' + label + '</div><div class="ms-cell-num">' + count + '</div></div>';
+    }
+
+    var label = selWeek > 0 ? '전체 (' + selWeek + '주차)' : '전체';
 
     container.innerHTML =
-        '<div class="ms-card">' +
-        '<span class="ms-label">' + label + ' <b class="ms-num">' + total + '</b></span>' +
-        '<span class="ms-pair green">개선 <b>' + complete + '</b></span>' +
-        '<span class="ms-pair red">미완료 <b>' + incomplete + '</b></span>' +
+        '<div class="ms-grid">' +
+        '<div class="ms-grid-label">' + label + '</div>' +
+        cell('', '', '발굴', total, '') +
+        cell('', '개선', '개선', complete, 'green') +
         '</div>' +
-        '<div class="ms-card">' +
-        '<span class="ms-label">1팀</span>' +
-        '<span class="ms-pair">발굴 <b>' + team1 + '</b></span>' +
-        '<span class="ms-pair green">개선 <b>' + team1_complete + '</b></span>' +
+        '<div class="ms-grid">' +
+        '<div class="ms-grid-label">1팀</div>' +
+        cell('1팀', '', '발굴', team1, '') +
+        cell('1팀', '개선', '개선', team1_complete, 'green') +
         '</div>' +
-        '<div class="ms-card">' +
-        '<span class="ms-label">2팀</span>' +
-        '<span class="ms-pair">발굴 <b>' + team2 + '</b></span>' +
-        '<span class="ms-pair green">개선 <b>' + team2_complete + '</b></span>' +
+        '<div class="ms-grid">' +
+        '<div class="ms-grid-label">2팀</div>' +
+        cell('2팀', '', '발굴', team2, '') +
+        cell('2팀', '개선', '개선', team2_complete, 'green') +
         '</div>';
 }
 

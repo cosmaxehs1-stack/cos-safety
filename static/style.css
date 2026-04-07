@@ -533,17 +533,30 @@ body {
     gap: 12px; margin-bottom: 12px; flex-wrap: wrap;
 }
 .mini-stats { display: flex; gap: 8px; flex-wrap: wrap; }
-.ms-card {
-    background: white; border-radius: 8px; padding: 8px 14px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.06); display: flex; align-items: center; gap: 8px;
-    font-size: 12px; white-space: nowrap;
+/* ===== Mini Stats Grid ===== */
+.ms-grid {
+    display: flex; background: white; border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06); overflow: hidden;
 }
-.ms-card .ms-label { color: #888; font-weight: 600; }
-.ms-card .ms-num { font-weight: 700; font-size: 15px; color: #333; }
-.ms-pair { color: #555; }
-.ms-pair b { font-size: 14px; color: #333; }
-.ms-pair.green, .ms-pair.green b { color: #27ae60; }
-.ms-pair.red, .ms-pair.red b { color: #e74c3c; }
+.ms-cell {
+    padding: 8px 14px; cursor: pointer; text-align: center;
+    transition: background 0.15s; border-right: 1px solid #eee;
+    min-width: 60px;
+}
+.ms-cell:last-child { border-right: none; }
+.ms-cell:hover { background: #f5f6f8; }
+.ms-cell-label { font-size: 11px; color: #888; font-weight: 600; margin-bottom: 2px; }
+.ms-cell-num { font-size: 16px; font-weight: 700; color: #333; }
+.ms-cell.green .ms-cell-num { color: #27ae60; }
+.ms-cell-active { background: #2c3e50 !important; }
+.ms-cell-active .ms-cell-label { color: rgba(255,255,255,0.7); }
+.ms-cell-active .ms-cell-num { color: white; }
+.ms-cell-active.green { background: #27ae60 !important; }
+.ms-grid-label {
+    padding: 8px 10px; font-size: 11px; font-weight: 700; color: #555;
+    display: flex; align-items: center; border-right: 1px solid #eee;
+    background: #f8f9fa;
+}
 .toolbar-actions { display: flex; gap: 6px; align-items: center; }
 .search-inline {
     padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px;
