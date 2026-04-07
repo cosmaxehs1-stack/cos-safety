@@ -1,4 +1,4 @@
-* { margin: 0; padding: 0; box-sizing: border-box; }
+* { margin: 0; padding: 0; box-sizing: border-box; word-break: keep-all; }
 
 body {
     font-family: 'Noto Sans KR', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -239,13 +239,13 @@ body {
 
 /* Register Method Selection */
 .register-select {
-    display: flex; gap: 32px; justify-content: center; padding: 60px 0;
+    display: flex; flex-direction: column; gap: 16px; align-items: center; padding: 40px 0;
 }
 .register-select-card {
-    background: white; border-radius: 4px; padding: 48px 40px;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.08); cursor: pointer;
-    text-align: center; width: 300px; transition: all 0.2s;
-    border: 2px solid transparent;
+    background: white; border-radius: 4px; padding: 32px 40px;
+    border: 1px solid #C1C6C7; cursor: pointer;
+    text-align: center; width: 100%; max-width: 400px; transition: all 0.2s;
+    word-break: keep-all;
 }
 .register-select-card:hover {
     border-color: #EA1D22; box-shadow: 0 6px 24px rgba(234,29,34,0.12);
@@ -253,7 +253,7 @@ body {
 }
 .register-select-icon { font-size: 48px; margin-bottom: 16px; }
 .register-select-title { font-size: 20px; font-weight: 700; color: #1a1a2e; margin-bottom: 10px; }
-.register-select-desc { font-size: 14px; color: #888; line-height: 1.5; }
+.register-select-desc { font-size: 14px; color: #888; line-height: 1.5; word-break: keep-all; }
 
 .btn-register-back {
     background: none; border: none; cursor: pointer;
@@ -830,6 +830,10 @@ td.red { color: #e74c3c; font-weight: 600; }
     .form-grid { grid-template-columns: 1fr; }
     .analysis-tabs { overflow-x: auto; }
     .analysis-tab { padding: 8px 14px; font-size: 12px; }
+    .register-select { padding: 24px 0; gap: 12px; }
+    .register-select-card { padding: 24px 20px; }
+    .register-select-title { font-size: 16px; }
+    .register-select-desc { font-size: 13px; }
 }
 
 /* ===== Print ===== */
