@@ -601,30 +601,39 @@ function destroyChart(id) {
 }
 
 function updateSummaryCharts(data) {
-    // Grade donuts
+    // Grade horizontal bar charts: 개선 전 (left) / 현황 (right)
     destroyChart("chart-grade-before");
     destroyChart("chart-grade-after");
-    const gradeColors = [GRADE_COLORS.A, GRADE_COLORS.B, GRADE_COLORS.C, GRADE_COLORS.D];
-    const gradeMiniOpts = {
-        responsive: true, cutout: "60%",
-        plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.label + ": " + ctx.parsed + "건" } } }
+    var gradeBarColors = ["rgba(212,206,193,0.7)", "rgba(193,198,199,0.7)", "rgba(200,100,80,0.7)", "rgba(234,29,34,0.7)"];
+    var gradeBarBorders = ["#D4CEC1", "#C1C6C7", "#c0432b", "#EA1D22"];
+    var gradeLabels = ["A등급", "B등급", "C등급", "D등급"];
+    var maxVal = Math.max(data.grade_a, data.grade_b, data.grade_c, data.grade_d, data.grade_a_current||0, data.grade_b_current||0, data.grade_c_current||0, data.grade_d_current||0, 1);
+    var gradeBarOpts = function(showY) {
+        return {
+            indexAxis: "y", responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(ctx) { return ctx.parsed.x + "건"; } } } },
+            scales: {
+                x: { beginAtZero: true, max: maxVal + Math.ceil(maxVal * 0.15), ticks: { stepSize: 1, font: { size: 10 } }, grid: { color: "#f0f0f0" } },
+                y: { ticks: { display: showY, font: { size: 12, weight: "600" } }, grid: { display: false } }
+            }
+        };
     };
     chartInstances["chart-grade-before"] = new Chart(document.getElementById("chart-grade-before"), {
-        type: "doughnut",
-        data: { labels: ["A","B","C","D"], datasets: [{ data: [data.grade_a, data.grade_b, data.grade_c, data.grade_d], backgroundColor: gradeColors, borderWidth: 0 }] },
-        options: gradeMiniOpts
+        type: "bar",
+        data: { labels: gradeLabels, datasets: [{ data: [data.grade_a, data.grade_b, data.grade_c, data.grade_d], backgroundColor: gradeBarColors, borderColor: gradeBarBorders, borderWidth: 1, borderRadius: 2 }] },
+        options: gradeBarOpts(true)
     });
     chartInstances["chart-grade-after"] = new Chart(document.getElementById("chart-grade-after"), {
-        type: "doughnut",
-        data: { labels: ["A","B","C","D"], datasets: [{ data: [data.grade_a_current||0, data.grade_b_current||0, data.grade_c_current||0, data.grade_d_current||0], backgroundColor: gradeColors, borderWidth: 0 }] },
-        options: gradeMiniOpts
+        type: "bar",
+        data: { labels: gradeLabels, datasets: [{ data: [data.grade_a_current||0, data.grade_b_current||0, data.grade_c_current||0, data.grade_d_current||0], backgroundColor: gradeBarColors, borderColor: gradeBarBorders, borderWidth: 1, borderRadius: 2 }] },
+        options: gradeBarOpts(false)
     });
 
     // Completion donut
     destroyChart("chart-completion");
     chartInstances["chart-completion"] = new Chart(document.getElementById("chart-completion"), {
         type: "doughnut",
-        data: { labels: ["완료","미완료"], datasets: [{ data: [data.complete, data.incomplete], backgroundColor: ["#27ae60","#e5e7eb"], borderWidth: 0 }] },
+        data: { labels: ["완료","미완료"], datasets: [{ data: [data.complete, data.incomplete], backgroundColor: ["#555","#e5e7eb"], borderWidth: 0 }] },
         options: { responsive: true, cutout: "65%", plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.label + ": " + ctx.parsed + "건" } } } }
     });
 }
