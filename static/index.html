@@ -89,6 +89,9 @@
                     </div>
                 </div>
 
+                <!-- Comment Notifications Banner -->
+                <div id="summary-notifications" class="summary-notifications" style="display:none;"></div>
+
                 <!-- Period Summary Cards -->
                 <div class="period-stats">
                     <div class="period-card accent-blue">
@@ -779,6 +782,71 @@
         </div>
     </div>
 
-    <script src="/static/app.js?v=22"></script>
+    <!-- Comment FAB -->
+    <button id="comment-fab" class="comment-fab" onclick="toggleCommentPanel()">
+        💬
+        <span id="comment-badge" class="comment-badge" style="display:none;">0</span>
+    </button>
+
+    <!-- Comment Panel -->
+    <div id="comment-overlay" class="comment-overlay" onclick="toggleCommentPanel()"></div>
+    <div id="comment-panel" class="comment-panel">
+        <div class="comment-panel-header">
+            <h3>경영진 코멘트</h3>
+            <button class="comment-panel-close" onclick="toggleCommentPanel()">&times;</button>
+        </div>
+        <div class="comment-week-selector">
+            <select id="comment-month-select" onchange="onMonthChange()"></select>
+            <select id="comment-week-select" onchange="onWeekChange()"></select>
+        </div>
+        <div class="comment-panel-notifications" id="comment-notifications"></div>
+        <div class="comment-panel-body">
+            <div class="comment-section" data-role="1팀장">
+                <div class="comment-section-title">환경안전1팀 팀장</div>
+                <div class="comment-list" id="comments-1팀장"></div>
+                <div class="comment-input-area">
+                    <textarea id="comment-input-1팀장" placeholder="코멘트를 입력하세요..." rows="2"></textarea>
+                    <button onclick="submitComment('1팀장')">등록</button>
+                </div>
+            </div>
+            <div class="comment-section" data-role="2팀장">
+                <div class="comment-section-title">환경안전2팀 팀장</div>
+                <div class="comment-list" id="comments-2팀장"></div>
+                <div class="comment-input-area">
+                    <textarea id="comment-input-2팀장" placeholder="코멘트를 입력하세요..." rows="2"></textarea>
+                    <button onclick="submitComment('2팀장')">등록</button>
+                </div>
+            </div>
+            <div class="comment-section" data-role="본부장">
+                <div class="comment-section-title">생산기술본부장</div>
+                <div class="comment-list" id="comments-본부장"></div>
+                <div class="comment-input-area">
+                    <textarea id="comment-input-본부장" placeholder="코멘트를 입력하세요..." rows="2"></textarea>
+                    <button onclick="submitComment('본부장')">등록</button>
+                </div>
+            </div>
+            <div class="comment-section" data-role="부문장">
+                <div class="comment-section-title">SCM 부문장</div>
+                <div class="comment-list" id="comments-부문장"></div>
+                <div class="comment-input-area">
+                    <textarea id="comment-input-부문장" placeholder="코멘트를 입력하세요..." rows="2"></textarea>
+                    <button onclick="submitComment('부문장')">등록</button>
+                </div>
+            </div>
+            <div class="comment-section" data-role="대표이사">
+                <div class="comment-section-title">대표이사</div>
+                <div class="comment-list" id="comments-대표이사"></div>
+                <div class="comment-input-area">
+                    <textarea id="comment-input-대표이사" placeholder="코멘트를 입력하세요..." rows="2"></textarea>
+                    <button onclick="submitComment('대표이사')">등록</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="/static/app.js?v=23"></script>
 </body>
 </html>

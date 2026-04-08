@@ -8,7 +8,7 @@ import uuid
 import zipfile
 import base64
 from collections import Counter
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from typing import Optional, Union
 from xml.etree import ElementTree as ET
 
@@ -114,6 +114,29 @@ def init_db():
             week INT NOT NULL,
             saved_at TEXT NOT NULL,
             data JSONB NOT NULL
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS executive_comments (
+            id TEXT PRIMARY KEY,
+            role TEXT NOT NULL,
+            content TEXT NOT NULL,
+            week_key TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL,
+            updated_at TEXT
+        )
+    """)
+    try:
+        cur.execute("ALTER TABLE executive_comments ADD COLUMN week_key TEXT NOT NULL DEFAULT ''")
+    except:
+        conn.rollback()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS executive_notifications (
+            id TEXT PRIMARY KEY,
+            comment_id TEXT NOT NULL,
+            message TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            is_read BOOLEAN DEFAULT FALSE
         )
     """)
     conn.commit()
@@ -1877,6 +1900,302 @@ async def download_excel(request: Request, channel: str = "전체"):
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
+
+
+# --- Executive Comments & Notifications ---
+ROLE_LABELS = {
+    "1팀장": "환경안전1팀 팀장",
+    "2팀장": "환경안전2팀 팀장",
+    "본부장": "생산기술본부장",
+    "부문장": "SCM 부문장",
+    "대표이사": "대표이사",
+}
+
+COMMENTS_FILE = os.path.join(UPLOAD_DIR, "executive_comments.json")
+NOTIFICATIONS_FILE = os.path.join(UPLOAD_DIR, "executive_notifications.json")
+
+
+def get_week_key(dt=None):
+    if dt is None:
+        dt = datetime.now()
+    iso = dt.isocalendar()
+    return f"{iso[0]}-W{iso[1]:02d}"
+
+
+def format_week_label(week_key: str) -> str:
+    parts = week_key.split("-W")
+    if len(parts) != 2:
+        return week_key
+    year = int(parts[0])
+    week = int(parts[1])
+    jan4 = date(year, 1, 4)
+    start = jan4 - timedelta(days=jan4.weekday()) + timedelta(weeks=week - 1)
+    month = start.month
+    first_of_month = date(start.year, month, 1)
+    week_of_month = (start.day + first_of_month.weekday()) // 7 + 1
+    return f"{year}년 {month}월 {week_of_month}주차"
+
+
+def load_comments(week_key=None):
+    if DATABASE_URL:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        if week_key:
+            cur.execute("SELECT * FROM executive_comments WHERE week_key=%s ORDER BY created_at DESC", (week_key,))
+        else:
+            cur.execute("SELECT * FROM executive_comments ORDER BY created_at DESC")
+        rows = cur.fetchall()
+        cur.close()
+        release_db(conn)
+        return [dict(r) for r in rows]
+    else:
+        if os.path.exists(COMMENTS_FILE):
+            with open(COMMENTS_FILE, "r", encoding="utf-8") as f:
+                comments = json.load(f)
+            if week_key:
+                return [c for c in comments if c.get("week_key") == week_key]
+            return comments
+        return []
+
+
+def get_comment_weeks():
+    if DATABASE_URL:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT DISTINCT week_key FROM executive_comments ORDER BY week_key DESC")
+        rows = cur.fetchall()
+        cur.close()
+        release_db(conn)
+        return [r[0] for r in rows]
+    else:
+        if os.path.exists(COMMENTS_FILE):
+            with open(COMMENTS_FILE, "r", encoding="utf-8") as f:
+                comments = json.load(f)
+            weeks = sorted(set(c.get("week_key", "") for c in comments), reverse=True)
+            return [w for w in weeks if w]
+        return []
+
+
+def save_comments(comments):
+    if not DATABASE_URL:
+        with open(COMMENTS_FILE, "w", encoding="utf-8") as f:
+            json.dump(comments, f, ensure_ascii=False)
+
+
+def load_notifications():
+    if DATABASE_URL:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT * FROM executive_notifications WHERE is_read = FALSE ORDER BY created_at DESC")
+        rows = cur.fetchall()
+        cur.close()
+        release_db(conn)
+        return [dict(r) for r in rows]
+    else:
+        if os.path.exists(NOTIFICATIONS_FILE):
+            with open(NOTIFICATIONS_FILE, "r", encoding="utf-8") as f:
+                return [n for n in json.load(f) if not n.get("is_read")]
+        return []
+
+
+def save_notifications(notifications):
+    if not DATABASE_URL:
+        with open(NOTIFICATIONS_FILE, "w", encoding="utf-8") as f:
+            json.dump(notifications, f, ensure_ascii=False)
+
+
+@app.get("/api/comments")
+async def get_comments(week: str = None):
+    wk = week or get_week_key()
+    return {"comments": load_comments(wk), "week_key": wk}
+
+
+@app.get("/api/comment-weeks")
+async def get_comment_weeks_api():
+    weeks = get_comment_weeks()
+    current = get_week_key()
+    if current not in weeks:
+        weeks.insert(0, current)
+    result = []
+    for w in weeks:
+        parts = w.split("-W")
+        if len(parts) != 2:
+            continue
+        year = int(parts[0])
+        iso_week = int(parts[1])
+        jan4 = date(year, 1, 4)
+        start = jan4 - timedelta(days=jan4.weekday()) + timedelta(weeks=iso_week - 1)
+        month = start.month
+        first_of_month = date(start.year, month, 1)
+        week_of_month = (start.day + first_of_month.weekday()) // 7 + 1
+        month_key = f"{year}-{month:02d}"
+        month_label = f"{year}년 {month}월"
+        result.append({
+            "key": w,
+            "month_key": month_key,
+            "month_label": month_label,
+            "week_of_month": week_of_month,
+        })
+    return {"weeks": result}
+
+
+@app.post("/api/comments")
+async def create_comment(request: Request):
+    body = await request.json()
+    role = body.get("role", "")
+    content = body.get("content", "").strip()
+    if role not in ROLE_LABELS:
+        raise HTTPException(status_code=400, detail="유효하지 않은 역할입니다.")
+    if not content:
+        raise HTTPException(status_code=400, detail="코멘트 내용을 입력해주세요.")
+
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    week_key = get_week_key()
+    comment_id = uuid.uuid4().hex
+    notif_id = uuid.uuid4().hex
+    label = ROLE_LABELS[role]
+    week_label = format_week_label(week_key)
+    notif_msg = f"{label}님이 코멘트를 달았습니다 ({week_label})"
+
+    comment = {"id": comment_id, "role": role, "content": content, "week_key": week_key, "created_at": now, "updated_at": None}
+    notification = {"id": notif_id, "comment_id": comment_id, "message": notif_msg, "created_at": now, "is_read": False}
+
+    if DATABASE_URL:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("INSERT INTO executive_comments (id, role, content, week_key, created_at) VALUES (%s,%s,%s,%s,%s)",
+                     (comment_id, role, content, week_key, now))
+        cur.execute("INSERT INTO executive_notifications (id, comment_id, message, created_at) VALUES (%s,%s,%s,%s)",
+                     (notif_id, comment_id, notif_msg, now))
+        conn.commit()
+        cur.close()
+        release_db(conn)
+    else:
+        comments = load_comments()
+        comments.insert(0, comment)
+        save_comments(comments)
+        notifs = []
+        if os.path.exists(NOTIFICATIONS_FILE):
+            with open(NOTIFICATIONS_FILE, "r", encoding="utf-8") as f:
+                notifs = json.load(f)
+        notifs.insert(0, notification)
+        save_notifications(notifs)
+
+    return {"message": "코멘트 등록 완료", "comment": comment, "notification": notification}
+
+
+@app.put("/api/comments/{comment_id}")
+async def update_comment(comment_id: str, request: Request):
+    body = await request.json()
+    content = body.get("content", "").strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="코멘트 내용을 입력해주세요.")
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    if DATABASE_URL:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("UPDATE executive_comments SET content=%s, updated_at=%s WHERE id=%s", (content, now, comment_id))
+        conn.commit()
+        cur.close()
+        release_db(conn)
+    else:
+        comments = load_comments()
+        for c in comments:
+            if c["id"] == comment_id:
+                c["content"] = content
+                c["updated_at"] = now
+                break
+        save_comments(comments)
+
+    return {"message": "코멘트 수정 완료"}
+
+
+@app.delete("/api/comments/{comment_id}")
+async def delete_comment(comment_id: str):
+    if DATABASE_URL:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM executive_notifications WHERE comment_id=%s", (comment_id,))
+        cur.execute("DELETE FROM executive_comments WHERE id=%s", (comment_id,))
+        conn.commit()
+        cur.close()
+        release_db(conn)
+    else:
+        comments = load_comments()
+        comments = [c for c in comments if c["id"] != comment_id]
+        save_comments(comments)
+        notifs = []
+        if os.path.exists(NOTIFICATIONS_FILE):
+            with open(NOTIFICATIONS_FILE, "r", encoding="utf-8") as f:
+                notifs = json.load(f)
+        notifs = [n for n in notifs if n.get("comment_id") != comment_id]
+        save_notifications(notifs)
+
+    return {"message": "코멘트 삭제 완료"}
+
+
+@app.get("/api/notifications")
+async def get_notifications(current_week: bool = False):
+    notifs = load_notifications()
+    if current_week:
+        wk = get_week_key()
+        notifs = [n for n in notifs if n.get("created_at", "")[:10] >= _week_start(wk)]
+    return {"notifications": notifs}
+
+
+def _week_start(week_key: str) -> str:
+    parts = week_key.split("-W")
+    if len(parts) != 2:
+        return ""
+    year = int(parts[0])
+    week = int(parts[1])
+    jan4 = date(year, 1, 4)
+    start = jan4 - timedelta(days=jan4.weekday()) + timedelta(weeks=week - 1)
+    return start.isoformat()
+
+
+@app.post("/api/notifications/{notification_id}/dismiss")
+async def dismiss_notification(notification_id: str):
+    if DATABASE_URL:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("UPDATE executive_notifications SET is_read=TRUE WHERE id=%s", (notification_id,))
+        conn.commit()
+        cur.close()
+        release_db(conn)
+    else:
+        notifs = []
+        if os.path.exists(NOTIFICATIONS_FILE):
+            with open(NOTIFICATIONS_FILE, "r", encoding="utf-8") as f:
+                notifs = json.load(f)
+        for n in notifs:
+            if n["id"] == notification_id:
+                n["is_read"] = True
+                break
+        save_notifications(notifs)
+
+    return {"message": "알림 확인 완료"}
+
+
+@app.delete("/api/notifications/{notification_id}")
+async def delete_notification(notification_id: str):
+    if DATABASE_URL:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM executive_notifications WHERE id=%s", (notification_id,))
+        conn.commit()
+        cur.close()
+        release_db(conn)
+    else:
+        notifs = []
+        if os.path.exists(NOTIFICATIONS_FILE):
+            with open(NOTIFICATIONS_FILE, "r", encoding="utf-8") as f:
+                notifs = json.load(f)
+        notifs = [n for n in notifs if n["id"] != notification_id]
+        save_notifications(notifs)
+
+    return {"message": "알림 삭제 완료"}
 
 
 # --- Static Files ---

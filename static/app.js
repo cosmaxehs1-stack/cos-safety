@@ -1662,7 +1662,214 @@ async function saveWeeklySnapshot() {
     } catch (e) { alert("서버 연결 실패"); }
 }
 
+// ===== Executive Comments =====
+let commentPanelOpen = false;
+let currentWeekKey = "";
+let allWeeksData = [];
+
+function toggleCommentPanel() {
+    commentPanelOpen = !commentPanelOpen;
+    document.getElementById("comment-panel").classList.toggle("open", commentPanelOpen);
+    document.getElementById("comment-overlay").classList.toggle("open", commentPanelOpen);
+    if (commentPanelOpen) {
+        loadWeeks();
+        loadNotifications();
+    }
+}
+
+async function loadWeeks() {
+    try {
+        const res = await fetch("/api/comment-weeks", { headers: authHeaders() });
+        const data = await res.json();
+        allWeeksData = data.weeks || [];
+
+        // 월 목록 추출 (중복 제거)
+        const months = [];
+        const monthSet = new Set();
+        allWeeksData.forEach(w => {
+            if (!monthSet.has(w.month_key)) {
+                monthSet.add(w.month_key);
+                months.push({ key: w.month_key, label: w.month_label });
+            }
+        });
+
+        const monthSelect = document.getElementById("comment-month-select");
+        monthSelect.innerHTML = months.map(m =>
+            `<option value="${m.key}">${m.label}</option>`
+        ).join("");
+
+        if (months.length > 0) {
+            monthSelect.value = months[0].key;
+            updateWeekOptions(months[0].key);
+        }
+    } catch(e) { console.error("loadWeeks error", e); }
+}
+
+function onMonthChange() {
+    const monthKey = document.getElementById("comment-month-select").value;
+    updateWeekOptions(monthKey);
+}
+
+function updateWeekOptions(monthKey) {
+    const weekSelect = document.getElementById("comment-week-select");
+    const filtered = allWeeksData.filter(w => w.month_key === monthKey);
+    weekSelect.innerHTML = filtered.map(w =>
+        `<option value="${w.key}">${w.week_of_month}주차</option>`
+    ).join("");
+    if (filtered.length > 0) {
+        currentWeekKey = filtered[0].key;
+        weekSelect.value = currentWeekKey;
+    }
+    loadComments();
+}
+
+function onWeekChange() {
+    currentWeekKey = document.getElementById("comment-week-select").value;
+    loadComments();
+}
+
+async function loadComments() {
+    try {
+        const url = currentWeekKey ? `/api/comments?week=${currentWeekKey}` : "/api/comments";
+        const res = await fetch(url, { headers: authHeaders() });
+        const data = await res.json();
+        const comments = data.comments || [];
+        ["1팀장","2팀장","본부장","부문장","대표이사"].forEach(role => {
+            const list = document.getElementById("comments-" + role);
+            const roleComments = comments.filter(c => c.role === role);
+            if (roleComments.length === 0) {
+                list.innerHTML = '<div style="font-size:12px;color:#999;">코멘트가 없습니다.</div>';
+                return;
+            }
+            list.innerHTML = roleComments.map(c => `
+                <div class="comment-item">
+                    <div class="comment-item-content">${escapeHtml(c.content)}</div>
+                    <div class="comment-item-footer">
+                        <span class="comment-item-time">${c.created_at}</span>
+                        <button class="comment-item-delete" onclick="deleteComment('${c.id}')" title="삭제">삭제</button>
+                    </div>
+                </div>
+            `).join("");
+        });
+    } catch(e) { console.error("loadComments error", e); }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+async function submitComment(role) {
+    const input = document.getElementById("comment-input-" + role);
+    const content = input.value.trim();
+    if (!content) return;
+    try {
+        const res = await fetch("/api/comments", {
+            method: "POST",
+            headers: { ...authHeaders(), "Content-Type": "application/json" },
+            body: JSON.stringify({ role, content })
+        });
+        if (res.ok) {
+            input.value = "";
+            loadComments();
+            loadNotifications();
+            const data = await res.json();
+            if (data.notification) showToast(data.notification.message);
+        }
+    } catch(e) { console.error("submitComment error", e); }
+}
+
+async function deleteComment(commentId) {
+    try {
+        await fetch("/api/comments/" + commentId, { method: "DELETE", headers: authHeaders() });
+        loadComments();
+    } catch(e) { console.error("deleteComment error", e); }
+}
+
+async function loadNotifications() {
+    try {
+        const res = await fetch("/api/notifications", { headers: authHeaders() });
+        const data = await res.json();
+        const notifs = data.notifications || [];
+        const badge = document.getElementById("comment-badge");
+        if (notifs.length > 0) {
+            badge.textContent = notifs.length;
+            badge.style.display = "flex";
+        } else {
+            badge.style.display = "none";
+        }
+        const container = document.getElementById("comment-notifications");
+        if (notifs.length === 0) {
+            container.innerHTML = "";
+            return;
+        }
+        container.innerHTML = notifs.map(n => `
+            <div class="notif-item">
+                <span class="notif-msg">${escapeHtml(n.message)}</span>
+                <span class="notif-time">${n.created_at}</span>
+                <button class="notif-dismiss" onclick="dismissNotification('${n.id}')" title="알림 삭제">&times;</button>
+            </div>
+        `).join("");
+    } catch(e) { console.error("loadNotifications error", e); }
+}
+
+async function dismissNotification(notifId) {
+    try {
+        await fetch("/api/notifications/" + notifId, { method: "DELETE", headers: authHeaders() });
+        loadNotifications();
+    } catch(e) { console.error("dismissNotification error", e); }
+}
+
+function showToast(message) {
+    const container = document.getElementById("toast-container");
+    const toast = document.createElement("div");
+    toast.className = "toast-item";
+    toast.textContent = message;
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.classList.add("fade-out");
+        setTimeout(() => toast.remove(), 300);
+    }, 4000);
+}
+
+async function loadSummaryNotifications() {
+    try {
+        const res = await fetch("/api/notifications?current_week=true", { headers: authHeaders() });
+        const data = await res.json();
+        const notifs = data.notifications || [];
+        const container = document.getElementById("summary-notifications");
+        if (notifs.length === 0) {
+            container.style.display = "none";
+            return;
+        }
+        container.style.display = "flex";
+        container.innerHTML = notifs.map(n => `
+            <div class="summary-notif-item" id="summary-notif-${n.id}">
+                <span class="notif-dot"></span>
+                <span class="notif-msg">${escapeHtml(n.message)}</span>
+                <span class="notif-time">${n.created_at}</span>
+                <button class="notif-close" onclick="closeSummaryNotif('${n.id}')">&times;</button>
+            </div>
+        `).join("");
+    } catch(e) { console.error("loadSummaryNotifications error", e); }
+}
+
+function closeSummaryNotif(notifId) {
+    const el = document.getElementById("summary-notif-" + notifId);
+    if (el) el.remove();
+    const container = document.getElementById("summary-notifications");
+    if (container && container.children.length === 0) {
+        container.style.display = "none";
+    }
+}
+
+// Poll notifications every 30 seconds
+setInterval(() => { loadNotifications(); loadSummaryNotifications(); }, 30000);
+
 // ===== Init =====
 TOKEN = "public";
 sessionStorage.setItem("token", TOKEN);
 showDashboard();
+loadNotifications();
+loadSummaryNotifications();
