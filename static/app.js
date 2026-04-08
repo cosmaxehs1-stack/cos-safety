@@ -1666,6 +1666,7 @@ async function saveWeeklySnapshot() {
 let commentPanelOpen = false;
 let currentWeekKey = "";
 let allWeeksData = [];
+let currentDefaults = {};
 
 function toggleCommentPanel() {
     commentPanelOpen = !commentPanelOpen;
@@ -1682,50 +1683,192 @@ async function loadWeeks() {
         const res = await fetch("/api/comment-weeks", { headers: authHeaders() });
         const data = await res.json();
         allWeeksData = data.weeks || [];
+        currentDefaults = data.current || {};
 
-        // 월 목록 추출 (중복 제거)
-        const months = [];
-        const monthSet = new Set();
-        allWeeksData.forEach(w => {
-            if (!monthSet.has(w.month_key)) {
-                monthSet.add(w.month_key);
-                months.push({ key: w.month_key, label: w.month_label });
-            }
-        });
-
-        const monthSelect = document.getElementById("comment-month-select");
-        monthSelect.innerHTML = months.map(m =>
-            `<option value="${m.key}">${m.label}</option>`
+        // 연도 드롭다운
+        const years = data.years || [];
+        years.sort((a, b) => a - b);
+        const yearSelect = document.getElementById("comment-year-select");
+        yearSelect.innerHTML = years.map(y =>
+            `<option value="${y}">${y}년</option>`
         ).join("");
+        yearSelect.value = currentDefaults.year;
 
-        if (months.length > 0) {
-            monthSelect.value = months[0].key;
-            updateWeekOptions(months[0].key);
-        }
+        updateMonthOptions(currentDefaults.year, currentDefaults.month);
     } catch(e) { console.error("loadWeeks error", e); }
 }
 
-function onMonthChange() {
-    const monthKey = document.getElementById("comment-month-select").value;
-    updateWeekOptions(monthKey);
+function onYearChange() {
+    const year = parseInt(document.getElementById("comment-year-select").value);
+    updateMonthOptions(year, null);
 }
 
-function updateWeekOptions(monthKey) {
+function updateMonthOptions(year, defaultMonth) {
+    const filtered = allWeeksData.filter(w => w.year === year);
+    const months = [];
+    const monthSet = new Set();
+    filtered.forEach(w => {
+        if (!monthSet.has(w.month)) {
+            monthSet.add(w.month);
+            months.push(w.month);
+        }
+    });
+    months.sort((a, b) => a - b);
+
+    const monthSelect = document.getElementById("comment-month-select");
+    monthSelect.innerHTML = months.map(m =>
+        `<option value="${m}">${m}월</option>`
+    ).join("");
+
+    const selectMonth = defaultMonth && months.includes(defaultMonth) ? defaultMonth : months[0];
+    if (selectMonth) {
+        monthSelect.value = selectMonth;
+        updateWeekOptions(year, selectMonth);
+    }
+}
+
+function onMonthChange() {
+    const year = parseInt(document.getElementById("comment-year-select").value);
+    const month = parseInt(document.getElementById("comment-month-select").value);
+    updateWeekOptions(year, month);
+}
+
+function updateWeekOptions(year, month) {
     const weekSelect = document.getElementById("comment-week-select");
-    const filtered = allWeeksData.filter(w => w.month_key === monthKey);
+    const filtered = allWeeksData.filter(w => w.year === year && w.month === month);
+    filtered.sort((a, b) => a.week_of_month - b.week_of_month);
+
     weekSelect.innerHTML = filtered.map(w =>
         `<option value="${w.key}">${w.week_of_month}주차</option>`
     ).join("");
-    if (filtered.length > 0) {
+
+    // 현재 주차가 이 월에 있으면 선택, 아니면 최신 주차
+    const currentInList = filtered.find(w => w.key === currentDefaults.week_key);
+    if (currentInList) {
+        currentWeekKey = currentInList.key;
+    } else if (filtered.length > 0) {
         currentWeekKey = filtered[0].key;
-        weekSelect.value = currentWeekKey;
     }
+    weekSelect.value = currentWeekKey;
     loadComments();
 }
 
 function onWeekChange() {
     currentWeekKey = document.getElementById("comment-week-select").value;
     loadComments();
+}
+
+const ROLE_LABEL_MAP = {
+    "1팀장": "환경안전1팀 팀장",
+    "2팀장": "환경안전2팀 팀장",
+    "본부장": "생산기술본부장",
+    "부문장": "SCM 부문장",
+    "대표이사": "대표이사",
+};
+
+function switchCommentTab(tab, btn) {
+    document.querySelectorAll(".comment-tab").forEach(t => t.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById("comment-view-register").style.display = tab === "register" ? "flex" : "none";
+    document.getElementById("comment-view-history").style.display = tab === "history" ? "flex" : "none";
+    if (tab === "history") initHistoryFilters();
+}
+
+function initHistoryFilters() {
+    const years = [...new Set(allWeeksData.map(w => w.year))].sort((a, b) => a - b);
+    const yearSelect = document.getElementById("history-year-filter");
+    yearSelect.innerHTML = years.map(y => `<option value="${y}">${y}년</option>`).join("");
+    yearSelect.value = currentDefaults.year;
+    updateHistoryMonths(currentDefaults.year, currentDefaults.month);
+}
+
+function onHistoryYearChange() {
+    const year = parseInt(document.getElementById("history-year-filter").value);
+    updateHistoryMonths(year, null);
+}
+
+function updateHistoryMonths(year, defaultMonth) {
+    const months = [...new Set(allWeeksData.filter(w => w.year === year).map(w => w.month))].sort((a, b) => a - b);
+    const monthSelect = document.getElementById("history-month-filter");
+    monthSelect.innerHTML = `<option value="전체">전체</option>` + months.map(m => `<option value="${m}">${m}월</option>`).join("");
+    const selectMonth = defaultMonth && months.includes(defaultMonth) ? defaultMonth : "전체";
+    monthSelect.value = selectMonth;
+    if (selectMonth === "전체") {
+        updateHistoryWeeksAll(year);
+    } else {
+        updateHistoryWeeks(year, selectMonth);
+    }
+}
+
+function onHistoryMonthChange() {
+    const year = parseInt(document.getElementById("history-year-filter").value);
+    const monthVal = document.getElementById("history-month-filter").value;
+    if (monthVal === "전체") {
+        updateHistoryWeeksAll(year);
+    } else {
+        updateHistoryWeeks(year, parseInt(monthVal));
+    }
+}
+
+function updateHistoryWeeksAll(year) {
+    const weekSelect = document.getElementById("history-week-filter");
+    weekSelect.innerHTML = `<option value="전체">전체</option>`;
+    weekSelect.value = "전체";
+    loadCommentHistory();
+}
+
+function updateHistoryWeeks(year, month) {
+    const filtered = allWeeksData.filter(w => w.year === year && w.month === month).sort((a, b) => a.week_of_month - b.week_of_month);
+    const weekSelect = document.getElementById("history-week-filter");
+    weekSelect.innerHTML = `<option value="전체">전체</option>` + filtered.map(w =>
+        `<option value="${w.key}">${w.week_of_month}주차</option>`
+    ).join("");
+    weekSelect.value = "전체";
+    loadCommentHistory();
+}
+
+async function loadCommentHistory() {
+    const year = document.getElementById("history-year-filter").value;
+    const monthVal = document.getElementById("history-month-filter").value;
+    const weekVal = document.getElementById("history-week-filter").value;
+
+    try {
+        let url;
+        if (weekVal !== "전체") {
+            url = `/api/comments?week=${encodeURIComponent(weekVal)}`;
+        } else {
+            let filtered = allWeeksData.filter(w => w.year === parseInt(year));
+            if (monthVal !== "전체") {
+                filtered = filtered.filter(w => w.month === parseInt(monthVal));
+            }
+            const weekKeys = filtered.map(w => w.key);
+            url = `/api/comments/all?weeks=${encodeURIComponent(weekKeys.join(","))}`;
+        }
+        const res = await fetch(url, { headers: authHeaders() });
+        const data = await res.json();
+        const comments = data.comments || [];
+        const list = document.getElementById("comment-history-list");
+        if (comments.length === 0) {
+            list.innerHTML = '<div style="font-size:13px;color:#999;text-align:center;padding:20px;">코멘트가 없습니다.</div>';
+            return;
+        }
+        list.innerHTML = comments.map(c => {
+            const roleLabel = ROLE_LABEL_MAP[c.role] || c.role;
+            const weekKey = c.week_key || "";
+            const weekInfo = allWeeksData.find(w => w.key === weekKey);
+            const weekLabel = weekInfo ? `${weekInfo.month}월 ${weekInfo.week_of_month}주차` : weekKey;
+            return `
+                <div class="history-item">
+                    <div class="history-item-header">
+                        <span class="history-item-role">${escapeHtml(roleLabel)}</span>
+                        <span class="history-item-week">${escapeHtml(weekLabel)}</span>
+                    </div>
+                    <div class="history-item-content">${escapeHtml(c.content)}</div>
+                    <div class="history-item-time">${c.created_at}</div>
+                </div>
+            `;
+        }).join("");
+    } catch(e) { console.error("loadCommentHistory error", e); }
 }
 
 async function loadComments() {
@@ -1760,8 +1903,9 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-async function submitComment(role) {
-    const input = document.getElementById("comment-input-" + role);
+async function submitCommentNew() {
+    const role = document.getElementById("comment-role-select").value;
+    const input = document.getElementById("comment-input");
     const content = input.value.trim();
     if (!content) return;
     try {
@@ -1772,12 +1916,15 @@ async function submitComment(role) {
         });
         if (res.ok) {
             input.value = "";
-            loadComments();
             loadNotifications();
+            loadSummaryNotifications();
             const data = await res.json();
             if (data.notification) showToast(data.notification.message);
+            // 코멘트 확인 탭으로 전환
+            const historyTab = document.querySelectorAll(".comment-tab")[1];
+            switchCommentTab("history", historyTab);
         }
-    } catch(e) { console.error("submitComment error", e); }
+    } catch(e) { console.error("submitCommentNew error", e); }
 }
 
 async function deleteComment(commentId) {
@@ -1847,7 +1994,7 @@ async function loadSummaryNotifications() {
         container.innerHTML = notifs.map(n => `
             <div class="summary-notif-item" id="summary-notif-${n.id}">
                 <span class="notif-dot"></span>
-                <span class="notif-msg">${escapeHtml(n.message)}</span>
+                <span class="notif-msg">${escapeHtml(n.message)} <span class="summary-notif-hint" onclick="event.stopPropagation();toggleCommentPanel()">💬 자세히 보기</span></span>
                 <span class="notif-time">${n.created_at}</span>
                 <button class="notif-close" onclick="closeSummaryNotif('${n.id}')">&times;</button>
             </div>

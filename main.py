@@ -2010,33 +2010,91 @@ async def get_comments(week: str = None):
     return {"comments": load_comments(wk), "week_key": wk}
 
 
+@app.get("/api/comments/all")
+async def get_all_comments(role: str = None, weeks: str = None):
+    comments = load_comments(week_key=None)
+    if role and role != "전체":
+        comments = [c for c in comments if c.get("role") == role]
+    if weeks:
+        week_list = [w.strip() for w in weeks.split(",") if w.strip()]
+        comments = [c for c in comments if c.get("week_key") in week_list]
+    comments.sort(key=lambda c: c.get("created_at", ""), reverse=True)
+    return {"comments": comments}
+
+
 @app.get("/api/comment-weeks")
 async def get_comment_weeks_api():
-    weeks = get_comment_weeks()
-    current = get_week_key()
-    if current not in weeks:
-        weeks.insert(0, current)
-    result = []
-    for w in weeks:
-        parts = w.split("-W")
-        if len(parts) != 2:
-            continue
-        year = int(parts[0])
-        iso_week = int(parts[1])
-        jan4 = date(year, 1, 4)
-        start = jan4 - timedelta(days=jan4.weekday()) + timedelta(weeks=iso_week - 1)
-        month = start.month
-        first_of_month = date(start.year, month, 1)
-        week_of_month = (start.day + first_of_month.weekday()) // 7 + 1
-        month_key = f"{year}-{month:02d}"
-        month_label = f"{year}년 {month}월"
-        result.append({
-            "key": w,
-            "month_key": month_key,
-            "month_label": month_label,
-            "week_of_month": week_of_month,
+    now = datetime.now()
+    current_year = now.year
+    current_month = now.month
+    current_week_key = get_week_key()
+
+    # 2026년 1월부터 현재 월까지 모든 주차 생성
+    start_year = 2026
+    all_weeks = []
+    seen = set()
+
+    for y in range(start_year, current_year + 1):
+        end_month = current_month if y == current_year else 12
+        for m in range(1, end_month + 1):
+            first_of_month = date(y, m, 1)
+            if m == 12:
+                last_of_month = date(y, 12, 31)
+            else:
+                last_of_month = date(y, m + 1, 1) - timedelta(days=1)
+
+            d = first_of_month
+            while d <= last_of_month:
+                iso = d.isocalendar()
+                wk = f"{iso[0]}-W{iso[1]:02d}"
+                # 이 주차를 현재 순회 중인 월(m)에 귀속
+                composite_key = f"{y}-{m:02d}-{wk}"
+                if composite_key not in seen:
+                    seen.add(composite_key)
+                    # 해당 월에서 몇 주차인지 계산
+                    week_of_month = (d.day - 1) // 7 + 1
+                    all_weeks.append({
+                        "key": wk,
+                        "year": y,
+                        "month": m,
+                        "week_of_month": week_of_month,
+                    })
+                d += timedelta(days=7)
+
+    # 중복 제거 (같은 key+year+month)
+    deduped = {}
+    for w in all_weeks:
+        dk = f"{w['year']}-{w['month']:02d}-{w['key']}"
+        if dk not in deduped:
+            deduped[dk] = w
+    all_weeks = list(deduped.values())
+
+    # 정렬: 연도 > 월 > 주차 오름차순
+    all_weeks.sort(key=lambda w: (w["year"], w["month"], w["week_of_month"]))
+
+    # 현재 주차가 빠졌으면 추가
+    current_exists = any(w["key"] == current_week_key for w in all_weeks)
+    if not current_exists:
+        all_weeks.append({
+            "key": current_week_key,
+            "year": current_year,
+            "month": current_month,
+            "week_of_month": (now.day - 1) // 7 + 1,
         })
-    return {"weeks": result}
+
+    # 연도 목록
+    years = sorted(set(w["year"] for w in all_weeks), reverse=True)
+    current_wk_info = next((w for w in all_weeks if w["key"] == current_week_key), None)
+
+    return {
+        "weeks": all_weeks,
+        "years": years,
+        "current": {
+            "year": current_wk_info["year"] if current_wk_info else current_year,
+            "month": current_wk_info["month"] if current_wk_info else current_month,
+            "week_key": current_week_key,
+        }
+    }
 
 
 @app.post("/api/comments")

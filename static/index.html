@@ -792,55 +792,46 @@
     <div id="comment-overlay" class="comment-overlay" onclick="toggleCommentPanel()"></div>
     <div id="comment-panel" class="comment-panel">
         <div class="comment-panel-header">
-            <h3>경영진 코멘트</h3>
+            <h3>코멘트</h3>
             <button class="comment-panel-close" onclick="toggleCommentPanel()">&times;</button>
         </div>
-        <div class="comment-week-selector">
-            <select id="comment-month-select" onchange="onMonthChange()"></select>
-            <select id="comment-week-select" onchange="onWeekChange()"></select>
+        <div class="comment-tab-bar">
+            <button class="comment-tab active" onclick="switchCommentTab('register', this)">코멘트 등록</button>
+            <button class="comment-tab" onclick="switchCommentTab('history', this)">코멘트 확인</button>
         </div>
-        <div class="comment-panel-notifications" id="comment-notifications"></div>
-        <div class="comment-panel-body">
-            <div class="comment-section" data-role="1팀장">
-                <div class="comment-section-title">환경안전1팀 팀장</div>
-                <div class="comment-list" id="comments-1팀장"></div>
-                <div class="comment-input-area">
-                    <textarea id="comment-input-1팀장" placeholder="코멘트를 입력하세요..." rows="2"></textarea>
-                    <button onclick="submitComment('1팀장')">등록</button>
+        <!-- 코멘트 등록 뷰 -->
+        <div id="comment-view-register" class="comment-view">
+            <div class="comment-register-form">
+                <div class="comment-week-selector">
+                    <select id="comment-year-select" onchange="onYearChange()"></select>
+                    <select id="comment-month-select" onchange="onMonthChange()"></select>
+                    <select id="comment-week-select" onchange="onWeekChange()"></select>
+                </div>
+                <div class="comment-register-role">
+                    <select id="comment-role-select">
+                        <option value="1팀장">환경안전1팀 팀장</option>
+                        <option value="2팀장">환경안전2팀 팀장</option>
+                        <option value="본부장">생산기술본부장</option>
+                        <option value="부문장">SCM 부문장</option>
+                        <option value="대표이사">대표이사</option>
+                    </select>
+                </div>
+                <div class="comment-register-input">
+                    <textarea id="comment-input" placeholder="코멘트를 입력하세요..." rows="4"></textarea>
+                </div>
+                <div class="comment-register-submit">
+                    <button onclick="submitCommentNew()">등록</button>
                 </div>
             </div>
-            <div class="comment-section" data-role="2팀장">
-                <div class="comment-section-title">환경안전2팀 팀장</div>
-                <div class="comment-list" id="comments-2팀장"></div>
-                <div class="comment-input-area">
-                    <textarea id="comment-input-2팀장" placeholder="코멘트를 입력하세요..." rows="2"></textarea>
-                    <button onclick="submitComment('2팀장')">등록</button>
-                </div>
+        </div>
+        <!-- 코멘트 확인 뷰 -->
+        <div id="comment-view-history" class="comment-view" style="display:none;">
+            <div class="comment-history-filter">
+                <select id="history-year-filter" onchange="onHistoryYearChange()"></select>
+                <select id="history-month-filter" onchange="onHistoryMonthChange()"></select>
+                <select id="history-week-filter" onchange="loadCommentHistory()"></select>
             </div>
-            <div class="comment-section" data-role="본부장">
-                <div class="comment-section-title">생산기술본부장</div>
-                <div class="comment-list" id="comments-본부장"></div>
-                <div class="comment-input-area">
-                    <textarea id="comment-input-본부장" placeholder="코멘트를 입력하세요..." rows="2"></textarea>
-                    <button onclick="submitComment('본부장')">등록</button>
-                </div>
-            </div>
-            <div class="comment-section" data-role="부문장">
-                <div class="comment-section-title">SCM 부문장</div>
-                <div class="comment-list" id="comments-부문장"></div>
-                <div class="comment-input-area">
-                    <textarea id="comment-input-부문장" placeholder="코멘트를 입력하세요..." rows="2"></textarea>
-                    <button onclick="submitComment('부문장')">등록</button>
-                </div>
-            </div>
-            <div class="comment-section" data-role="대표이사">
-                <div class="comment-section-title">대표이사</div>
-                <div class="comment-list" id="comments-대표이사"></div>
-                <div class="comment-input-area">
-                    <textarea id="comment-input-대표이사" placeholder="코멘트를 입력하세요..." rows="2"></textarea>
-                    <button onclick="submitComment('대표이사')">등록</button>
-                </div>
-            </div>
+            <div class="comment-history-list" id="comment-history-list"></div>
         </div>
     </div>
 
