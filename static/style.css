@@ -233,8 +233,13 @@ body {
 }
 .nav-sub-item:hover { color: #333; background: #f0f0f0; }
 .nav-sub-item.active {
+    color: #333; background: #f0f0f0;
+    border-left-color: #999; font-weight: 600;
+}
+/* 하위 메뉴 열렸을 때 부모는 빨간색 강조 */
+.nav-item.has-sub.active {
     color: #EA1D22; background: #fdeaea;
-    border-left-color: #EA1D22;
+    border-left-color: #EA1D22; font-weight: 600;
 }
 
 /* Register Method Selection */
