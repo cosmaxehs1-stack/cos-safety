@@ -1857,6 +1857,7 @@ async function loadCommentHistory() {
             const weekKey = c.week_key || "";
             const weekInfo = allWeeksData.find(w => w.key === weekKey);
             const weekLabel = weekInfo ? `${weekInfo.month}월 ${weekInfo.week_of_month}주차` : weekKey;
+            const deleteBtn = ADMIN_TOKEN ? `<button class="comment-item-delete" onclick="deleteComment('${c.id}')" title="삭제">삭제</button>` : "";
             return `
                 <div class="history-item">
                     <div class="history-item-header">
@@ -1864,7 +1865,10 @@ async function loadCommentHistory() {
                         <span class="history-item-week">${escapeHtml(weekLabel)}</span>
                     </div>
                     <div class="history-item-content">${escapeHtml(c.content)}</div>
-                    <div class="history-item-time">${c.created_at}</div>
+                    <div class="history-item-footer">
+                        <span class="history-item-time">${c.created_at}</span>
+                        ${deleteBtn}
+                    </div>
                 </div>
             `;
         }).join("");
@@ -1930,7 +1934,9 @@ async function submitCommentNew() {
 async function deleteComment(commentId) {
     try {
         await fetch("/api/comments/" + commentId, { method: "DELETE", headers: authHeaders() });
-        loadComments();
+        loadCommentHistory();
+        loadNotifications();
+        loadSummaryNotifications();
     } catch(e) { console.error("deleteComment error", e); }
 }
 
