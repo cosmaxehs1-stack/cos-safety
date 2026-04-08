@@ -237,11 +237,12 @@
                                     <label>구분 (채널) *</label>
                                     <select id="ar-channel" required>
                                         <option value="부서별 위험요소발굴" selected>부서별 위험요소발굴</option>
+                                        <option value="5S/EHS평가">5S/EHS평가</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
-                                    <label>발굴자</label>
-                                    <input type="text" id="ar-person" placeholder="이름">
+                                    <label>발굴자 *</label>
+                                    <input type="text" id="ar-person" placeholder="이름" oninput="checkStep1Required()">
                                 </div>
                                 <div class="form-group">
                                     <label>작성일</label>
@@ -252,8 +253,8 @@
                                     <input type="text" id="ar-week" readonly>
                                 </div>
                                 <div class="form-group">
-                                    <label>사업장</label>
-                                    <select id="ar-location" onchange="updateWorkplaceOptions()">
+                                    <label>사업장 *</label>
+                                    <select id="ar-location" onchange="updateWorkplaceOptions();checkStep1Required()">
                                         <option value="">선택하세요</option>
                                         <option value="화성1공장">화성1공장</option>
                                         <option value="화성2공장">화성2공장</option>
@@ -267,15 +268,15 @@
                                     </select>
                                 </div>
                                 <div class="form-group">
-                                    <label>작업장</label>
-                                    <select id="ar-workplace">
+                                    <label>작업장 *</label>
+                                    <select id="ar-workplace" onchange="checkStep1Required()">
                                         <option value="">사업장을 먼저 선택하세요</option>
                                     </select>
                                 </div>
                             </div>
                             <div class="wizard-nav">
                                 <div></div>
-                                <button type="button" class="btn-wizard-next" onclick="wizardGo(2)">다음 &#8594;</button>
+                                <button type="button" class="btn-wizard-next" id="btn-step1-next" onclick="wizardGo(2)" disabled>다음 &#8594;</button>
                             </div>
                         </div>
 
@@ -287,17 +288,17 @@
 
                             <div class="form-grid" style="margin-bottom:12px;">
                                 <div class="form-group">
-                                    <label>기인물</label>
-                                    <input type="text" id="ar-cause-object" placeholder="예: 컨베이어, 지게차">
+                                    <label>기인물 *</label>
+                                    <input type="text" id="ar-cause-object" placeholder="예: 컨베이어, 지게차" oninput="checkStep2Required()">
                                 </div>
                                 <div class="form-group">
-                                    <label>재해유형</label>
-                                    <input type="text" id="ar-disaster" placeholder="예: 끼임, 넘어짐">
+                                    <label>재해유형 *</label>
+                                    <input type="text" id="ar-disaster" placeholder="예: 끼임, 넘어짐" oninput="checkStep2Required()">
                                 </div>
                             </div>
                             <div class="form-group full-width" style="margin-bottom:16px;">
                                 <label>위험요소 내용 *</label>
-                                <textarea id="ar-content" rows="3" placeholder="위험요소 내용을 입력하세요" required></textarea>
+                                <textarea id="ar-content" rows="3" placeholder="위험요소 내용을 입력하세요" required oninput="checkStep2Required()"></textarea>
                             </div>
 
                             <div class="rating-section">
@@ -376,13 +377,13 @@
                                 <input type="hidden" id="ar-image-url" value="">
                             </div>
                             <div class="form-group full-width" style="margin-top:8px;">
-                                <label>개선대책</label>
-                                <textarea id="ar-improvement" rows="3" placeholder="개선대책 내용"></textarea>
+                                <label>개선대책 *</label>
+                                <textarea id="ar-improvement" rows="3" placeholder="개선대책 내용" oninput="checkStep2Required()"></textarea>
                             </div>
 
                             <div class="wizard-nav">
                                 <button type="button" class="btn-wizard-prev" onclick="wizardGo(1)">&#8592; 이전</button>
-                                <button type="button" class="btn-wizard-next" onclick="wizardGo(3)">다음 &#8594;</button>
+                                <button type="button" class="btn-wizard-next" id="btn-step2-next" onclick="wizardGo(3)" disabled>다음 &#8594;</button>
                             </div>
                         </div>
 
@@ -494,6 +495,7 @@
                             <label>채널 선택:</label>
                             <select id="upload-channel" class="channel-select">
                                 <option value="부서별 위험요소발굴" selected>부서별 위험요소발굴</option>
+                                <option value="5S/EHS평가">5S/EHS평가</option>
                             </select>
                         </div>
                         <div class="upload-row">

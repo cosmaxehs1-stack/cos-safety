@@ -354,6 +354,8 @@ body {
     background: #EA1D22; color: #fff;
 }
 .btn-wizard-next:hover { background: #c4181c; }
+.btn-wizard-next:disabled { background: #ccc; cursor: not-allowed; }
+.btn-wizard-next:disabled:hover { background: #ccc; }
 .btn-wizard-prev {
     background: #f0f0f0; color: #555;
 }

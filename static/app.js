@@ -1012,6 +1012,25 @@ function updateWeekFromDate() {
 
 // Wizard navigation
 var currentWizardStep = 1;
+function checkStep2Required() {
+    const causeObject = document.getElementById("ar-cause-object").value.trim();
+    const disaster = document.getElementById("ar-disaster").value.trim();
+    const content = document.getElementById("ar-content").value.trim();
+    const lh = document.getElementById("ar-lh-before").value;
+    const sv = document.getElementById("ar-sv-before").value;
+    const improvement = document.getElementById("ar-improvement").value.trim();
+    const btn = document.getElementById("btn-step2-next");
+    btn.disabled = !(causeObject && disaster && content && lh && sv && improvement);
+}
+
+function checkStep1Required() {
+    const person = document.getElementById("ar-person").value.trim();
+    const location = document.getElementById("ar-location").value;
+    const workplace = document.getElementById("ar-workplace").value;
+    const btn = document.getElementById("btn-step1-next");
+    btn.disabled = !(person && location && workplace);
+}
+
 function wizardGo(step) {
     // Hide all pages
     for (var i = 1; i <= 3; i++) {
@@ -1046,6 +1065,8 @@ function resetForm() {
     document.getElementById("register-page-title").textContent = "위험요소 등록";
     clearRatingCards();
     wizardGo(1);
+    document.getElementById("btn-step1-next").disabled = true;
+    document.getElementById("btn-step2-next").disabled = true;
     initDateDefaults();
     updateChannelOptions();
 }
@@ -1069,6 +1090,7 @@ function selectRating(type, phase, value) {
     });
     document.getElementById("ar-" + type + "-" + phase).value = value;
     calcGrade(phase);
+    if (phase === "before") checkStep2Required();
 }
 
 function clearRatingCards() {
@@ -1381,9 +1403,11 @@ function updateChannelOptions(forceAll) {
         });
         arChannel.value = ALL_CHANNELS.includes(prevArVal) ? prevArVal : "안전점검";
     } else {
-        const o = document.createElement("option");
-        o.value = "부서별 위험요소발굴"; o.textContent = "부서별 위험요소발굴";
-        arChannel.appendChild(o);
+        ["부서별 위험요소발굴", "5S/EHS평가"].forEach(ch => {
+            const o = document.createElement("option");
+            o.value = ch; o.textContent = ch; arChannel.appendChild(o);
+        });
+        arChannel.value = ["부서별 위험요소발굴", "5S/EHS평가"].includes(prevArVal) ? prevArVal : "부서별 위험요소발굴";
     }
 
     // Upload channel
@@ -1397,9 +1421,11 @@ function updateChannelOptions(forceAll) {
         });
         uploadChannel.value = ALL_CHANNELS.includes(prevUpVal) ? prevUpVal : "안전점검";
     } else {
-        const o = document.createElement("option");
-        o.value = "부서별 위험요소발굴"; o.textContent = "부서별 위험요소발굴";
-        uploadChannel.appendChild(o);
+        ["부서별 위험요소발굴", "5S/EHS평가"].forEach(ch => {
+            const o = document.createElement("option");
+            o.value = ch; o.textContent = ch; uploadChannel.appendChild(o);
+        });
+        uploadChannel.value = ["부서별 위험요소발굴", "5S/EHS평가"].includes(prevUpVal) ? prevUpVal : "부서별 위험요소발굴";
     }
 }
 
