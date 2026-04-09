@@ -352,11 +352,14 @@ async function fetchSummary() {
         updateTable(displayRecords);
         updateFilters(data.filters);
         updateWeekDropdown(data.records);
-        // 카드는 팀 필터 없는 레코드 기준
+        // 카드는 팀/상태 필터 없는 레코드 기준
         var savedTeam = _activeTeamFilter;
+        var savedStatus = _activeStatusFilter;
         _activeTeamFilter = "";
+        _activeStatusFilter = "";
         var allRecords = getDisplayRecords(data);
         _activeTeamFilter = savedTeam;
+        _activeStatusFilter = savedStatus;
         updateViewSummaryFromRecords(allRecords, data.view_summary);
 
         if (currentPage === "analysis") {
