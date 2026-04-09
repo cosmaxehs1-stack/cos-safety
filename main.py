@@ -1185,8 +1185,7 @@ async def get_record_image(request: Request, record_id: str, field: str = "image
 async def migrate_images_to_r2(request: Request):
     """기존 DB의 base64 이미지를 R2로 마이그레이션"""
     verify_admin(request)
-    client = get_r2_client()
-    if not client:
+    if not R2_ACCESS_KEY:
         raise HTTPException(status_code=400, detail="R2가 설정되지 않았습니다. R2_ACCOUNT_ID, R2_ACCESS_KEY, R2_SECRET_KEY 환경변수를 확인하세요.")
 
     if not DATABASE_URL:
