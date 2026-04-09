@@ -22,6 +22,7 @@ import psycopg2.extras
 import psycopg2.pool
 import hmac
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from PIL import Image
 
 app = FastAPI(title="COS-Safety Dashboard")
@@ -439,11 +440,13 @@ def extract_excel_images(file_source: Union[str, io.BytesIO]) -> dict[str, dict[
                 # 4d) Parse each sheet XML for cells with vm attribute
                 # Column N = 개선 전 사진, Column W = 개선 후 사진
                 col_to_key = {"N": "before", "W": "after"}
+                # Collect all images first, then upload in parallel
+                upload_tasks = []  # (sheet_name, row_num, img_key, media_bytes, ext)
                 for sheet_name, sheet_path in sheet_files.items():
                     if sheet_path not in namelist:
                         continue
                     sheet_root = ET.fromstring(zf.read(sheet_path))
-                    row_images: dict[int, dict[str, str]] = {}
+                    seen = set()
 
                     for cell in sheet_root.iter(f'{{{NS_S}}}c'):
                         vm = cell.get('vm')
@@ -460,18 +463,26 @@ def extract_excel_images(file_source: Union[str, io.BytesIO]) -> dict[str, dict[
                         media_name = vm_to_media.get(vm_idx, '')
                         if not media_name or media_name not in media_data:
                             continue
-                        if row_num in row_images and img_key in row_images[row_num]:
+                        if (sheet_name, row_num, img_key) in seen:
                             continue
+                        seen.add((sheet_name, row_num, img_key))
 
-                        # Upload to R2 (or fallback to base64)
                         ext = os.path.splitext(media_name)[1].lower() or '.png'
-                        img_url = upload_image_to_r2(media_data[media_name], ext)
-                        if row_num not in row_images:
-                            row_images[row_num] = {}
-                        row_images[row_num][img_key] = img_url
+                        upload_tasks.append((sheet_name, row_num, img_key, media_data[media_name], ext))
 
-                    if row_images:
-                        result[sheet_name] = row_images
+                # Parallel compress + upload
+                def _process_image(task):
+                    sn, rn, ik, img_bytes, ext = task
+                    url = upload_image_to_r2(img_bytes, ext)
+                    return sn, rn, ik, url
+
+                with ThreadPoolExecutor(max_workers=8) as executor:
+                    for sn, rn, ik, url in executor.map(_process_image, upload_tasks):
+                        if sn not in result:
+                            result[sn] = {}
+                        if rn not in result[sn]:
+                            result[sn][rn] = {}
+                        result[sn][rn][ik] = url
 
     except Exception as e:
         print(f"[extract_excel_images] error: {e}")
