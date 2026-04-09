@@ -54,6 +54,9 @@
                 <a href="#" class="nav-item" data-page="analysis" onclick="switchPage('analysis',this);return false;">
                     <span class="nav-text">위험요소 분석</span>
                 </a>
+                <a href="#" class="nav-item admin-only" data-page="manage" onclick="switchPage('manage',this);return false;" style="display:none;">
+                    <span class="nav-text">관리</span>
+                </a>
             </nav>
             <div class="sidebar-footer">
                 <button id="btn-admin" class="btn-admin-sidebar" onclick="toggleAdmin()">관리자</button>
@@ -735,6 +738,53 @@
                     </div>
                 </div>
             </div>
+
+            <!-- ===== PAGE: 관리 ===== -->
+            <div id="page-manage" class="page" style="display:none;">
+                <div class="page-header">
+                    <h2>관리</h2>
+                </div>
+
+                <!-- 채널별 데이터 현황 -->
+                <div class="card" style="margin-bottom:20px;">
+                    <h3 style="margin-bottom:12px;">채널별 데이터 현황</h3>
+                    <div id="manage-channel-list"></div>
+                    <div style="margin-top:12px;font-weight:600;" id="manage-channel-total"></div>
+                </div>
+
+                <!-- 개별 레코드 검색 & 삭제 -->
+                <div class="card">
+                    <h3 style="margin-bottom:12px;">개별 레코드 검색 &amp; 삭제</h3>
+                    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+                        <input type="text" id="manage-search-input" placeholder="검색어 (내용, 장소, 담당자...)" style="flex:1;min-width:200px;padding:8px 12px;border:1px solid #ddd;border-radius:4px;font-size:14px;" onkeydown="if(event.key==='Enter')searchManageRecords()">
+                        <select id="manage-search-channel" style="padding:8px 12px;border:1px solid #ddd;border-radius:4px;font-size:14px;">
+                            <option value="">전체 채널</option>
+                        </select>
+                        <button onclick="searchManageRecords()" style="padding:8px 16px;background:#EA1D22;color:white;border:none;border-radius:4px;cursor:pointer;font-size:14px;">검색</button>
+                        <button onclick="deleteSelectedRecords()" style="padding:8px 16px;background:#333;color:white;border:none;border-radius:4px;cursor:pointer;font-size:14px;">선택 삭제</button>
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table class="data-table" id="manage-records-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:40px;"><input type="checkbox" id="manage-check-all" onchange="toggleManageCheckAll(this)"></th>
+                                    <th>No</th>
+                                    <th>채널</th>
+                                    <th>일자</th>
+                                    <th>장소</th>
+                                    <th>위험요소 내용</th>
+                                    <th>담당자</th>
+                                    <th>완료</th>
+                                    <th style="width:60px;">삭제</th>
+                                </tr>
+                            </thead>
+                            <tbody id="manage-records-tbody"></tbody>
+                        </table>
+                    </div>
+                    <div id="manage-records-info" style="margin-top:8px;color:#888;font-size:13px;"></div>
+                </div>
+            </div>
+
         </main>
     </div>
 
@@ -840,6 +890,6 @@
     <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 
-    <script src="/static/app.js?v=23"></script>
+    <script src="/static/app.js?v=24"></script>
 </body>
 </html>
