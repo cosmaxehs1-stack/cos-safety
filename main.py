@@ -20,8 +20,8 @@ import openpyxl
 import psycopg2
 import psycopg2.extras
 import psycopg2.pool
-import boto3
-from botocore.config import Config as BotoConfig
+import hmac
+import urllib.request
 
 app = FastAPI(title="COS-Safety Dashboard")
 
@@ -51,39 +51,64 @@ import time as _time
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(IMAGE_DIR, exist_ok=True)
 
-# --- Cloudflare R2 ---
+# --- Cloudflare R2 (lightweight, no boto3) ---
 R2_ACCOUNT_ID = os.environ.get("R2_ACCOUNT_ID", "")
 R2_ACCESS_KEY = os.environ.get("R2_ACCESS_KEY", "")
 R2_SECRET_KEY = os.environ.get("R2_SECRET_KEY", "")
 R2_BUCKET = os.environ.get("R2_BUCKET", "cos-safety-images")
-R2_PUBLIC_URL = os.environ.get("R2_PUBLIC_URL", "")  # e.g. https://images.example.com
+R2_PUBLIC_URL = os.environ.get("R2_PUBLIC_URL", "")
 
-_s3_client = None
+def _s3v4_sign(key: bytes, msg: str) -> bytes:
+    return hmac.new(key, msg.encode("utf-8"), hashlib.sha256).digest()
 
-def get_r2_client():
-    global _s3_client
-    if _s3_client is None and R2_ACCESS_KEY:
-        _s3_client = boto3.client(
-            "s3",
-            endpoint_url=f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com",
-            aws_access_key_id=R2_ACCESS_KEY,
-            aws_secret_access_key=R2_SECRET_KEY,
-            config=BotoConfig(signature_version="s3v4"),
-            region_name="auto",
-        )
-    return _s3_client
+def _s3v4_signature(secret_key: str, date_stamp: str, region: str, service: str, string_to_sign: str) -> str:
+    k_date = _s3v4_sign(("AWS4" + secret_key).encode("utf-8"), date_stamp)
+    k_region = _s3v4_sign(k_date, region)
+    k_service = _s3v4_sign(k_region, service)
+    k_signing = _s3v4_sign(k_service, "aws4_request")
+    return hmac.new(k_signing, string_to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
+
+def _r2_put_object(key: str, body: bytes, content_type: str):
+    host = f"{R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+    now = datetime.utcnow()
+    date_stamp = now.strftime("%Y%m%d")
+    amz_date = now.strftime("%Y%m%dT%H%M%SZ")
+    payload_hash = hashlib.sha256(body).hexdigest()
+
+    canonical_uri = f"/{R2_BUCKET}/{key}"
+    canonical_querystring = ""
+    canonical_headers = f"content-type:{content_type}\nhost:{host}\nx-amz-content-sha256:{payload_hash}\nx-amz-date:{amz_date}\n"
+    signed_headers = "content-type;host;x-amz-content-sha256;x-amz-date"
+    canonical_request = f"PUT\n{canonical_uri}\n{canonical_querystring}\n{canonical_headers}\n{signed_headers}\n{payload_hash}"
+
+    credential_scope = f"{date_stamp}/auto/s3/aws4_request"
+    string_to_sign = f"AWS4-HMAC-SHA256\n{amz_date}\n{credential_scope}\n{hashlib.sha256(canonical_request.encode('utf-8')).hexdigest()}"
+    signature = _s3v4_signature(R2_SECRET_KEY, date_stamp, "auto", "s3", string_to_sign)
+
+    authorization = f"AWS4-HMAC-SHA256 Credential={R2_ACCESS_KEY}/{credential_scope}, SignedHeaders={signed_headers}, Signature={signature}"
+
+    req = urllib.request.Request(
+        f"https://{host}{canonical_uri}",
+        data=body,
+        method="PUT",
+        headers={
+            "Content-Type": content_type,
+            "x-amz-content-sha256": payload_hash,
+            "x-amz-date": amz_date,
+            "Authorization": authorization,
+        },
+    )
+    urllib.request.urlopen(req, timeout=30)
 
 def upload_image_to_r2(image_bytes: bytes, ext: str = ".png") -> str:
     """Upload image bytes to R2, return public URL. Falls back to base64 if R2 not configured."""
-    client = get_r2_client()
-    if not client:
-        mime = {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.heic': 'image/heic'}.get(ext, 'image/png')
+    mime = {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.heic': 'image/heic'}.get(ext, 'image/png')
+    if not R2_ACCESS_KEY:
         b64 = base64.b64encode(image_bytes).decode('ascii')
         return f"data:{mime};base64,{b64}"
 
     key = f"images/{uuid.uuid4().hex}{ext}"
-    mime = {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.heic': 'image/heic'}.get(ext, 'image/png')
-    client.put_object(Bucket=R2_BUCKET, Key=key, Body=image_bytes, ContentType=mime)
+    _r2_put_object(key, image_bytes, mime)
     return f"{R2_PUBLIC_URL}/{key}"
 
 
