@@ -90,6 +90,24 @@ function switchPage(pageName, el) {
         document.getElementById("records-sub").classList.remove("open");
         document.querySelectorAll(".nav-sub-item").forEach(function(s) { s.classList.remove("active"); });
     }
+    // 현황요약 진입 시 모든 필터 무조건 초기화
+    if (pageName === "summary") {
+        _activeTeamFilter = "";
+        _activeStatusFilter = "";
+        setFilterValue("f-rec-year", "전체");
+        setFilterValue("f-rec-month", "전체");
+        setFilterValue("f-rec-week", "0");
+        setFilterValue("f-channel", "전체");
+        setFilterValue("f-location", "전체");
+        setFilterValue("f-grade", "전체");
+        setFilterValue("f-disaster", "전체");
+        setFilterValue("f-process", "전체");
+        setFilterValue("f-completion", "전체");
+        setFilterValue("f-repeat", "전체");
+        const kw = document.getElementById("f-keyword");
+        if (kw) kw.value = "";
+        fetchSummary();
+    }
 }
 
 function toggleSidebar() {
