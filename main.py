@@ -22,6 +22,7 @@ import psycopg2.extras
 import psycopg2.pool
 import hmac
 import urllib.request
+from PIL import Image
 
 app = FastAPI(title="COS-Safety Dashboard")
 
@@ -100,15 +101,36 @@ def _r2_put_object(key: str, body: bytes, content_type: str):
     )
     urllib.request.urlopen(req, timeout=30)
 
+MAX_IMAGE_SIZE = 1920  # 최대 가로/세로 px
+IMAGE_QUALITY = 85     # WebP 품질 (1-100)
+
+def compress_image(image_bytes: bytes) -> tuple[bytes, str]:
+    """이미지를 WebP로 변환하고 리사이징. Returns (compressed_bytes, '.webp')"""
+    try:
+        img = Image.open(io.BytesIO(image_bytes))
+        if img.mode in ("RGBA", "P"):
+            img = img.convert("RGBA")
+        else:
+            img = img.convert("RGB")
+        # 리사이징 (비율 유지)
+        if max(img.size) > MAX_IMAGE_SIZE:
+            img.thumbnail((MAX_IMAGE_SIZE, MAX_IMAGE_SIZE), Image.LANCZOS)
+        buf = io.BytesIO()
+        img.save(buf, format="WEBP", quality=IMAGE_QUALITY)
+        return buf.getvalue(), ".webp"
+    except Exception as e:
+        print(f"[compress_image] failed, using original: {e}")
+        return image_bytes, ".webp"
+
 def upload_image_to_r2(image_bytes: bytes, ext: str = ".png") -> str:
-    """Upload image bytes to R2, return public URL. Falls back to base64 if R2 not configured."""
-    mime = {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.heic': 'image/heic'}.get(ext, 'image/png')
+    """Compress to WebP, upload to R2. Falls back to base64 if R2 not configured."""
+    compressed, ext = compress_image(image_bytes)
     if not R2_ACCESS_KEY:
-        b64 = base64.b64encode(image_bytes).decode('ascii')
-        return f"data:{mime};base64,{b64}"
+        b64 = base64.b64encode(compressed).decode('ascii')
+        return f"data:image/webp;base64,{b64}"
 
     key = f"images/{uuid.uuid4().hex}{ext}"
-    _r2_put_object(key, image_bytes, mime)
+    _r2_put_object(key, compressed, "image/webp")
     return f"{R2_PUBLIC_URL}/{key}"
 
 
