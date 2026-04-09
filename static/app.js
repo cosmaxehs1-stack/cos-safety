@@ -114,6 +114,11 @@ function toggleSidebar() {
     document.getElementById("sidebar").classList.toggle("open");
 }
 
+function goHome() {
+    const summaryNav = document.querySelector('.nav-item[data-page="summary"]');
+    switchPage('summary', summaryNav);
+}
+
 function collapseSidebar() {
     document.getElementById("sidebar").classList.add("collapsed");
     document.getElementById("main-content").classList.add("full-width");

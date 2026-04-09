@@ -62,6 +62,25 @@ body {
 .sidebar-header {
     padding: 24px 20px 20px; border-bottom: 1px solid #e0e0e0;
 }
+.sidebar-header-link { cursor: pointer; transition: background 0.15s; }
+.sidebar-header-link:hover { background: #fafafa; }
+
+.home-brand {
+    display: flex; align-items: center; gap: 4px;
+    margin-bottom: 8px; padding-bottom: 12px;
+}
+.home-brand-link { cursor: pointer; }
+.home-brand-link:hover { opacity: 0.85; }
+.home-brand-logo { height: 56px; }
+.home-brand-sub {
+    font-size: 13px; color: #000; font-weight: 600;
+    letter-spacing: 4px; text-transform: uppercase;
+    font-family: 'NanumSquareNeo', sans-serif;
+}
+.page-subtitle {
+    font-size: 16px !important; color: #666 !important;
+    font-weight: 500 !important;
+}
 .sidebar-header h1 {
     font-size: 20px; font-weight: 800; letter-spacing: 2px; color: #EA1D22;
 }
