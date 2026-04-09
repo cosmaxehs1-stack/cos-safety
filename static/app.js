@@ -952,7 +952,7 @@ function goToRecordsFiltered(period, type) {
         year: curYear,
         month: (period === "month" || period === "week") ? curMonth : "전체",
         week: period === "week" ? curWeek : 0,
-        completion: type === "improved" ? "완료" : "전체",
+        statusFilter: type === "improved" ? "개선" : "",
     };
 
     // Switch to records page (전체 channel)
@@ -976,7 +976,10 @@ function applyPendingRecordsFilter() {
         updateWeekDropdown(lastSummaryData.records);
     }
     setFilterValue("f-rec-week", String(f.week));
-    setFilterValue("f-completion", f.completion);
+
+    // 발굴/개선 카드 활성화
+    _activeTeamFilter = "";
+    _activeStatusFilter = f.statusFilter;
 
     // Open filter panel so user sees what's applied
     const fp = document.getElementById("filter-panel");
