@@ -20,6 +20,8 @@ import openpyxl
 import psycopg2
 import psycopg2.extras
 import psycopg2.pool
+import boto3
+from botocore.config import Config as BotoConfig
 
 app = FastAPI(title="COS-Safety Dashboard")
 
@@ -48,6 +50,41 @@ import time as _time
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(IMAGE_DIR, exist_ok=True)
+
+# --- Cloudflare R2 ---
+R2_ACCOUNT_ID = os.environ.get("R2_ACCOUNT_ID", "")
+R2_ACCESS_KEY = os.environ.get("R2_ACCESS_KEY", "")
+R2_SECRET_KEY = os.environ.get("R2_SECRET_KEY", "")
+R2_BUCKET = os.environ.get("R2_BUCKET", "cos-safety-images")
+R2_PUBLIC_URL = os.environ.get("R2_PUBLIC_URL", "")  # e.g. https://images.example.com
+
+_s3_client = None
+
+def get_r2_client():
+    global _s3_client
+    if _s3_client is None and R2_ACCESS_KEY:
+        _s3_client = boto3.client(
+            "s3",
+            endpoint_url=f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com",
+            aws_access_key_id=R2_ACCESS_KEY,
+            aws_secret_access_key=R2_SECRET_KEY,
+            config=BotoConfig(signature_version="s3v4"),
+            region_name="auto",
+        )
+    return _s3_client
+
+def upload_image_to_r2(image_bytes: bytes, ext: str = ".png") -> str:
+    """Upload image bytes to R2, return public URL. Falls back to base64 if R2 not configured."""
+    client = get_r2_client()
+    if not client:
+        mime = {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.heic': 'image/heic'}.get(ext, 'image/png')
+        b64 = base64.b64encode(image_bytes).decode('ascii')
+        return f"data:{mime};base64,{b64}"
+
+    key = f"images/{uuid.uuid4().hex}{ext}"
+    mime = {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.heic': 'image/heic'}.get(ext, 'image/png')
+    client.put_object(Bucket=R2_BUCKET, Key=key, Body=image_bytes, ContentType=mime)
+    return f"{R2_PUBLIC_URL}/{key}"
 
 
 # --- Database ---
@@ -379,14 +416,12 @@ def extract_excel_images(file_source: Union[str, io.BytesIO]) -> dict[str, dict[
                         if row_num in row_images and img_key in row_images[row_num]:
                             continue
 
-                        # Convert to base64 data URL
+                        # Upload to R2 (or fallback to base64)
                         ext = os.path.splitext(media_name)[1].lower() or '.png'
-                        mime = {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp'}.get(ext, 'image/png')
-                        b64 = base64.b64encode(media_data[media_name]).decode('ascii')
-                        data_url = f"data:{mime};base64,{b64}"
+                        img_url = upload_image_to_r2(media_data[media_name], ext)
                         if row_num not in row_images:
                             row_images[row_num] = {}
-                        row_images[row_num][img_key] = data_url
+                        row_images[row_num][img_key] = img_url
 
                     if row_images:
                         result[sheet_name] = row_images
@@ -628,10 +663,8 @@ async def upload_image(request: Request, file: UploadFile = File(...)):
     if ext not in ALLOWED_IMAGE_EXTENSIONS:
         raise HTTPException(status_code=400, detail="이미지 파일만 업로드 가능합니다. (jpg, png, gif, webp)")
     content = await file.read()
-    mime = {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.heic': 'image/heic'}.get(ext, 'image/png')
-    b64 = base64.b64encode(content).decode('ascii')
-    data_url = f"data:{mime};base64,{b64}"
-    return {"filename": file.filename, "url": data_url}
+    url = upload_image_to_r2(content, ext)
+    return {"filename": file.filename, "url": url}
 
 
 @app.get("/uploads/images/{filename}")
@@ -1121,6 +1154,66 @@ async def get_record_image(request: Request, record_id: str, field: str = "image
             if img:
                 return {"url": img}
     return {"url": ""}
+
+
+@app.post("/api/admin/migrate-images-to-r2")
+async def migrate_images_to_r2(request: Request):
+    """기존 DB의 base64 이미지를 R2로 마이그레이션"""
+    verify_admin(request)
+    client = get_r2_client()
+    if not client:
+        raise HTTPException(status_code=400, detail="R2가 설정되지 않았습니다. R2_ACCOUNT_ID, R2_ACCESS_KEY, R2_SECRET_KEY 환경변수를 확인하세요.")
+
+    if not DATABASE_URL:
+        raise HTTPException(status_code=400, detail="DATABASE_URL이 설정되지 않았습니다.")
+
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT _id, data FROM records")
+    rows = cur.fetchall()
+    cur.close()
+    release_db(conn)
+
+    migrated = 0
+    skipped = 0
+    errors = 0
+
+    for row in rows:
+        record_id = row[0]
+        record = json.loads(row[1]) if isinstance(row[1], str) else row[1]
+        changed = False
+
+        for field in ("image", "image_after"):
+            val = record.get(field, "")
+            if not val or not val.startswith("data:"):
+                skipped += 1
+                continue
+            try:
+                header, b64data = val.split(",", 1)
+                mime = header.split(":")[1].split(";")[0]
+                ext = {
+                    "image/png": ".png", "image/jpeg": ".jpg",
+                    "image/gif": ".gif", "image/webp": ".webp",
+                }.get(mime, ".png")
+                image_bytes = base64.b64decode(b64data)
+                url = upload_image_to_r2(image_bytes, ext)
+                record[field] = url
+                changed = True
+                migrated += 1
+            except Exception as e:
+                print(f"[migrate] error record={record_id} field={field}: {e}")
+                errors += 1
+
+        if changed:
+            conn2 = get_db()
+            cur2 = conn2.cursor()
+            cur2.execute("UPDATE records SET data = %s WHERE _id = %s", (json.dumps(record, ensure_ascii=False), record_id))
+            conn2.commit()
+            cur2.close()
+            release_db(conn2)
+
+    invalidate_data_cache()
+    return {"migrated": migrated, "skipped": skipped, "errors": errors, "total_records": len(rows)}
 
 
 @app.get("/api/summary")
