@@ -74,7 +74,7 @@ body {
 .home-brand-logo { height: 56px; }
 .home-brand-sub {
     font-size: 13px; color: #000; font-weight: 600;
-    letter-spacing: 4px; text-transform: uppercase;
+    letter-spacing: 3px; text-transform: uppercase;
     font-family: 'NanumSquareNeo', sans-serif;
 }
 .page-subtitle {
@@ -86,7 +86,7 @@ body {
 }
 .sidebar-subtitle {
     font-size: 10px; color: #000; margin-top: -2px; display: block;
-    font-weight: 600; letter-spacing: 4px; text-transform: uppercase;
+    font-weight: 600; letter-spacing: 3px; text-transform: uppercase;
     font-family: 'NanumSquareNeo', sans-serif;
 }
 .sidebar-nav {

@@ -138,6 +138,8 @@ document.addEventListener("click", function(e) {
     if (e.target.closest("#sidebar-reopen")) return;
     // 모달이나 팝업 클릭은 무시
     if (e.target.closest(".modal-overlay, .custom-confirm-overlay")) return;
+    // 현황요약(홈)에서는 데스크톱에서만 자동으로 접지 않음 (모바일은 화면 공간 확보를 위해 접힘)
+    if (currentPage === "summary" && window.innerWidth > 768) return;
     collapseSidebar();
 });
 
