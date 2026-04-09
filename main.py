@@ -1634,12 +1634,17 @@ async def get_summary(
                     else:
                         view_summary["week_team2_improved"] += 1
 
-    # Strip large image data from summary response to reduce payload size
+    # R2 URL은 짧으므로 그대로 전송. base64 데이터만 제거.
     for r in records:
-        r["has_image"] = bool(r.get("image"))
-        r["has_image_after"] = bool(r.get("image_after"))
-        r.pop("image", None)
-        r.pop("image_after", None)
+        img = r.get("image", "")
+        img_after = r.get("image_after", "")
+        r["has_image"] = bool(img)
+        r["has_image_after"] = bool(img_after)
+        # base64 데이터는 용량이 크므로 제거 (URL은 유지)
+        if img.startswith("data:"):
+            r["image"] = ""
+        if img_after.startswith("data:"):
+            r["image_after"] = ""
 
     return {
         "total": total,

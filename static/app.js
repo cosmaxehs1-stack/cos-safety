@@ -884,8 +884,12 @@ function updateTable(records) {
     tbody.innerHTML = "";
     records.forEach(r => {
         const tr = document.createElement("tr");
-        const imgBefore = r.has_image ? '<button class="btn-img-load" onclick="loadRecordImage(\'' + escapeHtml(r._id) + '\',\'image\',this)">📷</button>' : '-';
-        const imgAfter = r.has_image_after ? '<button class="btn-img-load" onclick="loadRecordImage(\'' + escapeHtml(r._id) + '\',\'image_after\',this)">📷</button>' : '-';
+        const imgBefore = r.image
+            ? '<img src="' + escapeHtml(r.image) + '" class="table-thumb" onclick="showImageModal(\'' + escapeHtml(r.image) + '\')">'
+            : (r.has_image ? '<button class="btn-img-load" onclick="loadRecordImage(\'' + escapeHtml(r._id) + '\',\'image\',this)">📷</button>' : '-');
+        const imgAfter = r.image_after
+            ? '<img src="' + escapeHtml(r.image_after) + '" class="table-thumb" onclick="showImageModal(\'' + escapeHtml(r.image_after) + '\')">'
+            : (r.has_image_after ? '<button class="btn-img-load" onclick="loadRecordImage(\'' + escapeHtml(r._id) + '\',\'image_after\',this)">📷</button>' : '-');
         const rid = escapeHtml(r._id || "");
         tr.innerHTML =
             '<td>' + r.no + '</td><td>' + escapeHtml(r.month) + '</td><td>' + escapeHtml(r.person) + '</td>' +
