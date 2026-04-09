@@ -384,13 +384,31 @@
 
                             <div class="wizard-nav">
                                 <button type="button" class="btn-wizard-prev" onclick="wizardGo(1)">&#8592; 이전</button>
-                                <button type="button" class="btn-wizard-next" id="btn-step2-next" onclick="wizardGo(3)" disabled>다음 &#8594;</button>
+                                <button type="button" class="btn-wizard-next" id="btn-step2-next" onclick="goStep3()" disabled>다음 &#8594;</button>
                             </div>
                         </div>
 
                         <!-- STEP 3: 개선 후 -->
                         <div class="wizard-page" id="wizard-page-3" style="display:none;">
+                            <div class="form-group" style="margin-bottom:16px;">
+                                <label style="font-size:15px;font-weight:700;">완료여부</label>
+                                <div class="completion-toggle" onclick="toggleCompletion()" id="completion-toggle">
+                                    <div class="completion-toggle-track" id="completion-track">
+                                        <div class="completion-toggle-thumb" id="completion-thumb"></div>
+                                    </div>
+                                    <span id="completion-label" style="margin-left:10px;font-weight:600;">미완료</span>
+                                </div>
+                                <input type="hidden" id="ar-completion" value="미완료">
+                            </div>
+
+                            <div id="completion-fields" style="display:none;margin-top:24px;">
                             <div class="wizard-page-title">[개선 후] 위험도 평가</div>
+                            <div id="before-risk-info" style="background:#f0f0f0;padding:10px 14px;border-radius:6px;margin-bottom:16px;font-size:14px;">
+                                개선 전 위험도: <strong id="before-risk-display">-</strong>
+                            </div>
+                            <div id="after-risk-warning" style="display:none;background:#fff3cd;color:#856404;padding:10px 14px;border-radius:6px;margin-bottom:16px;font-size:13px;font-weight:600;">
+                                ⚠ 개선 후 위험도가 개선 전과 동일하거나 높습니다. 위험도가 낮아져야 등록할 수 있습니다.
+                            </div>
                             <input type="hidden" id="ar-lh-after" value="">
                             <input type="hidden" id="ar-sv-after" value="">
 
@@ -456,13 +474,6 @@
                                 <span class="calc-result" id="ar-grade-after">-</span>
                             </div>
 
-                            <div class="form-group" style="margin-top:12px;">
-                                <label>완료여부</label>
-                                <select id="ar-completion">
-                                    <option value="미완료">미완료</option>
-                                    <option value="완료">완료</option>
-                                </select>
-                            </div>
                             <div class="form-group full-width" style="margin-top:8px;">
                                 <label>개선 후 사진</label>
                                 <div class="image-upload-area">
@@ -476,6 +487,7 @@
                                 </div>
                                 <input type="hidden" id="ar-image-after-url" value="">
                             </div>
+                            </div><!-- /completion-fields -->
 
                             <div class="wizard-nav">
                                 <button type="button" class="btn-wizard-prev" onclick="wizardGo(2)">&#8592; 이전</button>
@@ -840,6 +852,17 @@
 
     <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
+
+    <!-- Custom Confirm Modal -->
+    <div id="custom-confirm" class="custom-confirm-overlay" style="display:none;">
+        <div class="custom-confirm-box">
+            <p id="custom-confirm-msg"></p>
+            <div class="custom-confirm-buttons">
+                <button id="custom-confirm-cancel" class="custom-confirm-btn cancel">취소</button>
+                <button id="custom-confirm-ok" class="custom-confirm-btn ok">확인</button>
+            </div>
+        </div>
+    </div>
 
     <script src="/static/app.js?v=23"></script>
 </body>

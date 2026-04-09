@@ -1031,6 +1031,109 @@ function checkStep1Required() {
     btn.disabled = !(person && location && workplace);
 }
 
+function toggleCompletion() {
+    const input = document.getElementById("ar-completion");
+    const track = document.getElementById("completion-track");
+    const label = document.getElementById("completion-label");
+    const fields = document.getElementById("completion-fields");
+    if (input.value === "미완료") {
+        input.value = "완료";
+        track.classList.add("active");
+        label.textContent = "완료";
+        fields.style.display = "block";
+    } else {
+        input.value = "미완료";
+        track.classList.remove("active");
+        label.textContent = "미완료";
+        fields.style.display = "none";
+    }
+    checkStep3Submit();
+}
+
+function setCompletionToggle(value) {
+    const input = document.getElementById("ar-completion");
+    const track = document.getElementById("completion-track");
+    const label = document.getElementById("completion-label");
+    const fields = document.getElementById("completion-fields");
+    if (value === "완료") {
+        input.value = "완료";
+        track.classList.add("active");
+        label.textContent = "완료";
+        fields.style.display = "block";
+    } else {
+        input.value = "미완료";
+        track.classList.remove("active");
+        label.textContent = "미완료";
+        fields.style.display = "none";
+    }
+    checkStep3Submit();
+}
+
+function checkStep3Submit() {
+    const btn = document.getElementById("ar-submit-btn");
+    const warning = document.getElementById("after-risk-warning");
+    const completion = document.getElementById("ar-completion").value;
+
+    if (completion === "완료") {
+        const lhAfter = parseInt(document.getElementById("ar-lh-after").value) || 0;
+        const svAfter = parseInt(document.getElementById("ar-sv-after").value) || 0;
+        const lhBefore = parseInt(document.getElementById("ar-lh-before").value) || 0;
+        const svBefore = parseInt(document.getElementById("ar-sv-before").value) || 0;
+        const riskBefore = lhBefore * svBefore;
+        const riskAfter = lhAfter * svAfter;
+
+        if (!lhAfter || !svAfter) {
+            btn.disabled = true;
+            warning.style.display = "none";
+        } else if (riskAfter >= riskBefore) {
+            btn.disabled = true;
+            warning.style.display = "block";
+        } else {
+            btn.disabled = false;
+            warning.style.display = "none";
+        }
+    } else {
+        btn.disabled = false;
+        warning.style.display = "none";
+    }
+}
+
+function updateBeforeRiskDisplay() {
+    const lh = parseInt(document.getElementById("ar-lh-before").value) || 0;
+    const sv = parseInt(document.getElementById("ar-sv-before").value) || 0;
+    const el = document.getElementById("before-risk-display");
+    if (lh > 0 && sv > 0) {
+        const risk = lh * sv;
+        const grade = risk <= 4 ? "A" : risk <= 8 ? "B" : risk <= 12 ? "C" : "D";
+        el.textContent = "가능성 " + lh + " × 중대성 " + sv + " = " + risk + " (" + grade + "등급)";
+    } else {
+        el.textContent = "-";
+    }
+}
+
+function customConfirm(msg) {
+    return new Promise(function(resolve) {
+        var overlay = document.getElementById("custom-confirm");
+        document.getElementById("custom-confirm-msg").textContent = msg;
+        overlay.style.display = "flex";
+        document.getElementById("custom-confirm-ok").onclick = function() {
+            overlay.style.display = "none"; resolve(true);
+        };
+        document.getElementById("custom-confirm-cancel").onclick = function() {
+            overlay.style.display = "none"; resolve(false);
+        };
+    });
+}
+
+async function goStep3() {
+    const img = document.getElementById("ar-image-url").value;
+    if (!img) {
+        const ok = await customConfirm("개선 전 사진이 등록되지 않았습니다.\n사진 없이 진행하시겠습니까?");
+        if (!ok) return;
+    }
+    wizardGo(3);
+}
+
 function wizardGo(step) {
     // Hide all pages
     for (var i = 1; i <= 3; i++) {
@@ -1044,6 +1147,7 @@ function wizardGo(step) {
         else if (s < step) el.classList.add("done");
     });
     currentWizardStep = step;
+    if (step === 3) { updateBeforeRiskDisplay(); checkStep3Submit(); }
     window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -1064,6 +1168,7 @@ function resetForm() {
     document.getElementById("ar-cancel-btn").style.display = "none";
     document.getElementById("register-page-title").textContent = "위험요소 등록";
     clearRatingCards();
+    setCompletionToggle("미완료");
     wizardGo(1);
     document.getElementById("btn-step1-next").disabled = true;
     document.getElementById("btn-step2-next").disabled = true;
@@ -1091,6 +1196,7 @@ function selectRating(type, phase, value) {
     document.getElementById("ar-" + type + "-" + phase).value = value;
     calcGrade(phase);
     if (phase === "before") checkStep2Required();
+    if (phase === "after") checkStep3Submit();
 }
 
 function clearRatingCards() {
@@ -1142,6 +1248,15 @@ function removeImage(phase) {
 
 async function submitAddRecord(e) {
     e.preventDefault();
+    if (document.getElementById("ar-submit-btn").disabled) return;
+    const _completion = document.getElementById("ar-completion").value;
+    if (_completion === "완료") {
+        const imgAfter = document.getElementById("ar-image-after-url").value;
+        if (!imgAfter) {
+            const ok = await customConfirm("개선 후 사진이 등록되지 않았습니다.\n사진 없이 등록하시겠습니까?");
+            if (!ok) return;
+        }
+    }
     const payload = {
         channel: document.getElementById("ar-channel").value,
         month: (function(){ var d = document.getElementById("ar-date").value; return d ? parseInt(d.split("-")[1]) + "월" : ""; })(),
@@ -1212,7 +1327,7 @@ function editRecord(id) {
     document.getElementById("ar-disaster").value = r.disaster_type || "";
     document.getElementById("ar-week").value = r.date ? parseInt(r.date.split("-")[1]) + "월 " + getWeekFromDate(r.date) + "주차" : "";
     document.getElementById("ar-improvement").value = r.improvement_plan || "";
-    document.getElementById("ar-completion").value = r.completion || "미완료";
+    setCompletionToggle(r.completion || "미완료");
 
     clearRatingCards();
     if (r.likelihood_before) selectRating("lh", "before", r.likelihood_before);
