@@ -344,6 +344,11 @@ async function fetchSummary() {
         if (currentPage === "analysis") {
             updateAnalysisCharts(data);
         }
+
+        // Apply pending filter (from "발굴/개선" click on summary)
+        if (window._pendingRecordsFilter) {
+            applyPendingRecordsFilter();
+        }
     } catch (e) {
         console.error("Fetch error:", e);
     }
@@ -878,37 +883,131 @@ function renderRepeatTable(data) {
 }
 
 // ===== Data Table =====
+let _allTableRecords = [];
+
 function updateTable(records) {
+    _allTableRecords = records;
     const tbody = document.getElementById("data-tbody");
     if (!tbody) return;
     tbody.innerHTML = "";
     records.forEach(r => {
         const tr = document.createElement("tr");
+        tr.style.cursor = "pointer";
+        tr.onclick = function(e) {
+            if (e.target.closest("button") || e.target.closest("img")) return;
+            showRecordDetail(r);
+        };
         const imgBefore = r.image
-            ? '<img src="' + escapeHtml(r.image) + '" class="table-thumb" onclick="showImageModal(\'' + escapeHtml(r.image) + '\')">'
-            : (r.has_image ? '<button class="btn-img-load" onclick="loadRecordImage(\'' + escapeHtml(r._id) + '\',\'image\',this)">📷</button>' : '-');
+            ? '<img src="' + escapeHtml(r.image) + '" class="table-thumb" onclick="event.stopPropagation();showImageModal(\'' + escapeHtml(r.image) + '\')">'
+            : (r.has_image ? '<button class="btn-img-load" onclick="event.stopPropagation();loadRecordImage(\'' + escapeHtml(r._id) + '\',\'image\',this)">📷</button>' : '-');
         const imgAfter = r.image_after
-            ? '<img src="' + escapeHtml(r.image_after) + '" class="table-thumb" onclick="showImageModal(\'' + escapeHtml(r.image_after) + '\')">'
-            : (r.has_image_after ? '<button class="btn-img-load" onclick="loadRecordImage(\'' + escapeHtml(r._id) + '\',\'image_after\',this)">📷</button>' : '-');
+            ? '<img src="' + escapeHtml(r.image_after) + '" class="table-thumb" onclick="event.stopPropagation();showImageModal(\'' + escapeHtml(r.image_after) + '\')">'
+            : (r.has_image_after ? '<button class="btn-img-load" onclick="event.stopPropagation();loadRecordImage(\'' + escapeHtml(r._id) + '\',\'image_after\',this)">📷</button>' : '-');
         const rid = escapeHtml(r._id || "");
         tr.innerHTML =
-            '<td>' + r.no + '</td><td>' + escapeHtml(r.month) + '</td><td>' + escapeHtml(r.person) + '</td>' +
+            '<td>' + r.no + '</td><td>' + escapeHtml(r.month) + '</td>' +
             '<td>' + (r.date || "-") + '</td><td>' + escapeHtml(r.location || "-") + '</td>' +
-            '<td title="' + escapeHtml(r.content_full) + '">' + escapeHtml(r.content) + '</td>' +
             '<td>' + escapeHtml(r.disaster_type || "-") + '</td>' +
             '<td><span class="grade-badge grade-' + r.grade_before + '">' + r.grade_before + '</span></td>' +
             '<td><span class="grade-badge grade-' + (r.grade_after || "-") + '">' + (r.grade_after || "-") + '</span></td>' +
             '<td class="' + (r.completion === "완료" ? "status-complete" : "status-incomplete") + '">' + (r.completion || "-") + '</td>' +
-            '<td>' + (r.actual_date || "-") + '</td>' +
-            '<td>' + (r.is_repeat ? '<span class="repeat-badge">' + r.repeat_count + '회</span>' : '<span class="repeat-badge single">1회</span>') + '</td>' +
             '<td>' + (r.week || "-") + '</td>' +
             '<td>' + imgBefore + '</td><td>' + imgAfter + '</td>' +
-            '<td class="action-cell">' +
-                '<button class="btn-edit" onclick="editRecord(\'' + rid + '\')">수정</button>' +
-                '<button class="btn-row-del" onclick="deleteRecord(\'' + rid + '\')">삭제</button>' +
-            '</td>';
+            (ADMIN_TOKEN
+                ? '<td class="action-cell">' +
+                    '<button class="btn-edit" onclick="event.stopPropagation();editRecord(\'' + rid + '\')">수정</button>' +
+                    '<button class="btn-row-del" onclick="event.stopPropagation();deleteRecord(\'' + rid + '\')">삭제</button>' +
+                  '</td>'
+                : '');
         tbody.appendChild(tr);
     });
+}
+
+function goToRecordsFiltered(period, type) {
+    const now = new Date();
+    const curYear = String(now.getFullYear());
+    const curMonth = (now.getMonth() + 1) + "월";
+    const curWeek = getWeekFromDate(now.toISOString().split("T")[0]);
+
+    // Stash desired filters to apply after page switch + data load
+    window._pendingRecordsFilter = {
+        year: curYear,
+        month: (period === "month" || period === "week") ? curMonth : "전체",
+        week: period === "week" ? curWeek : 0,
+        completion: type === "improved" ? "완료" : "전체",
+    };
+
+    // Switch to records page (전체 channel)
+    const allLink = document.querySelector('#records-sub .nav-sub-item');
+    if (allLink) {
+        openRecordsChannel('전체', allLink);
+    } else {
+        switchPage('records', document.querySelector('[data-page="records"]'));
+    }
+}
+
+function applyPendingRecordsFilter() {
+    const f = window._pendingRecordsFilter;
+    if (!f) return;
+    window._pendingRecordsFilter = null;
+
+    setFilterValue("f-rec-year", f.year);
+    if (typeof updateMonthDropdown === "function") updateMonthDropdown();
+    setFilterValue("f-rec-month", f.month);
+    if (lastSummaryData && lastSummaryData.records) {
+        updateWeekDropdown(lastSummaryData.records);
+    }
+    setFilterValue("f-rec-week", String(f.week));
+    setFilterValue("f-completion", f.completion);
+
+    // Open filter panel so user sees what's applied
+    const fp = document.getElementById("filter-panel");
+    if (fp && fp.classList.contains("filter-collapsed")) {
+        fp.classList.remove("filter-collapsed");
+    }
+    fetchSummary();
+}
+
+function showRecordDetail(r) {
+    let modal = document.getElementById("record-detail-modal");
+    if (!modal) {
+        modal = document.createElement("div");
+        modal.id = "record-detail-modal";
+        modal.className = "custom-confirm-overlay";
+        modal.onclick = function(e) {
+            if (e.target === modal) modal.style.display = "none";
+        };
+        modal.innerHTML = '<div class="record-detail-box"><button class="record-detail-close" onclick="document.getElementById(\'record-detail-modal\').style.display=\'none\'">×</button><div id="record-detail-content"></div></div>';
+        document.body.appendChild(modal);
+    }
+    const content = document.getElementById("record-detail-content");
+    function row(label, value) {
+        if (!value) return '';
+        return '<div class="rd-row"><div class="rd-label">' + label + '</div><div class="rd-value">' + escapeHtml(String(value)) + '</div></div>';
+    }
+    let html = '<h3 style="margin:0 0 16px;">No.' + r.no + ' 위험요소 상세</h3>';
+    html += row('월', r.month);
+    html += row('담당자', r.person);
+    html += row('일시', r.date);
+    html += row('장소', r.location);
+    html += row('위험요소 내용', r.content_full || r.content);
+    html += row('재해유형', r.disaster_type);
+    html += row('공정', r.process);
+    html += row('가능성(전)', r.likelihood_before);
+    html += row('중대성(전)', r.severity_before);
+    html += '<div class="rd-row"><div class="rd-label">위험등급(전)</div><div class="rd-value"><span class="grade-badge grade-' + r.grade_before + '">' + r.grade_before + '</span></div></div>';
+    html += row('개선대책', r.improvement_plan);
+    html += row('가능성(후)', r.likelihood_after);
+    html += row('중대성(후)', r.severity_after);
+    html += '<div class="rd-row"><div class="rd-label">위험등급(후)</div><div class="rd-value"><span class="grade-badge grade-' + (r.grade_after || "-") + '">' + (r.grade_after || "-") + '</span></div></div>';
+    html += row('완료여부', r.completion);
+    html += row('완료일', r.actual_date);
+    html += row('주차', r.week);
+    if (r.is_repeat) html += row('반복', r.repeat_count + '회');
+    if (r.image) html += '<div class="rd-row"><div class="rd-label">개선 전 사진</div><div class="rd-value"><img src="' + escapeHtml(r.image) + '" style="max-width:300px;max-height:300px;cursor:pointer;" onclick="showImageModal(\'' + escapeHtml(r.image) + '\')"></div></div>';
+    if (r.image_after) html += '<div class="rd-row"><div class="rd-label">개선 후 사진</div><div class="rd-value"><img src="' + escapeHtml(r.image_after) + '" style="max-width:300px;max-height:300px;cursor:pointer;" onclick="showImageModal(\'' + escapeHtml(r.image_after) + '\')"></div></div>';
+    content.innerHTML = html;
+    modal.style.display = "flex";
 }
 
 function escapeHtml(str) {
@@ -1506,6 +1605,12 @@ function updateAdminUI() {
         adminOnlyEls.forEach(el => el.style.display = "none");
     }
     updateChannelOptions();
+    // Show/hide 작업 column header
+    document.querySelectorAll(".th-action").forEach(el => {
+        el.style.display = ADMIN_TOKEN ? "" : "none";
+    });
+    // Redraw table so edit/delete buttons reflect admin state
+    if (lastSummaryData) updateTable(getDisplayRecords(lastSummaryData));
 }
 
 function updateChannelOptions(forceAll) {

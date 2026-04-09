@@ -98,8 +98,8 @@
                     <div class="period-card accent-blue">
                         <div class="period-title" id="pt-week">4월 2주차</div>
                         <div class="period-data">
-                            <div class="period-item"><span class="period-label">발굴</span><span class="period-value" id="pw-discovered">0</span></div>
-                            <div class="period-item"><span class="period-label">개선</span><span class="period-value" id="pw-improved">0</span></div>
+                            <div class="period-item clickable" onclick="goToRecordsFiltered('week','discovered')"><span class="period-label">발굴</span><span class="period-value" id="pw-discovered">0</span></div>
+                            <div class="period-item clickable" onclick="goToRecordsFiltered('week','improved')"><span class="period-label">개선</span><span class="period-value" id="pw-improved">0</span></div>
                             <div class="period-item"><span class="period-label">개선률</span><span class="period-value accent" id="pw-rate">0%</span></div>
                         </div>
                         <div class="period-extra" id="pw-prev-wrap">
@@ -111,16 +111,16 @@
                     <div class="period-card accent-green">
                         <div class="period-title" id="pt-month">4월</div>
                         <div class="period-data">
-                            <div class="period-item"><span class="period-label">발굴</span><span class="period-value" id="pm-discovered">0</span></div>
-                            <div class="period-item"><span class="period-label">개선</span><span class="period-value" id="pm-improved">0</span></div>
+                            <div class="period-item clickable" onclick="goToRecordsFiltered('month','discovered')"><span class="period-label">발굴</span><span class="period-value" id="pm-discovered">0</span></div>
+                            <div class="period-item clickable" onclick="goToRecordsFiltered('month','improved')"><span class="period-label">개선</span><span class="period-value" id="pm-improved">0</span></div>
                             <div class="period-item"><span class="period-label">개선률</span><span class="period-value accent" id="pm-rate">0%</span></div>
                         </div>
                     </div>
                     <div class="period-card accent-purple">
                         <div class="period-title" id="pt-year">2026년</div>
                         <div class="period-data">
-                            <div class="period-item"><span class="period-label">발굴</span><span class="period-value" id="py-discovered">0</span></div>
-                            <div class="period-item"><span class="period-label">개선</span><span class="period-value" id="py-improved">0</span></div>
+                            <div class="period-item clickable" onclick="goToRecordsFiltered('year','discovered')"><span class="period-label">발굴</span><span class="period-value" id="py-discovered">0</span></div>
+                            <div class="period-item clickable" onclick="goToRecordsFiltered('year','improved')"><span class="period-label">개선</span><span class="period-value" id="py-improved">0</span></div>
                             <div class="period-item"><span class="period-label">개선률</span><span class="period-value accent" id="py-rate">0%</span></div>
                         </div>
                     </div>
@@ -614,9 +614,9 @@
                     <table id="data-table">
                         <thead>
                             <tr>
-                                <th>No</th><th>월</th><th>담당자</th><th>일시</th><th>장소</th>
-                                <th>위험요소 내용</th><th>재해유형</th><th>위험등급(전)</th><th>위험등급(후)</th>
-                                <th>완료여부</th><th>완료일</th><th>반복</th><th>주차</th><th>개선 전</th><th>개선 후</th><th>작업</th>
+                                <th>No</th><th>월</th><th>일시</th><th>장소</th>
+                                <th>재해유형</th><th>위험등급(전)</th><th>위험등급(후)</th>
+                                <th>완료여부</th><th>주차</th><th>개선 전</th><th>개선 후</th><th class="th-action">작업</th>
                             </tr>
                         </thead>
                         <tbody id="data-tbody"></tbody>
