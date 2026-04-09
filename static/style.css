@@ -604,7 +604,7 @@ body {
 .ms-cell-active { background: #EA1D22 !important; }
 .ms-cell-active .ms-cell-label { color: rgba(255,255,255,0.7); }
 .ms-cell-active .ms-cell-num { color: white; }
-.ms-cell-active.green { background: #555 !important; }
+.ms-cell-active.green { background: #EA1D22 !important; }
 .ms-grid-label {
     padding: 8px 10px; font-size: 11px; font-weight: 700; color: #555;
     display: flex; align-items: center; border-right: 1px solid #eee;
