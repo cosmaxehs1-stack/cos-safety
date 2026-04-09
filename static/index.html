@@ -26,8 +26,12 @@
 
     <!-- Dashboard Layout -->
     <div id="dashboard" class="dashboard-layout" style="display:none;">
+        <!-- Floating reopen button (shown when sidebar collapsed) -->
+        <button id="sidebar-reopen" class="sidebar-reopen" onclick="openSidebar()" style="display:none;">&#9776;</button>
+
         <!-- Sidebar -->
         <aside class="sidebar" id="sidebar">
+            <button class="sidebar-close" onclick="collapseSidebar()" title="닫기">&times;</button>
             <div class="sidebar-header">
                 <img src="/static/cosmax_logo.png" alt="COSMAX" style="height:44px;margin-left:-9px;">
                 <span class="sidebar-subtitle" style="text-align:left;">- Safety</span>

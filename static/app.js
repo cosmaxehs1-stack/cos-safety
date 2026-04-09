@@ -114,6 +114,28 @@ function toggleSidebar() {
     document.getElementById("sidebar").classList.toggle("open");
 }
 
+function collapseSidebar() {
+    document.getElementById("sidebar").classList.add("collapsed");
+    document.getElementById("main-content").classList.add("full-width");
+    document.getElementById("sidebar-reopen").style.display = "block";
+}
+
+function openSidebar() {
+    document.getElementById("sidebar").classList.remove("collapsed");
+    document.getElementById("main-content").classList.remove("full-width");
+    document.getElementById("sidebar-reopen").style.display = "none";
+}
+
+document.addEventListener("click", function(e) {
+    const sidebar = document.getElementById("sidebar");
+    if (!sidebar || sidebar.classList.contains("collapsed")) return;
+    if (sidebar.contains(e.target)) return;
+    if (e.target.closest("#sidebar-reopen")) return;
+    // 모달이나 팝업 클릭은 무시
+    if (e.target.closest(".modal-overlay, .custom-confirm-overlay")) return;
+    collapseSidebar();
+});
+
 // ===== Register Methods =====
 function showRegisterMethod(method) {
     document.getElementById("register-select").style.display = "none";
