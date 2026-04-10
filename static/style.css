@@ -186,24 +186,23 @@ body {
 .period-data { display: flex; gap: 20px; }
 .period-item { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .period-label { font-size: 11px; color: #999; font-weight: 600; }
-.period-value-row { display: flex; align-items: baseline; flex-wrap: wrap; }
 .period-value { font-size: 28px; font-weight: 800; color: #1a1a2e; }
 .period-value.accent { color: #555; }
+.period-value-add { color: #EA1D22; }
+.period-data-divided > .period-item {
+    border-right: 1px solid #ddd;
+    padding-right: 20px;
+}
+.period-data-divided > .period-item:last-child {
+    border-right: none;
+    padding-right: 0;
+}
 .period-extra {
     margin-top: 10px; padding-top: 10px; border-top: 1px dashed #e0e0e0;
     font-size: 13px; color: #EA1D22; font-weight: 600;
     cursor: pointer; display: flex; align-items: center; gap: 2px;
 }
 .period-extra-value { font-weight: 800; font-size: 16px; }
-.period-add {
-    font-size: 28px; font-weight: 800; color: #EA1D22; cursor: pointer;
-    margin-left: 4px;
-}
-.period-add:hover { text-decoration: underline; }
-.period-add-eq {
-    font-size: 28px; font-weight: 800; color: #1a1a2e;
-    margin-left: 4px;
-}
 .info-btn {
     display: inline-flex; align-items: center; justify-content: center;
     width: 16px; height: 16px; border-radius: 50%; background: #ccc; color: white;
