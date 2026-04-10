@@ -694,7 +694,9 @@ function updatePeriodStats(data) {
         if (opEq) opEq.style.display = "none";
         if (noteEl) noteEl.style.display = "none";
     }
-    // 월 카드 제거됨 — 월 데이터는 더 이상 표시하지 않음
+    setText("pm-discovered", monthDisc);
+    setText("pm-improved", monthImp);
+    setText("pm-rate", monthRate + "%");
     setText("py-discovered", yearDisc);
     setText("py-improved", yearImp);
     setText("py-rate", yearRate + "%");
