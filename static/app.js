@@ -668,26 +668,27 @@ function updatePeriodStats(data) {
 
     setText("pw-discovered", weekDisc);
     setText("pw-improved", weekImp);
-    setText("pw-rate", weekRate + "%");
     setText("pw-prev-improved", prevWeekImproved);
+
+    var addWrap = document.getElementById("pw-add-wrap");
+    var eqWrap = document.getElementById("pw-eq-wrap");
     var prevWrap = document.getElementById("pw-prev-wrap");
-    if (prevWrap) prevWrap.style.display = prevWeekImproved > 0 ? "flex" : "none";
-    // 실제 개선 (이번주 개선 + 추가 개선)
-    var actualWrap = document.getElementById("pw-actual-wrap");
-    if (actualWrap) {
-        if (prevWeekImproved > 0) {
-            var actualTotal = weekImp + prevWeekImproved;
-            var actualRate = weekDisc > 0 ? Math.round(actualTotal / weekDisc * 100) : 0;
-            setText("pw-actual-total", actualTotal);
-            setText("pw-actual-rate", actualRate + "%");
-            actualWrap.style.display = "";
-        } else {
-            actualWrap.style.display = "none";
-        }
+
+    if (prevWeekImproved > 0) {
+        var actualTotal = weekImp + prevWeekImproved;
+        var actualRate = weekDisc > 0 ? Math.round(actualTotal / weekDisc * 100) : 0;
+        setText("pw-actual-total", actualTotal);
+        setText("pw-actual-rate", actualRate + "%");
+        if (addWrap) addWrap.style.display = "";
+        if (eqWrap) eqWrap.style.display = "";
+        if (prevWrap) prevWrap.style.display = "flex";
+    } else {
+        setText("pw-actual-rate", weekRate + "%");
+        if (addWrap) addWrap.style.display = "none";
+        if (eqWrap) eqWrap.style.display = "none";
+        if (prevWrap) prevWrap.style.display = "none";
     }
-    setText("pm-discovered", monthDisc);
-    setText("pm-improved", monthImp);
-    setText("pm-rate", monthRate + "%");
+    // 월 카드 제거됨 — 월 데이터는 더 이상 표시하지 않음
     setText("py-discovered", yearDisc);
     setText("py-improved", yearImp);
     setText("py-rate", yearRate + "%");
