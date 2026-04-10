@@ -1946,30 +1946,27 @@ async function loadWeeklyTab() {
             ).join(" ");
         }
 
-        const compareSelect = document.getElementById("w-compare");
-        const compareWrap = document.getElementById("weekly-compare-select");
-        if (weeklySavedSnapshots.length > 0) {
-            compareWrap.style.display = "";
-            let opts = '<option value="">비교 안 함</option>';
-            weeklySavedSnapshots.forEach(s => {
-                opts += '<option value="' + s.id + '">' + s.month + '월 ' + s.week + '주 (' + s.saved_at.slice(0,10) + ')</option>';
-            });
-            compareSelect.innerHTML = opts;
-            compareSelect.value = weeklySavedSnapshots[weeklySavedSnapshots.length-1].id;
-        } else {
-            compareWrap.style.display = "none";
-            compareSelect.innerHTML = "";
-        }
         renderCurrentWeekly();
     } catch (e) { console.error("Weekly load error:", e); }
 }
 
 async function renderCurrentWeekly() {
-    const compareId = document.getElementById("w-compare").value;
+    // 자동으로 직전 주차 스냅샷 찾아서 비교
+    var curM = parseInt(document.getElementById("w-cur-month").value);
+    var curW = parseInt(document.getElementById("w-cur-week").value);
+    var prevSnapshot = null;
+    // (month, week)이 현재보다 작은 것 중 가장 최근 스냅샷
+    weeklySavedSnapshots.forEach(function(s) {
+        if (s.month < curM || (s.month === curM && s.week < curW)) {
+            if (!prevSnapshot || s.month > prevSnapshot.month || (s.month === prevSnapshot.month && s.week > prevSnapshot.week)) {
+                prevSnapshot = s;
+            }
+        }
+    });
     let prevData = null;
-    if (compareId) {
+    if (prevSnapshot) {
         try {
-            const res = await fetch("/api/weekly/get?id=" + compareId, { headers: authHeaders() });
+            const res = await fetch("/api/weekly/get?id=" + prevSnapshot.id, { headers: authHeaders() });
             const result = await res.json();
             if (result.snapshot) prevData = result.snapshot.data;
         } catch (e) {}
