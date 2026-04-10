@@ -674,7 +674,7 @@ function updatePeriodStats(data) {
     var eqWrap = document.getElementById("pw-eq-wrap");
     var opPlus = document.getElementById("pw-op-plus");
     var opEq = document.getElementById("pw-op-eq");
-    var prevWrap = document.getElementById("pw-prev-wrap");
+    var noteEl = document.getElementById("pw-note");
 
     if (prevWeekImproved > 0) {
         var actualTotal = weekImp + prevWeekImproved;
@@ -685,14 +685,14 @@ function updatePeriodStats(data) {
         if (eqWrap) eqWrap.style.display = "";
         if (opPlus) opPlus.style.display = "";
         if (opEq) opEq.style.display = "";
-        if (prevWrap) prevWrap.style.display = "flex";
+        if (noteEl) noteEl.style.display = "";
     } else {
         setText("pw-actual-rate", weekRate + "%");
         if (addWrap) addWrap.style.display = "none";
         if (eqWrap) eqWrap.style.display = "none";
         if (opPlus) opPlus.style.display = "none";
         if (opEq) opEq.style.display = "none";
-        if (prevWrap) prevWrap.style.display = "none";
+        if (noteEl) noteEl.style.display = "none";
     }
     // 월 카드 제거됨 — 월 데이터는 더 이상 표시하지 않음
     setText("py-discovered", yearDisc);
