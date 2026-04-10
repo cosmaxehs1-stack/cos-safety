@@ -1140,6 +1140,7 @@ function showRecordDetail(r) {
         return '<div class="rd-row"><div class="rd-label">' + label + '</div><div class="rd-value">' + escapeHtml(String(value)) + '</div></div>';
     }
     let html = '<h3 style="margin:0 0 16px;">No.' + r.no + ' 위험요소 상세</h3>';
+    html += row('채널', r.channel);
     html += row('월', r.month);
     html += row('담당자', r.person);
     html += row('일시', r.date);
