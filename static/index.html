@@ -112,10 +112,10 @@
                             <div class="period-item clickable" onclick="goToRecordsFiltered('week','improved')"><span class="period-label">개선</span><span class="period-value" id="pw-improved">0</span></div>
                             <div class="period-item"><span class="period-label">개선률</span><span class="period-value accent" id="pw-rate">0%</span></div>
                         </div>
-                        <div class="period-extra" id="pw-prev-wrap">
+                        <div class="period-extra" id="pw-prev-wrap" onclick="onPrevImprovedClick(event)">
                             + <span class="period-extra-value" id="pw-prev-improved">0</span>건 추가 개선
                             <span class="info-btn" onclick="event.stopPropagation(); this.nextElementSibling.classList.toggle('show')">?</span>
-                            <span class="info-tooltip">해당 주차 이전에 발굴된 위험요소 중, 이번주에 개선 완료 처리된 건수입니다.</span>
+                            <span class="info-tooltip" onclick="event.stopPropagation()">해당 주차 이전에 발굴된 위험요소 중, 이번주에 개선 완료 처리된 건수입니다.</span>
                         </div>
                     </div>
                     <div class="period-card accent-green">
@@ -561,6 +561,12 @@
                             </select>
                         </div>
                     </div>
+                </div>
+
+                <!-- 추가 개선(이전 주차 발굴 → 이번주 완료) 필터 배지 -->
+                <div id="improved-in-week-badge" class="iiw-badge" style="display:none;">
+                    <span class="iiw-badge-text">📅 <span id="iiw-badge-label">이번주 개선완료</span></span>
+                    <button class="iiw-badge-clear" onclick="clearImprovedInWeekFilter()" title="필터 해제">×</button>
                 </div>
 
                 <!-- 요약 카드 + 필터 토글 -->

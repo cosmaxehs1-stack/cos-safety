@@ -94,6 +94,8 @@ function switchPage(pageName, el) {
     if (pageName === "summary") {
         _activeTeamFilter = "";
         _activeStatusFilter = "";
+        _activeImprovedInWeek = null;
+        updateImprovedInWeekBadge();
         setFilterValue("f-rec-year", "전체");
         setFilterValue("f-rec-month", "전체");
         setFilterValue("f-rec-week", "0");
@@ -268,23 +270,28 @@ function updateWeekDropdown(records) {
 }
 
 function onRecordYearChange() {
+    if (_activeImprovedInWeek) { _activeImprovedInWeek = null; updateImprovedInWeekBadge(); }
     updateMonthDropdown();
     setFilterValue("f-rec-week", "0");
     fetchSummary();
 }
 
 function onRecordMonthChange() {
+    if (_activeImprovedInWeek) { _activeImprovedInWeek = null; updateImprovedInWeekBadge(); }
     setFilterValue("f-rec-week", "0");
     fetchSummary();
 }
 
 function onRecordWeekChange() {
+    if (_activeImprovedInWeek) { _activeImprovedInWeek = null; updateImprovedInWeekBadge(); }
     fetchSummary();
 }
 
 function resetFilters() {
     _activeTeamFilter = "";
     _activeStatusFilter = "";
+    _activeImprovedInWeek = null;
+    updateImprovedInWeekBadge();
     setFilterValue("f-channel", "전체");
     setFilterValue("f-rec-year", "전체");
     setFilterValue("f-rec-month", "전체");
@@ -335,6 +342,11 @@ function openRecordsChannel(channel, el) {
     document.querySelectorAll(".page").forEach(function(p) { p.style.display = "none"; p.classList.remove("active"); });
     if (page) { page.style.display = "block"; page.classList.add("active"); }
     currentPage = "records";
+    // pending filter가 없을 때만 추가개선 필터 클리어 (있으면 applyPendingRecordsFilter가 다시 set)
+    if (!window._pendingRecordsFilter) {
+        _activeImprovedInWeek = null;
+        updateImprovedInWeekBadge();
+    }
     document.getElementById("f-channel").value = channel;
     // 기본 필터: 현재 연도
     var currentYear = String(new Date().getFullYear());
@@ -418,6 +430,18 @@ function getDisplayRecords(data) {
         });
     }
 
+    // 추가 개선 필터: actual_date(개선완료일) 기준 특정 주차 필터링
+    if (_activeImprovedInWeek) {
+        var iiw = _activeImprovedInWeek;
+        records = records.filter(function(r) {
+            if (r.completion !== "완료" || !r.actual_date) return false;
+            if (!r.actual_date.startsWith(iiw.year)) return false;
+            var aMonth = parseInt(r.actual_date.split("-")[1]);
+            if (aMonth !== iiw.month) return false;
+            return getWeekFromDate(r.actual_date) === iiw.week;
+        });
+    }
+
     var teamFilter = getActiveTeamFilter();
     if (teamFilter) {
         records = records.filter(function(r) {
@@ -445,6 +469,7 @@ function toggleFilters() {
 
 var _activeTeamFilter = "";  // "", "1팀", "2팀"
 var _activeStatusFilter = ""; // "", "발굴"(전체), "개선"(완료만)
+var _activeImprovedInWeek = null; // {year, month, week} or null — actual_date 기준 주차 필터
 
 function getActiveTeamFilter() { return _activeTeamFilter; }
 function getActiveStatusFilter() { return _activeStatusFilter; }
@@ -985,6 +1010,7 @@ function goToRecordsFiltered(period, type) {
         month: (period === "month" || period === "week") ? curMonth : "전체",
         week: period === "week" ? curWeek : 0,
         statusFilter: type === "improved" ? "개선" : "",
+        improvedInWeek: null,
     };
 
     // Switch to records page (전체 channel)
@@ -993,6 +1019,57 @@ function goToRecordsFiltered(period, type) {
         openRecordsChannel('전체', allLink);
     } else {
         switchPage('records', document.querySelector('[data-page="records"]'));
+    }
+}
+
+// "+ N건 추가 개선" 클릭 핸들러: 이전 주차 발굴 + 이번주 완료된 건들로 이동
+function onPrevImprovedClick(e) {
+    if (e && (e.target.closest('.info-btn') || e.target.closest('.info-tooltip'))) return;
+    var prevImproved = parseInt((document.getElementById("pw-prev-improved") || {}).textContent || "0");
+    if (prevImproved <= 0) return;
+    goToRecordsImprovedInWeek();
+}
+
+function goToRecordsImprovedInWeek() {
+    const now = new Date();
+    const curYear = String(now.getFullYear());
+    const curMonth = now.getMonth() + 1;
+    const curWeek = getWeekFromDate(now.toISOString().split("T")[0]);
+
+    window._pendingRecordsFilter = {
+        year: "전체",
+        month: "전체",
+        week: 0,
+        statusFilter: "",
+        improvedInWeek: { year: curYear, month: curMonth, week: curWeek },
+    };
+
+    const allLink = document.querySelector('#records-sub .nav-sub-item');
+    if (allLink) {
+        openRecordsChannel('전체', allLink);
+    } else {
+        switchPage('records', document.querySelector('[data-page="records"]'));
+    }
+}
+
+function clearImprovedInWeekFilter() {
+    _activeImprovedInWeek = null;
+    updateImprovedInWeekBadge();
+    if (lastSummaryData) {
+        updateTable(getDisplayRecords(lastSummaryData));
+    }
+}
+
+function updateImprovedInWeekBadge() {
+    var badge = document.getElementById("improved-in-week-badge");
+    if (!badge) return;
+    if (_activeImprovedInWeek && currentPage === "records") {
+        var iiw = _activeImprovedInWeek;
+        var label = document.getElementById("iiw-badge-label");
+        if (label) label.textContent = iiw.month + "월 " + iiw.week + "주차에 개선완료된 건 (이전 주차 발굴분)";
+        badge.style.display = "flex";
+    } else {
+        badge.style.display = "none";
     }
 }
 
@@ -1012,6 +1089,8 @@ function applyPendingRecordsFilter() {
     // 발굴/개선 카드 활성화
     _activeTeamFilter = "";
     _activeStatusFilter = f.statusFilter;
+    _activeImprovedInWeek = f.improvedInWeek || null;
+    updateImprovedInWeekBadge();
 
     // Open filter panel so user sees what's applied
     const fp = document.getElementById("filter-panel");
