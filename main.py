@@ -166,6 +166,13 @@ def get_db(retries=3):
                 raise
 
 def release_db(conn):
+    if conn is None:
+        return
+    # 트랜잭션이 에러 상태면 rollback하여 풀에 반환 시 다음 사용자가 깨끗한 conn 받도록 보장
+    try:
+        conn.rollback()
+    except Exception:
+        pass
     pool = _get_pool()
     if pool:
         try:
@@ -178,55 +185,74 @@ def release_db(conn):
         except: pass
 
 
+from contextlib import contextmanager
+
+@contextmanager
+def db_conn():
+    """
+    DB connection context manager — 예외 발생 시에도 connection이 반드시 pool로 반환되도록 보장.
+    사용: with db_conn() as conn: cur = conn.cursor(); ...
+    """
+    conn = get_db()
+    try:
+        yield conn
+    finally:
+        release_db(conn)
+
+
 def init_db():
     if not DATABASE_URL:
         return
     conn = get_db()
-    cur = conn.cursor()
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS records (
-            _id TEXT PRIMARY KEY,
-            data JSONB NOT NULL
-        )
-    """)
-    cur.execute("DROP TABLE IF EXISTS excel_files")
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS weekly_snapshots (
-            id TEXT PRIMARY KEY,
-            year INT NOT NULL,
-            quarter INT NOT NULL,
-            month INT NOT NULL,
-            week INT NOT NULL,
-            saved_at TEXT NOT NULL,
-            data JSONB NOT NULL
-        )
-    """)
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS executive_comments (
-            id TEXT PRIMARY KEY,
-            role TEXT NOT NULL,
-            content TEXT NOT NULL,
-            week_key TEXT NOT NULL DEFAULT '',
-            created_at TEXT NOT NULL,
-            updated_at TEXT
-        )
-    """)
     try:
-        cur.execute("ALTER TABLE executive_comments ADD COLUMN week_key TEXT NOT NULL DEFAULT ''")
-    except:
-        conn.rollback()
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS executive_notifications (
-            id TEXT PRIMARY KEY,
-            comment_id TEXT NOT NULL,
-            message TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            is_read BOOLEAN DEFAULT FALSE
-        )
-    """)
-    conn.commit()
-    cur.close()
-    release_db(conn)
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS records (
+                _id TEXT PRIMARY KEY,
+                data JSONB NOT NULL
+            )
+        """)
+        cur.execute("DROP TABLE IF EXISTS excel_files")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS weekly_snapshots (
+                id TEXT PRIMARY KEY,
+                year INT NOT NULL,
+                quarter INT NOT NULL,
+                month INT NOT NULL,
+                week INT NOT NULL,
+                saved_at TEXT NOT NULL,
+                data JSONB NOT NULL
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS executive_comments (
+                id TEXT PRIMARY KEY,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+                week_key TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT
+            )
+        """)
+        conn.commit()
+        try:
+            cur.execute("ALTER TABLE executive_comments ADD COLUMN week_key TEXT NOT NULL DEFAULT ''")
+            conn.commit()
+        except Exception:
+            conn.rollback()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS executive_notifications (
+                id TEXT PRIMARY KEY,
+                comment_id TEXT NOT NULL,
+                message TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                is_read BOOLEAN DEFAULT FALSE
+            )
+        """)
+        conn.commit()
+        cur.close()
+    finally:
+        release_db(conn)
 
 
 @app.on_event("startup")
@@ -955,20 +981,22 @@ def load_data() -> list[dict]:
         return [dict(r) for r in data]
 
     conn = get_db()
-    cur = conn.cursor()
-    cur.execute("SELECT data FROM records")
-    rows = cur.fetchall()
-    data = [row[0] for row in rows]
-    data, dirty_ids = _cleanup_records(data)
-    if dirty_ids:
-        dirty_set = set(dirty_ids)
-        for r in data:
-            if r["_id"] in dirty_set:
-                cur.execute("UPDATE records SET data = %s WHERE _id = %s",
-                            (json.dumps(r, ensure_ascii=False), r["_id"]))
-        conn.commit()
-    cur.close()
-    release_db(conn)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT data FROM records")
+        rows = cur.fetchall()
+        data = [row[0] for row in rows]
+        data, dirty_ids = _cleanup_records(data)
+        if dirty_ids:
+            dirty_set = set(dirty_ids)
+            for r in data:
+                if r["_id"] in dirty_set:
+                    cur.execute("UPDATE records SET data = %s WHERE _id = %s",
+                                (json.dumps(r, ensure_ascii=False), r["_id"]))
+            conn.commit()
+        cur.close()
+    finally:
+        release_db(conn)
     _data_cache = data
     _data_cache_time = now
     return data
@@ -982,99 +1010,64 @@ def save_data(data: list[dict]):
         return
 
     conn = get_db()
-    cur = conn.cursor()
-    cur.execute("DELETE FROM records")
-    if data:
-        args = []
-        for r in data:
-            rid = r.get("_id") or uuid.uuid4().hex
-            r["_id"] = rid
-            args.append((rid, json.dumps(r, ensure_ascii=False)))
-        psycopg2.extras.execute_values(
-            cur, "INSERT INTO records (_id, data) VALUES %s", args, template="(%s, %s)", page_size=500
-        )
-    conn.commit()
-    cur.close()
-    release_db(conn)
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM records")
+        if data:
+            args = []
+            for r in data:
+                rid = r.get("_id") or uuid.uuid4().hex
+                r["_id"] = rid
+                args.append((rid, json.dumps(r, ensure_ascii=False)))
+            psycopg2.extras.execute_values(
+                cur, "INSERT INTO records (_id, data) VALUES %s", args, template="(%s, %s)", page_size=500
+            )
+        conn.commit()
+        cur.close()
+    finally:
+        release_db(conn)
 
 
 # --- Excel File Storage ---
+# NOTE: excel_files 테이블은 init_db에서 DROP되어 더 이상 존재하지 않음.
+# 아래 함수들은 파일시스템 경로만 유효하며, DB 경로는 no-op 처리.
 def save_excel_file(channel: str, file_path: str, filename: str):
-    """엑셀 파일을 DB 또는 파일시스템에 보관"""
+    """엑셀 파일을 파일시스템에 보관 (DB 경로는 제거됨)"""
+    if DATABASE_URL:
+        return  # DB 경로 제거됨
     with open(file_path, "rb") as f:
         data = f.read()
-    if DATABASE_URL:
-        conn = get_db()
-        cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO excel_files (channel, filename, data, updated_at) VALUES (%s, %s, %s, %s) "
-            "ON CONFLICT (channel) DO UPDATE SET filename = %s, data = %s, updated_at = %s",
-            (channel, filename, data, datetime.now().isoformat(),
-             filename, data, datetime.now().isoformat())
-        )
-        conn.commit()
-        cur.close()
-        release_db(conn)
-    else:
-        safe_name = channel.replace("/", "_").replace(" ", "_")
-        dest = os.path.join(UPLOAD_DIR, f"excel_{safe_name}.xlsm")
-        with open(dest, "wb") as f:
-            f.write(data)
+    safe_name = channel.replace("/", "_").replace(" ", "_")
+    dest = os.path.join(UPLOAD_DIR, f"excel_{safe_name}.xlsm")
+    with open(dest, "wb") as f:
+        f.write(data)
 
 
 def load_excel_file(channel: str) -> Optional[bytes]:
-    """보관된 엑셀 파일 바이너리 반환"""
+    """보관된 엑셀 파일 바이너리 반환 (DB 경로는 제거됨)"""
     if DATABASE_URL:
-        conn = get_db()
-        cur = conn.cursor()
-        cur.execute("SELECT data, filename FROM excel_files WHERE channel = %s", (channel,))
-        row = cur.fetchone()
-        cur.close()
-        release_db(conn)
-        if row:
-            return row[0]
-        return None
-    else:
-        safe_name = channel.replace("/", "_").replace(" ", "_")
-        path = os.path.join(UPLOAD_DIR, f"excel_{safe_name}.xlsm")
-        if os.path.exists(path):
-            with open(path, "rb") as f:
-                return f.read()
-        return None
+        return None  # DB 경로 제거됨
+    safe_name = channel.replace("/", "_").replace(" ", "_")
+    path = os.path.join(UPLOAD_DIR, f"excel_{safe_name}.xlsm")
+    if os.path.exists(path):
+        with open(path, "rb") as f:
+            return f.read()
+    return None
 
 
 def load_excel_filename(channel: str) -> Optional[str]:
-    """보관된 엑셀 파일명 반환"""
-    if DATABASE_URL:
-        conn = get_db()
-        cur = conn.cursor()
-        cur.execute("SELECT filename FROM excel_files WHERE channel = %s", (channel,))
-        row = cur.fetchone()
-        cur.close()
-        release_db(conn)
-        return row[0] if row else None
+    """보관된 엑셀 파일명 반환 (DB 경로는 제거됨)"""
     return None
 
 
 def save_excel_bytes(channel: str, data: bytes, filename: str = "updated.xlsm"):
-    """수정된 엑셀 바이너리를 저장"""
+    """수정된 엑셀 바이너리를 저장 (DB 경로는 제거됨)"""
     if DATABASE_URL:
-        conn = get_db()
-        cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO excel_files (channel, filename, data, updated_at) VALUES (%s, %s, %s, %s) "
-            "ON CONFLICT (channel) DO UPDATE SET data = %s, updated_at = %s",
-            (channel, filename, data, datetime.now().isoformat(),
-             data, datetime.now().isoformat())
-        )
-        conn.commit()
-        cur.close()
-        release_db(conn)
-    else:
-        safe_name = channel.replace("/", "_").replace(" ", "_")
-        dest = os.path.join(UPLOAD_DIR, f"excel_{safe_name}.xlsm")
-        with open(dest, "wb") as f:
-            f.write(data)
+        return  # DB 경로 제거됨
+    safe_name = channel.replace("/", "_").replace(" ", "_")
+    dest = os.path.join(UPLOAD_DIR, f"excel_{safe_name}.xlsm")
+    with open(dest, "wb") as f:
+        f.write(data)
 
 
 # --- Excel Write-Back ---
@@ -1201,11 +1194,13 @@ async def get_record_image(request: Request, record_id: str, field: str = "image
     verify_token(request)
     if DATABASE_URL:
         conn = get_db()
-        cur = conn.cursor()
-        cur.execute("SELECT data FROM records WHERE _id = %s", (record_id,))
-        row = cur.fetchone()
-        cur.close()
-        release_db(conn)
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT data FROM records WHERE _id = %s", (record_id,))
+            row = cur.fetchone()
+            cur.close()
+        finally:
+            release_db(conn)
         if row:
             r = json.loads(row[0]) if isinstance(row[0], str) else row[0]
             img = r.get(field, "")
@@ -1225,11 +1220,13 @@ async def migrate_images_to_r2(request: Request):
         raise HTTPException(status_code=400, detail="DATABASE_URL이 설정되지 않았습니다.")
 
     conn = get_db()
-    cur = conn.cursor()
-    cur.execute("SELECT _id, data FROM records")
-    rows = cur.fetchall()
-    cur.close()
-    release_db(conn)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT _id, data FROM records")
+        rows = cur.fetchall()
+        cur.close()
+    finally:
+        release_db(conn)
 
     migrated = 0
     skipped = 0
@@ -1263,11 +1260,13 @@ async def migrate_images_to_r2(request: Request):
 
         if changed:
             conn2 = get_db()
-            cur2 = conn2.cursor()
-            cur2.execute("UPDATE records SET data = %s WHERE _id = %s", (json.dumps(record, ensure_ascii=False), record_id))
-            conn2.commit()
-            cur2.close()
-            release_db(conn2)
+            try:
+                cur2 = conn2.cursor()
+                cur2.execute("UPDATE records SET data = %s WHERE _id = %s", (json.dumps(record, ensure_ascii=False), record_id))
+                conn2.commit()
+                cur2.close()
+            finally:
+                release_db(conn2)
 
     invalidate_data_cache()
     return {"migrated": migrated, "skipped": skipped, "errors": errors, "total_records": len(rows)}
@@ -1909,14 +1908,15 @@ async def weekly_save(request: Request):
 
     if DATABASE_URL:
         conn = get_db()
-        cur = conn.cursor()
-        cur.execute("SELECT id FROM weekly_snapshots WHERE id = %s", (snapshot_id,))
-        if cur.fetchone():
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT id FROM weekly_snapshots WHERE id = %s", (snapshot_id,))
+            exists = cur.fetchone()
             cur.close()
+        finally:
             release_db(conn)
+        if exists:
             raise HTTPException(status_code=409, detail=f"{snapshot_id}는 이미 저장되었습니다.")
-        cur.close()
-        release_db(conn)
 
     records = load_data()
     stats = compute_quarter_stats(records, str(year), quarter)
@@ -1925,16 +1925,18 @@ async def weekly_save(request: Request):
 
     if DATABASE_URL:
         conn = get_db()
-        cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO weekly_snapshots (id, year, quarter, month, week, saved_at, data) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-            (snapshot_id, year, quarter, current_month, current_week,
-             datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-             json.dumps(stats, ensure_ascii=False))
-        )
-        conn.commit()
-        cur.close()
-        release_db(conn)
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT INTO weekly_snapshots (id, year, quarter, month, week, saved_at, data) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                (snapshot_id, year, quarter, current_month, current_week,
+                 datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                 json.dumps(stats, ensure_ascii=False))
+            )
+            conn.commit()
+            cur.close()
+        finally:
+            release_db(conn)
 
     return {"message": f"{snapshot_id} 저장 완료", "id": snapshot_id}
 
@@ -1946,14 +1948,16 @@ async def weekly_list(request: Request, year: int = 2026, quarter: int = 0):
     if not DATABASE_URL:
         return {"snapshots": []}
     conn = get_db()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    if quarter > 0:
-        cur.execute("SELECT id, year, quarter, month, week, saved_at FROM weekly_snapshots WHERE year = %s AND quarter = %s ORDER BY month, week", (year, quarter))
-    else:
-        cur.execute("SELECT id, year, quarter, month, week, saved_at FROM weekly_snapshots WHERE year = %s ORDER BY quarter, month, week", (year,))
-    rows = [dict(r) for r in cur.fetchall()]
-    cur.close()
-    release_db(conn)
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        if quarter > 0:
+            cur.execute("SELECT id, year, quarter, month, week, saved_at FROM weekly_snapshots WHERE year = %s AND quarter = %s ORDER BY month, week", (year, quarter))
+        else:
+            cur.execute("SELECT id, year, quarter, month, week, saved_at FROM weekly_snapshots WHERE year = %s ORDER BY quarter, month, week", (year,))
+        rows = [dict(r) for r in cur.fetchall()]
+        cur.close()
+    finally:
+        release_db(conn)
     return {"snapshots": rows}
 
 
@@ -1964,11 +1968,13 @@ async def weekly_get(request: Request, id: str = ""):
     if not DATABASE_URL or not id:
         return {"snapshot": None}
     conn = get_db()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute("SELECT * FROM weekly_snapshots WHERE id = %s", (id,))
-    row = cur.fetchone()
-    cur.close()
-    release_db(conn)
+    try:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT * FROM weekly_snapshots WHERE id = %s", (id,))
+        row = cur.fetchone()
+        cur.close()
+    finally:
+        release_db(conn)
     if not row:
         raise HTTPException(status_code=404, detail="스냅샷을 찾을 수 없습니다.")
     row = dict(row)
@@ -1984,11 +1990,13 @@ async def weekly_delete(request: Request, id: str = ""):
     if not DATABASE_URL or not id:
         raise HTTPException(status_code=400, detail="ID가 필요합니다.")
     conn = get_db()
-    cur = conn.cursor()
-    cur.execute("DELETE FROM weekly_snapshots WHERE id = %s", (id,))
-    conn.commit()
-    cur.close()
-    release_db(conn)
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM weekly_snapshots WHERE id = %s", (id,))
+        conn.commit()
+        cur.close()
+    finally:
+        release_db(conn)
     return {"message": f"{id} 삭제 완료"}
 
 
@@ -1998,6 +2006,7 @@ async def health_check():
     all_db_vars = {k: v[:20] + "..." for k, v in os.environ.items() if "DATABASE" in k.upper() or "POSTGRES" in k.upper() or "PG" in k.upper()}
     result = {"database_url_set": bool(db_url), "db_connected": False, "table_exists": False, "env_vars": all_db_vars}
     if db_url:
+        conn = None
         try:
             conn = get_db()
             cur = conn.cursor()
@@ -2007,9 +2016,11 @@ async def health_check():
             result["table_exists"] = True
             result["record_count"] = count
             cur.close()
-            release_db(conn)
         except Exception as e:
             result["error"] = str(e)
+        finally:
+            if conn is not None:
+                release_db(conn)
     return result
 
 
@@ -2094,14 +2105,16 @@ def format_week_label(week_key: str) -> str:
 def load_comments(week_key=None):
     if DATABASE_URL:
         conn = get_db()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        if week_key:
-            cur.execute("SELECT * FROM executive_comments WHERE week_key=%s ORDER BY created_at DESC", (week_key,))
-        else:
-            cur.execute("SELECT * FROM executive_comments ORDER BY created_at DESC")
-        rows = cur.fetchall()
-        cur.close()
-        release_db(conn)
+        try:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            if week_key:
+                cur.execute("SELECT * FROM executive_comments WHERE week_key=%s ORDER BY created_at DESC", (week_key,))
+            else:
+                cur.execute("SELECT * FROM executive_comments ORDER BY created_at DESC")
+            rows = cur.fetchall()
+            cur.close()
+        finally:
+            release_db(conn)
         return [dict(r) for r in rows]
     else:
         if os.path.exists(COMMENTS_FILE):
@@ -2116,11 +2129,13 @@ def load_comments(week_key=None):
 def get_comment_weeks():
     if DATABASE_URL:
         conn = get_db()
-        cur = conn.cursor()
-        cur.execute("SELECT DISTINCT week_key FROM executive_comments ORDER BY week_key DESC")
-        rows = cur.fetchall()
-        cur.close()
-        release_db(conn)
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT DISTINCT week_key FROM executive_comments ORDER BY week_key DESC")
+            rows = cur.fetchall()
+            cur.close()
+        finally:
+            release_db(conn)
         return [r[0] for r in rows]
     else:
         if os.path.exists(COMMENTS_FILE):
@@ -2140,11 +2155,13 @@ def save_comments(comments):
 def load_notifications():
     if DATABASE_URL:
         conn = get_db()
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("SELECT * FROM executive_notifications WHERE is_read = FALSE ORDER BY created_at DESC")
-        rows = cur.fetchall()
-        cur.close()
-        release_db(conn)
+        try:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cur.execute("SELECT * FROM executive_notifications WHERE is_read = FALSE ORDER BY created_at DESC")
+            rows = cur.fetchall()
+            cur.close()
+        finally:
+            release_db(conn)
         return [dict(r) for r in rows]
     else:
         if os.path.exists(NOTIFICATIONS_FILE):
@@ -2275,14 +2292,16 @@ async def create_comment(request: Request):
 
     if DATABASE_URL:
         conn = get_db()
-        cur = conn.cursor()
-        cur.execute("INSERT INTO executive_comments (id, role, content, week_key, created_at) VALUES (%s,%s,%s,%s,%s)",
-                     (comment_id, role, content, week_key, now))
-        cur.execute("INSERT INTO executive_notifications (id, comment_id, message, created_at) VALUES (%s,%s,%s,%s)",
-                     (notif_id, comment_id, notif_msg, now))
-        conn.commit()
-        cur.close()
-        release_db(conn)
+        try:
+            cur = conn.cursor()
+            cur.execute("INSERT INTO executive_comments (id, role, content, week_key, created_at) VALUES (%s,%s,%s,%s,%s)",
+                         (comment_id, role, content, week_key, now))
+            cur.execute("INSERT INTO executive_notifications (id, comment_id, message, created_at) VALUES (%s,%s,%s,%s)",
+                         (notif_id, comment_id, notif_msg, now))
+            conn.commit()
+            cur.close()
+        finally:
+            release_db(conn)
     else:
         comments = load_comments()
         comments.insert(0, comment)
@@ -2307,11 +2326,13 @@ async def update_comment(comment_id: str, request: Request):
 
     if DATABASE_URL:
         conn = get_db()
-        cur = conn.cursor()
-        cur.execute("UPDATE executive_comments SET content=%s, updated_at=%s WHERE id=%s", (content, now, comment_id))
-        conn.commit()
-        cur.close()
-        release_db(conn)
+        try:
+            cur = conn.cursor()
+            cur.execute("UPDATE executive_comments SET content=%s, updated_at=%s WHERE id=%s", (content, now, comment_id))
+            conn.commit()
+            cur.close()
+        finally:
+            release_db(conn)
     else:
         comments = load_comments()
         for c in comments:
@@ -2328,12 +2349,14 @@ async def update_comment(comment_id: str, request: Request):
 async def delete_comment(comment_id: str):
     if DATABASE_URL:
         conn = get_db()
-        cur = conn.cursor()
-        cur.execute("DELETE FROM executive_notifications WHERE comment_id=%s", (comment_id,))
-        cur.execute("DELETE FROM executive_comments WHERE id=%s", (comment_id,))
-        conn.commit()
-        cur.close()
-        release_db(conn)
+        try:
+            cur = conn.cursor()
+            cur.execute("DELETE FROM executive_notifications WHERE comment_id=%s", (comment_id,))
+            cur.execute("DELETE FROM executive_comments WHERE id=%s", (comment_id,))
+            conn.commit()
+            cur.close()
+        finally:
+            release_db(conn)
     else:
         comments = load_comments()
         comments = [c for c in comments if c["id"] != comment_id]
@@ -2372,11 +2395,13 @@ def _week_start(week_key: str) -> str:
 async def dismiss_notification(notification_id: str):
     if DATABASE_URL:
         conn = get_db()
-        cur = conn.cursor()
-        cur.execute("UPDATE executive_notifications SET is_read=TRUE WHERE id=%s", (notification_id,))
-        conn.commit()
-        cur.close()
-        release_db(conn)
+        try:
+            cur = conn.cursor()
+            cur.execute("UPDATE executive_notifications SET is_read=TRUE WHERE id=%s", (notification_id,))
+            conn.commit()
+            cur.close()
+        finally:
+            release_db(conn)
     else:
         notifs = []
         if os.path.exists(NOTIFICATIONS_FILE):
@@ -2395,11 +2420,13 @@ async def dismiss_notification(notification_id: str):
 async def delete_notification(notification_id: str):
     if DATABASE_URL:
         conn = get_db()
-        cur = conn.cursor()
-        cur.execute("DELETE FROM executive_notifications WHERE id=%s", (notification_id,))
-        conn.commit()
-        cur.close()
-        release_db(conn)
+        try:
+            cur = conn.cursor()
+            cur.execute("DELETE FROM executive_notifications WHERE id=%s", (notification_id,))
+            conn.commit()
+            cur.close()
+        finally:
+            release_db(conn)
     else:
         notifs = []
         if os.path.exists(NOTIFICATIONS_FILE):
