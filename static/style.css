@@ -206,7 +206,7 @@ body {
     white-space: nowrap;
 }
 .period-note {
-    margin-top: 8px; font-size: 11px; color: #999; text-align: right;
+    margin-top: 8px; font-size: 11px; color: #777; text-align: right;
 }
 .period-note-link {
     color: #888; text-decoration: underline; cursor: pointer;
