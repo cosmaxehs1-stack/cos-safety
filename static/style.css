@@ -189,13 +189,16 @@ body {
 .period-value { font-size: 28px; font-weight: 800; color: #1a1a2e; }
 .period-value.accent { color: #555; }
 .period-value-add { color: #EA1D22; }
-.period-data-divided > .period-item {
-    border-right: 1px solid #ddd;
-    padding-right: 20px;
+.period-data-divided {
+    align-items: flex-end; flex-wrap: nowrap;
 }
-.period-data-divided > .period-item:last-child {
-    border-right: none;
-    padding-right: 0;
+.period-divider {
+    width: 1px; background: #ddd; align-self: stretch; margin: 0 16px; flex-shrink: 0;
+}
+.period-op {
+    font-size: 24px; font-weight: 700; color: #aaa;
+    align-self: flex-end; padding-bottom: 2px; margin: 0 8px; flex-shrink: 0;
+    white-space: nowrap;
 }
 .period-extra {
     margin-top: 10px; padding-top: 10px; border-top: 1px dashed #e0e0e0;
