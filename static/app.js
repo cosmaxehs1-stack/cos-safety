@@ -675,6 +675,7 @@ function updatePeriodStats(data) {
     var opPlus = document.getElementById("pw-op-plus");
     var opEq = document.getElementById("pw-op-eq");
     var noteEl = document.getElementById("pw-note");
+    var improvedItem = document.querySelector('.period-item.clickable[onclick*="improved"]');
 
     if (prevWeekImproved > 0) {
         var actualTotal = weekImp + prevWeekImproved;
@@ -686,11 +687,13 @@ function updatePeriodStats(data) {
         if (opPlus) opPlus.style.display = "";
         if (opEq) opEq.style.display = "";
         if (noteEl) noteEl.style.display = "";
+        if (improvedItem) improvedItem.classList.add("period-item-compact");
     } else {
         setText("pw-actual-rate", weekRate + "%");
         if (addWrap) addWrap.style.display = "none";
         if (eqWrap) eqWrap.style.display = "none";
         if (opPlus) opPlus.style.display = "none";
+        if (improvedItem) improvedItem.classList.remove("period-item-compact");
         if (opEq) opEq.style.display = "none";
         if (noteEl) noteEl.style.display = "none";
     }
