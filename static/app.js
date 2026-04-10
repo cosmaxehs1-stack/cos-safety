@@ -1770,18 +1770,15 @@ async function toggleAdmin() {
 
 function updateAdminUI() {
     const btn = document.getElementById("btn-admin");
-    const saveBtn = document.querySelector(".btn-weekly-save");
     const adminOnlyEls = document.querySelectorAll(".admin-only");
 
     if (ADMIN_TOKEN) {
         btn.textContent = "관리자 ✓";
         btn.classList.add("btn-admin-active");
-        if (saveBtn) saveBtn.style.display = "";
         adminOnlyEls.forEach(el => el.style.display = "");
     } else {
         btn.textContent = "관리자";
         btn.classList.remove("btn-admin-active");
-        if (saveBtn) saveBtn.style.display = "none";
         adminOnlyEls.forEach(el => el.style.display = "none");
     }
     updateChannelOptions();
@@ -1936,10 +1933,15 @@ async function loadWeeklyTab() {
         weeklySavedSnapshots = listData.snapshots || [];
 
         const badgeContainer = document.getElementById("w-saved-badges");
-        if (weeklySavedSnapshots.length === 0) {
+        var selMonth = parseInt(document.getElementById("w-cur-month").value);
+        var selWeek = parseInt(document.getElementById("w-cur-week").value);
+        var filteredSnapshots = weeklySavedSnapshots.filter(function(s) {
+            return s.month === selMonth && s.week === selWeek;
+        });
+        if (filteredSnapshots.length === 0) {
             badgeContainer.innerHTML = '<span style="color:#999;font-size:12px;">저장 이력 없음</span>';
         } else {
-            badgeContainer.innerHTML = weeklySavedSnapshots.map(s =>
+            badgeContainer.innerHTML = filteredSnapshots.map(s =>
                 '<span class="saved-badge">' + s.year + '년 ' + s.month + '월 ' + s.week + '주차 업데이트 완료 <span style="color:#64748b;font-size:10px;">(' + s.saved_at.slice(0,16).replace("T"," ") + ')</span></span>'
             ).join(" ");
         }
@@ -2086,14 +2088,17 @@ async function saveWeeklySnapshot() {
     const curMonth = document.getElementById("w-cur-month").value;
     const curWeek = document.getElementById("w-cur-week").value;
 
-    if (!confirm(year + "년 " + quarter + "분기 (이번주: " + curMonth + "월 " + curWeek + "주)를 확정 저장하시겠습니까?")) return;
+    var snapshotId = year + "-Q" + quarter + "-" + curMonth + "월" + curWeek + "주";
+    var alreadySaved = weeklySavedSnapshots.some(function(s) { return s.id === snapshotId; });
+    var action = alreadySaved ? "업데이트" : "저장";
+    if (!confirm(year + "년 " + quarter + "분기 (이번주: " + curMonth + "월 " + curWeek + "주)를 " + action + "하시겠습니까?")) return;
 
     try {
         const res = await fetch("/api/weekly/save", {
             method: "POST", headers: adminHeaders(),
             body: JSON.stringify({ year: parseInt(year), quarter: parseInt(quarter), current_month: parseInt(curMonth), current_week: parseInt(curWeek) }),
         });
-        if (!res.ok) { const err = await res.json(); alert(err.detail || "저장 실패"); return; }
+        if (!res.ok) { const err = await res.json(); alert(err.detail || action + " 실패"); return; }
         const result = await res.json();
         alert(result.message);
         loadWeeklyTab();

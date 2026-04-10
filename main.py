@@ -1896,7 +1896,7 @@ async def weekly_quarter(request: Request, year: str = "2026", quarter: int = 1)
 
 @app.post("/api/weekly/save")
 async def weekly_save(request: Request):
-    """관리자가 저장 - 분기 스냅샷 확정"""
+    """관리자가 저장/업데이트 - 분기 스냅샷 확정"""
     verify_admin(request)
     body = await request.json()
     year = int(body.get("year", 2026))
@@ -1905,40 +1905,36 @@ async def weekly_save(request: Request):
     current_week = int(body.get("current_week", 1))
 
     snapshot_id = f"{year}-Q{quarter}-{current_month}월{current_week}주"
-
-    if DATABASE_URL:
-        conn = get_db()
-        try:
-            cur = conn.cursor()
-            cur.execute("SELECT id FROM weekly_snapshots WHERE id = %s", (snapshot_id,))
-            exists = cur.fetchone()
-            cur.close()
-        finally:
-            release_db(conn)
-        if exists:
-            raise HTTPException(status_code=409, detail=f"{snapshot_id}는 이미 저장되었습니다.")
+    now_kst = (datetime.utcnow() + timedelta(hours=9)).strftime("%Y-%m-%d %H:%M:%S")
 
     records = load_data()
     stats = compute_quarter_stats(records, str(year), quarter)
     stats["current_month"] = current_month
     stats["current_week"] = current_week
 
+    is_update = False
     if DATABASE_URL:
         conn = get_db()
         try:
             cur = conn.cursor()
-            cur.execute(
-                "INSERT INTO weekly_snapshots (id, year, quarter, month, week, saved_at, data) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                (snapshot_id, year, quarter, current_month, current_week,
-                 datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                 json.dumps(stats, ensure_ascii=False))
-            )
+            cur.execute("SELECT id FROM weekly_snapshots WHERE id = %s", (snapshot_id,))
+            is_update = cur.fetchone() is not None
+            if is_update:
+                cur.execute(
+                    "UPDATE weekly_snapshots SET data = %s, saved_at = %s WHERE id = %s",
+                    (json.dumps(stats, ensure_ascii=False), now_kst, snapshot_id))
+            else:
+                cur.execute(
+                    "INSERT INTO weekly_snapshots (id, year, quarter, month, week, saved_at, data) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                    (snapshot_id, year, quarter, current_month, current_week,
+                     now_kst, json.dumps(stats, ensure_ascii=False)))
             conn.commit()
             cur.close()
         finally:
             release_db(conn)
 
-    return {"message": f"{snapshot_id} 저장 완료", "id": snapshot_id}
+    action = "업데이트" if is_update else "저장"
+    return {"message": f"{snapshot_id} {action} 완료", "id": snapshot_id, "is_update": is_update}
 
 
 @app.get("/api/weekly/list")
