@@ -186,6 +186,7 @@ body {
 .period-data { display: flex; gap: 20px; }
 .period-item { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .period-label { font-size: 11px; color: #999; font-weight: 600; }
+.period-value-row { display: flex; align-items: baseline; flex-wrap: wrap; }
 .period-value { font-size: 28px; font-weight: 800; color: #1a1a2e; }
 .period-value.accent { color: #555; }
 .period-extra {
@@ -195,13 +196,13 @@ body {
 }
 .period-extra-value { font-weight: 800; font-size: 16px; }
 .period-add {
-    font-size: 14px; font-weight: 700; color: #EA1D22; cursor: pointer;
-    margin-left: 2px;
+    font-size: 28px; font-weight: 800; color: #EA1D22; cursor: pointer;
+    margin-left: 4px;
 }
 .period-add:hover { text-decoration: underline; }
 .period-add-eq {
-    font-size: 14px; font-weight: 700; color: #1a1a2e;
-    margin-left: 2px;
+    font-size: 28px; font-weight: 800; color: #1a1a2e;
+    margin-left: 4px;
 }
 .info-btn {
     display: inline-flex; align-items: center; justify-content: center;

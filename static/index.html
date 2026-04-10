@@ -111,9 +111,11 @@
                             <div class="period-item clickable" onclick="goToRecordsFiltered('week','discovered')"><span class="period-label">발굴</span><span class="period-value" id="pw-discovered">0</span></div>
                             <div class="period-item clickable" onclick="goToRecordsFiltered('week','improved')">
                                 <span class="period-label">개선</span>
-                                <span class="period-value" id="pw-improved">0</span>
-                                <span class="period-add" id="pw-add-wrap" style="display:none;" onclick="event.stopPropagation(); onPrevImprovedClick(event)">+ <span id="pw-prev-improved">0</span></span>
-                                <span class="period-add-eq" id="pw-eq-wrap" style="display:none;">= <span id="pw-actual-total" style="font-weight:800;">0</span></span>
+                                <div class="period-value-row">
+                                    <span class="period-value" id="pw-improved">0</span>
+                                    <span class="period-add" id="pw-add-wrap" style="display:none;" onclick="event.stopPropagation(); onPrevImprovedClick(event)">+ <span id="pw-prev-improved">0</span></span>
+                                    <span class="period-add-eq" id="pw-eq-wrap" style="display:none;">= <span id="pw-actual-total">0</span></span>
+                                </div>
                             </div>
                             <div class="period-item"><span class="period-label">개선률</span><span class="period-value accent" id="pw-actual-rate">0%</span></div>
                         </div>
