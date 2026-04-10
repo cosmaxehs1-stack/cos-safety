@@ -169,7 +169,7 @@ body {
 
 /* ===== Period Stats ===== */
 .period-stats {
-    display: grid; grid-template-columns: repeat(3, 1fr);
+    display: grid; grid-template-columns: 3fr 1fr 1fr;
     gap: 16px; margin-bottom: 24px;
 }
 .period-card {
@@ -186,7 +186,7 @@ body {
 .period-data { display: flex; gap: 20px; }
 .period-item { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .period-label { font-size: 11px; color: #999; font-weight: 600; }
-.period-value { font-size: 28px; font-weight: 800; color: #1a1a2e; }
+.period-value { font-size: 20px; font-weight: 800; color: #1a1a2e; }
 .period-value.accent { color: #555; }
 .period-data-divided {
     align-items: flex-end; flex-wrap: nowrap;
@@ -201,8 +201,8 @@ body {
     width: 1px; background: #ddd; align-self: stretch; margin: 0 16px; flex-shrink: 0;
 }
 .period-op {
-    font-size: 24px; font-weight: 700; color: #aaa;
-    align-self: flex-end; padding-bottom: 2px; margin: 0 8px; flex-shrink: 0;
+    font-size: 18px; font-weight: 700; color: #aaa;
+    align-self: flex-end; padding-bottom: 2px; margin: 0 6px; flex-shrink: 0;
     white-space: nowrap;
 }
 .period-note {
@@ -1011,7 +1011,7 @@ td.red { color: #e74c3c; font-weight: 600; }
     .main-content.full-width { margin-left: 0 !important; margin-right: 0 !important; }
     .page-header { flex-direction: column; align-items: flex-start; }
     .period-stats { grid-template-columns: 1fr; gap: 10px; }
-    .period-value { font-size: 22px; }
+    .period-value { font-size: 18px; }
     .summary-cards { grid-template-columns: 1fr; }
     .filter-bar { padding: 10px 12px; gap: 8px; }
     .time-dropdowns { flex-wrap: wrap; }
