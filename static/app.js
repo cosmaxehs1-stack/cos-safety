@@ -1893,6 +1893,13 @@ async function loadWeeklyTab() {
     const year = document.getElementById("w-year").value;
     const quarter = document.getElementById("w-quarter").value;
 
+    // 현재 날짜 기준 이번주 월/주차 자동 설정
+    var now = new Date();
+    var curMonthEl = document.getElementById("w-cur-month");
+    var curWeekEl = document.getElementById("w-cur-week");
+    if (curMonthEl) curMonthEl.value = String(now.getMonth() + 1);
+    if (curWeekEl) curWeekEl.value = String(getWeekFromDate(now.toISOString().split("T")[0]));
+
     try {
         const [liveRes, listRes] = await Promise.all([
             fetch("/api/weekly/quarter?year=" + year + "&quarter=" + quarter, { headers: authHeaders() }),
