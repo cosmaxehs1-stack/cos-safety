@@ -58,7 +58,8 @@ body {
     box-shadow: 0 2px 6px rgba(0,0,0,0.08); color: #333;
 }
 .sidebar-reopen:hover { background: #f5f5f5; }
-.main-content.full-width { margin-left: 0 !important; }
+/* 사이드바 닫힘 시: 화면을 넓히지 않고 기존 너비 유지하며 중앙 정렬 */
+.main-content.full-width { margin-left: 110px !important; margin-right: 110px !important; }
 .sidebar-header {
     padding: 24px 20px 20px; border-bottom: 1px solid #e0e0e0;
 }
@@ -562,13 +563,35 @@ body {
     border-radius: 4px;
 }
 
-/* 이전주차 개선 카드 (mini-stats 내) */
-.ms-cell.ms-cell-prev { background: #fff4e6; }
-.ms-cell.ms-cell-prev .ms-cell-label { color: #b35900; }
-.ms-cell.ms-cell-prev .ms-cell-num { color: #e65100; }
-.ms-cell.ms-cell-prev.ms-cell-active { background: #e65100 !important; }
-.ms-cell.ms-cell-prev.ms-cell-active .ms-cell-label { color: rgba(255,255,255,0.85); }
-.ms-cell.ms-cell-prev.ms-cell-active .ms-cell-num { color: #fff; }
+/* 이전주차 개선 — 텍스트 링크 트리거 (1팀/2팀 카드 우측에 배치) */
+.prev-week-link {
+    align-self: center;
+    padding: 2px 8px; margin-left: 4px;
+    font-size: 12px; color: #888;
+    cursor: pointer; user-select: none;
+    white-space: nowrap;
+    transition: color 0.15s, font-weight 0.15s;
+}
+.prev-week-link:hover {
+    color: #e65100; font-weight: 700; text-decoration: underline;
+}
+
+/* 이전주차 개선 — 활성 상태 인디케이터 */
+.prev-week-active {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    background: #fff4e6; border: 1px solid #ffb74d; border-radius: 6px;
+    padding: 10px 16px; font-size: 13px; color: #e65100; font-weight: 600;
+    width: 100%; position: relative;
+}
+.prev-week-active-count { font-weight: 800; font-size: 15px; }
+.prev-week-deactivate {
+    margin-left: auto; color: #888; font-size: 12px; font-weight: 500;
+    cursor: pointer; user-select: none; padding: 2px 4px;
+    transition: color 0.15s, font-weight 0.15s;
+}
+.prev-week-deactivate:hover {
+    color: #e65100; font-weight: 700; text-decoration: underline;
+}
 .btn-cancel {
     padding: 10px 24px; background: #95a5a6; color: white;
     border: none; border-radius: 6px; cursor: pointer;
@@ -961,6 +984,7 @@ td.red { color: #e74c3c; font-weight: 600; }
     .sidebar.open { transform: translateX(0); }
     .mobile-header { display: flex; }
     .main-content { margin-left: 0; padding: 60px 12px 16px; }
+    .main-content.full-width { margin-left: 0 !important; margin-right: 0 !important; }
     .page-header { flex-direction: column; align-items: flex-start; }
     .period-stats { grid-template-columns: 1fr; gap: 10px; }
     .period-value { font-size: 22px; }

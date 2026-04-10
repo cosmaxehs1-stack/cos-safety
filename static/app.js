@@ -520,14 +520,19 @@ function updateViewSummaryFromRecords(records, vs) {
 
     var total = records.length;
 
-    // 이전주차 개선 필터 활성 시: 단일 강조 카드 (해제 트리거)
+    // 이전주차 개선 필터 활성 시: 강조 인디케이터 + 해제 링크
     if (_activePrevWeekImproved && currentPage === "records") {
+        var pwNow = new Date();
+        var pwMonth = pwNow.getMonth() + 1;
+        var pwWeek = getWeekFromDate(pwNow.toISOString().split("T")[0]);
         container.innerHTML =
-            '<div class="ms-grid">' +
-            '<div class="ms-cell ms-cell-prev ms-cell-active" onclick="togglePrevWeekImproved()" style="flex:1;" title="클릭하여 일반 보기로 돌아가기">' +
-            '<div class="ms-cell-label">이전 주차 발굴 → 이번주 개선완료 (활성 · 클릭하여 해제)</div>' +
-            '<div class="ms-cell-num">' + total + '건</div>' +
-            '</div>' +
+            '<div class="prev-week-active">' +
+            '<span>' + pwMonth + '월 ' + pwWeek + '주차 추가 개선' +
+            '<span class="info-btn" onclick="event.stopPropagation(); this.nextElementSibling.classList.toggle(\'show\')">?</span>' +
+            '<span class="info-tooltip">' + pwMonth + '월 ' + pwWeek + '주차 이전에 발굴된 위험요소 중, 이번주에 개선완료 처리된 건수입니다.</span>' +
+            '</span>' +
+            '<span class="prev-week-active-count">' + total + '건</span>' +
+            '<span class="prev-week-deactivate" onclick="togglePrevWeekImproved()">뒤로</span>' +
             '</div>';
         return;
     }
@@ -579,12 +584,8 @@ function updateViewSummaryFromRecords(records, vs) {
         cell('2팀', '', '발굴', team2, '') +
         cell('2팀', '개선', '개선', team2_complete, 'green') +
         '</div>' +
-        // 트리거 카드: 이전주차 발굴 → 이번주 개선건 보기
-        '<div class="ms-grid">' +
-        '<div class="ms-cell ms-cell-prev" onclick="togglePrevWeekImproved()" style="flex:1;" title="이전 주차에 발굴된 위험요소 중 이번주에 개선완료된 건만 보기">' +
-        '<div class="ms-cell-label">+ 이번주 추가 개선건 보기 (이전 주차 발굴분)</div>' +
-        '</div>' +
-        '</div>';
+        // 트리거 텍스트 링크: 이전주차 발굴 → 이번주 개선건 보기
+        '<span class="prev-week-link" onclick="togglePrevWeekImproved()" title="이전 주차에 발굴된 위험요소 중 이번주에 개선완료된 건만 보기">+ 이번주 추가 개선건 보기 (이전 주차 발굴분)</span>';
 }
 
 // ===== Period Stats =====
