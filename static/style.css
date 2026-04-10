@@ -169,7 +169,7 @@ body {
 
 /* ===== Period Stats ===== */
 .period-stats {
-    display: grid; grid-template-columns: 3fr 1fr 1fr;
+    display: grid; grid-template-columns: 5fr 2fr 2fr;
     gap: 16px; margin-bottom: 24px;
 }
 .period-card {
