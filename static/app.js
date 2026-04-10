@@ -421,26 +421,21 @@ function getDisplayRecords(data) {
 
     if (_activePrevWeekImproved) {
         // 이전주차 개선 모드: 발굴 주차 필터 무시하고 현재 실제 주차 기준으로 필터
-        // (이전 주차 발굴 + 이번 주차 완료, 년도 무관)
+        // (올해 이전 주차 발굴 + 이번 주차 완료)
         var now = new Date();
         var refYearStr = String(now.getFullYear());
-        var refYearNum = now.getFullYear();
         var refMonthNum = now.getMonth() + 1;
         var refWeek = getWeekFromDate(now.toISOString().split("T")[0]);
         records = records.filter(function(r) {
             if (r.completion !== "완료" || !r.actual_date) return false;
-            // 발굴일이 이번 주차 이전인지 (이전 년도 포함)
+            // 발굴일이 올해 + 이번 주차 이전인지
             var rd = r.date || "";
-            if (!rd) return false;
-            var rYearNum = parseInt(rd.split("-")[0]);
+            if (!rd.startsWith(refYearStr)) return false;
             var rWeek = r.week > 0 ? r.week : getWeekFromDate(rd);
             var rMonthNum = parseInt(r.month);
             var isBefore = false;
-            if (rYearNum < refYearNum) isBefore = true;
-            else if (rYearNum === refYearNum) {
-                if (rMonthNum < refMonthNum) isBefore = true;
-                else if (rMonthNum === refMonthNum && rWeek < refWeek) isBefore = true;
-            }
+            if (rMonthNum < refMonthNum) isBefore = true;
+            else if (rMonthNum === refMonthNum && rWeek < refWeek) isBefore = true;
             if (!isBefore) return false;
             // actual_date(개선완료일)가 이번 주차에 속하는지
             if (!r.actual_date.startsWith(refYearStr)) return false;
@@ -651,22 +646,17 @@ function updatePeriodStats(data) {
     const weekImp = weekRecs.filter(r => r.completion === "완료").length;
     const weekRate = weekDisc > 0 ? Math.round(weekImp / weekDisc * 100) : 0;
 
-    // 이전 발굴 개선: 이번주 이전(년도 무관)에 발굴된 건 중, actual_date가 이번주인 건
-    const curYearNum = parseInt(curYear);
+    // 이전 발굴 개선: 올해(현재 년도) 이전 주차에 발굴된 건 중, actual_date가 이번주인 건
     const prevWeekImproved = records.filter(r => {
         if (r.completion !== "완료" || !r.actual_date) return false;
-        // 발굴일이 이번주 이전인지 (작년 이전 포함)
+        // 발굴일이 올해 + 이번주 이전인지
         var rd = r.date || "";
-        if (!rd) return false;
-        var rYearNum = parseInt(rd.split("-")[0]);
+        if (!rd.startsWith(curYear)) return false;
         var rWeek = r.week > 0 ? r.week : getWeekFromDate(rd);
         var rMonthNum = parseInt(r.month);
         var isBeforeThisWeek = false;
-        if (rYearNum < curYearNum) isBeforeThisWeek = true;
-        else if (rYearNum === curYearNum) {
-            if (rMonthNum < curMonth) isBeforeThisWeek = true;
-            else if (rMonthNum === curMonth && rWeek < curWeek) isBeforeThisWeek = true;
-        }
+        if (rMonthNum < curMonth) isBeforeThisWeek = true;
+        else if (rMonthNum === curMonth && rWeek < curWeek) isBeforeThisWeek = true;
         if (!isBeforeThisWeek) return false;
         // actual_date가 이번주인지
         if (!r.actual_date.startsWith(curYear)) return false;
@@ -1128,11 +1118,6 @@ function applyPendingRecordsFilter() {
     _activeStatusFilter = f.statusFilter;
     _activePrevWeekImproved = !!f.prevWeekImproved;
 
-    // Open filter panel so user sees what's applied
-    const fp = document.getElementById("filter-panel");
-    if (fp && fp.classList.contains("filter-collapsed")) {
-        fp.classList.remove("filter-collapsed");
-    }
     fetchSummary();
 }
 
