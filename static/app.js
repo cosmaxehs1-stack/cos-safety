@@ -1880,6 +1880,7 @@ async function printReport() {
             if (copy.image_after && copy.image_after.length > 500) copy.image_after = "";
             return copy;
         });
+        lightData._team = filters.team || "전체";
         sessionStorage.setItem("reportData", JSON.stringify(lightData));
         if (reportWin) reportWin.location.href = "/static/report.html";
     } catch (e) {

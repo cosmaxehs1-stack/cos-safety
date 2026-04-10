@@ -290,29 +290,33 @@
 
         // Channel Bar
         if (channelList.length > 0) {
+            var channelMax = Math.max.apply(null, channelList.map(c => c[1]));
+            var CHANNEL_GRAYS = ['#333', '#555', '#777', '#999', '#bbb', '#d0d0d0', '#444', '#888'];
             new Chart(document.getElementById('c-channel'), {
                 type: 'bar',
                 data: {
                     labels: channelList.map(c => c[0]),
-                    datasets: [{ label: '건수', data: channelList.map(c => c[1]), backgroundColor: channelList.map(function(_, i) { return COLORS[i % COLORS.length]; }), borderRadius: 4 }]
+                    datasets: [{ label: '건수', data: channelList.map(c => c[1]), backgroundColor: channelList.map(function(_, i) { return CHANNEL_GRAYS[i % CHANNEL_GRAYS.length]; }), borderRadius: 4 }]
                 },
                 options: {
                     responsive: true,
                     indexAxis: 'y',
+                    layout: { padding: { right: 30 } },
                     plugins: { legend: { display: false }, datalabels: { display: true, anchor: 'end', align: 'right', font: { weight: 'bold' }, color: '#333' } },
-                    scales: { x: { beginAtZero: true, grid: { display: false } }, y: { grid: { display: false } } }
+                    scales: { x: { beginAtZero: true, max: Math.ceil(channelMax * 1.15) || 10, grid: { display: false } }, y: { grid: { display: false } } }
                 }
             });
 
             if (weeks.length > 0) {
-                const WEEKLY_TARGET = 39;
+                var isTeamFiltered = data._team && data._team !== "전체";
+                const WEEKLY_TARGET = isTeamFiltered ? 20 : 40;
                 new Chart(document.getElementById('c-weekly-top'), {
                     type: 'bar',
                     data: {
                         labels: weeks.map(w => w[0]),
                         datasets: [
                             { label: '주간 발굴', data: weeks.map(w => w[1]), backgroundColor: weeks.map(w => w[1] >= WEEKLY_TARGET ? '#555' : '#C1C6C7'), borderRadius: 4 },
-                            { label: '목표 (39건)', data: weeks.map(() => WEEKLY_TARGET), type: 'line', borderColor: '#EA1D22', borderWidth: 2, borderDash: [6, 4], pointRadius: 0, fill: false }
+                            { label: '목표 (' + WEEKLY_TARGET + '건)', data: weeks.map(() => WEEKLY_TARGET), type: 'line', borderColor: '#EA1D22', borderWidth: 2, borderDash: [6, 4], pointRadius: 0, fill: false }
                         ]
                     },
                     options: {
