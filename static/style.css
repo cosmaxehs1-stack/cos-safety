@@ -169,7 +169,7 @@ body {
 
 /* ===== Period Stats ===== */
 .period-stats {
-    display: grid; grid-template-columns: 5fr 2fr 2fr;
+    display: grid; grid-template-columns: 4.5fr 2fr 2fr;
     gap: 16px; margin-bottom: 24px;
 }
 .period-card {
@@ -194,6 +194,9 @@ body {
 .period-data-divided .period-item {
     white-space: nowrap;
 }
+.period-item-compact {
+    flex: 0.4 0 auto;
+}
 .period-data-divided .period-label {
     white-space: nowrap;
 }
@@ -202,7 +205,7 @@ body {
 }
 .period-op {
     font-size: 18px; font-weight: 700; color: #aaa;
-    align-self: flex-end; padding-bottom: 2px; margin: 0 2px; flex-shrink: 0;
+    align-self: flex-end; padding-bottom: 2px; margin: 0; flex-shrink: 0;
     white-space: nowrap;
 }
 .period-note {
