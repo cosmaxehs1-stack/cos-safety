@@ -672,6 +672,19 @@ function updatePeriodStats(data) {
     setText("pw-prev-improved", prevWeekImproved);
     var prevWrap = document.getElementById("pw-prev-wrap");
     if (prevWrap) prevWrap.style.display = prevWeekImproved > 0 ? "flex" : "none";
+    // 실제 개선 (이번주 개선 + 추가 개선)
+    var actualWrap = document.getElementById("pw-actual-wrap");
+    if (actualWrap) {
+        if (prevWeekImproved > 0) {
+            var actualTotal = weekImp + prevWeekImproved;
+            var actualRate = weekDisc > 0 ? Math.round(actualTotal / weekDisc * 100) : 0;
+            setText("pw-actual-total", actualTotal);
+            setText("pw-actual-rate", actualRate + "%");
+            actualWrap.style.display = "";
+        } else {
+            actualWrap.style.display = "none";
+        }
+    }
     setText("pm-discovered", monthDisc);
     setText("pm-improved", monthImp);
     setText("pm-rate", monthRate + "%");
