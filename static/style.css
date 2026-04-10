@@ -562,19 +562,13 @@ body {
     border-radius: 4px;
 }
 
-/* Improved-in-week filter badge (개별 위험요소 확인) */
-.iiw-badge {
-    display: flex; align-items: center; justify-content: space-between;
-    background: #fff4e6; border: 1px solid #ff9800; border-radius: 6px;
-    padding: 10px 14px; margin: 8px 0 12px;
-    font-size: 13px; color: #e65100; font-weight: 600;
-}
-.iiw-badge-text { display: flex; align-items: center; gap: 6px; }
-.iiw-badge-clear {
-    background: none; border: none; font-size: 22px; cursor: pointer;
-    color: #e65100; padding: 0 6px; line-height: 1;
-}
-.iiw-badge-clear:hover { color: #bf360c; }
+/* 이전주차 개선 카드 (mini-stats 내) */
+.ms-cell.ms-cell-prev { background: #fff4e6; }
+.ms-cell.ms-cell-prev .ms-cell-label { color: #b35900; }
+.ms-cell.ms-cell-prev .ms-cell-num { color: #e65100; }
+.ms-cell.ms-cell-prev.ms-cell-active { background: #e65100 !important; }
+.ms-cell.ms-cell-prev.ms-cell-active .ms-cell-label { color: rgba(255,255,255,0.85); }
+.ms-cell.ms-cell-prev.ms-cell-active .ms-cell-num { color: #fff; }
 .btn-cancel {
     padding: 10px 24px; background: #95a5a6; color: white;
     border: none; border-radius: 6px; cursor: pointer;

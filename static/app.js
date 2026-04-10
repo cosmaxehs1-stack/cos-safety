@@ -94,8 +94,7 @@ function switchPage(pageName, el) {
     if (pageName === "summary") {
         _activeTeamFilter = "";
         _activeStatusFilter = "";
-        _activeImprovedInWeek = null;
-        updateImprovedInWeekBadge();
+        _activePrevWeekImproved = false;
         setFilterValue("f-rec-year", "전체");
         setFilterValue("f-rec-month", "전체");
         setFilterValue("f-rec-week", "0");
@@ -270,28 +269,27 @@ function updateWeekDropdown(records) {
 }
 
 function onRecordYearChange() {
-    if (_activeImprovedInWeek) { _activeImprovedInWeek = null; updateImprovedInWeekBadge(); }
+    if (_activePrevWeekImproved) _activePrevWeekImproved = false;
     updateMonthDropdown();
     setFilterValue("f-rec-week", "0");
     fetchSummary();
 }
 
 function onRecordMonthChange() {
-    if (_activeImprovedInWeek) { _activeImprovedInWeek = null; updateImprovedInWeekBadge(); }
+    if (_activePrevWeekImproved) _activePrevWeekImproved = false;
     setFilterValue("f-rec-week", "0");
     fetchSummary();
 }
 
 function onRecordWeekChange() {
-    if (_activeImprovedInWeek) { _activeImprovedInWeek = null; updateImprovedInWeekBadge(); }
+    if (_activePrevWeekImproved) _activePrevWeekImproved = false;
     fetchSummary();
 }
 
 function resetFilters() {
     _activeTeamFilter = "";
     _activeStatusFilter = "";
-    _activeImprovedInWeek = null;
-    updateImprovedInWeekBadge();
+    _activePrevWeekImproved = false;
     setFilterValue("f-channel", "전체");
     setFilterValue("f-rec-year", "전체");
     setFilterValue("f-rec-month", "전체");
@@ -344,8 +342,7 @@ function openRecordsChannel(channel, el) {
     currentPage = "records";
     // pending filter가 없을 때만 추가개선 필터 클리어 (있으면 applyPendingRecordsFilter가 다시 set)
     if (!window._pendingRecordsFilter) {
-        _activeImprovedInWeek = null;
-        updateImprovedInWeekBadge();
+        _activePrevWeekImproved = false;
     }
     document.getElementById("f-channel").value = channel;
     // 기본 필터: 현재 연도
@@ -422,24 +419,44 @@ function getDisplayRecords(data) {
     if (repeatFilter === "반복") records = records.filter(r => r.is_repeat);
     else if (repeatFilter === "단건") records = records.filter(r => !r.is_repeat);
 
-    var selWeek = getSelectedWeek();
-    if (selWeek > 0) {
-        records = records.filter(function(r) {
-            var w = r.week > 0 ? r.week : getWeekFromDate(r.date);
-            return w === selWeek;
-        });
-    }
-
-    // 추가 개선 필터: actual_date(개선완료일) 기준 특정 주차 필터링
-    if (_activeImprovedInWeek) {
-        var iiw = _activeImprovedInWeek;
+    if (_activePrevWeekImproved) {
+        // 이전주차 개선 모드: 발굴 주차 필터 무시하고 현재 실제 주차 기준으로 필터
+        // (이전 주차 발굴 + 이번 주차 완료, 년도 무관)
+        var now = new Date();
+        var refYearStr = String(now.getFullYear());
+        var refYearNum = now.getFullYear();
+        var refMonthNum = now.getMonth() + 1;
+        var refWeek = getWeekFromDate(now.toISOString().split("T")[0]);
         records = records.filter(function(r) {
             if (r.completion !== "완료" || !r.actual_date) return false;
-            if (!r.actual_date.startsWith(iiw.year)) return false;
+            // 발굴일이 이번 주차 이전인지 (이전 년도 포함)
+            var rd = r.date || "";
+            if (!rd) return false;
+            var rYearNum = parseInt(rd.split("-")[0]);
+            var rWeek = r.week > 0 ? r.week : getWeekFromDate(rd);
+            var rMonthNum = parseInt(r.month);
+            var isBefore = false;
+            if (rYearNum < refYearNum) isBefore = true;
+            else if (rYearNum === refYearNum) {
+                if (rMonthNum < refMonthNum) isBefore = true;
+                else if (rMonthNum === refMonthNum && rWeek < refWeek) isBefore = true;
+            }
+            if (!isBefore) return false;
+            // actual_date(개선완료일)가 이번 주차에 속하는지
+            if (!r.actual_date.startsWith(refYearStr)) return false;
             var aMonth = parseInt(r.actual_date.split("-")[1]);
-            if (aMonth !== iiw.month) return false;
-            return getWeekFromDate(r.actual_date) === iiw.week;
+            if (aMonth !== refMonthNum) return false;
+            return getWeekFromDate(r.actual_date) === refWeek;
         });
+    } else {
+        // 일반 모드: 선택 주차 필터 적용
+        var selWeek = getSelectedWeek();
+        if (selWeek > 0) {
+            records = records.filter(function(r) {
+                var w = r.week > 0 ? r.week : getWeekFromDate(r.date);
+                return w === selWeek;
+            });
+        }
     }
 
     var teamFilter = getActiveTeamFilter();
@@ -469,7 +486,7 @@ function toggleFilters() {
 
 var _activeTeamFilter = "";  // "", "1팀", "2팀"
 var _activeStatusFilter = ""; // "", "발굴"(전체), "개선"(완료만)
-var _activeImprovedInWeek = null; // {year, month, week} or null — actual_date 기준 주차 필터
+var _activePrevWeekImproved = false; // 이전 주차 발굴 → 선택 주차 완료 필터 (선택 주차 기준 동적)
 
 function getActiveTeamFilter() { return _activeTeamFilter; }
 function getActiveStatusFilter() { return _activeStatusFilter; }
@@ -507,6 +524,19 @@ function updateViewSummaryFromRecords(records, vs) {
     if (!container) return;
 
     var total = records.length;
+
+    // 이전주차 개선 필터 활성 시: 단일 강조 카드 (해제 트리거)
+    if (_activePrevWeekImproved && currentPage === "records") {
+        container.innerHTML =
+            '<div class="ms-grid">' +
+            '<div class="ms-cell ms-cell-prev ms-cell-active" onclick="togglePrevWeekImproved()" style="flex:1;" title="클릭하여 일반 보기로 돌아가기">' +
+            '<div class="ms-cell-label">이전 주차 발굴 → 이번주 개선완료 (활성 · 클릭하여 해제)</div>' +
+            '<div class="ms-cell-num">' + total + '건</div>' +
+            '</div>' +
+            '</div>';
+        return;
+    }
+
     if (total === 0) { container.innerHTML = ""; return; }
 
     var complete = 0, team1 = 0, team1_complete = 0, team2 = 0, team2_complete = 0;
@@ -553,6 +583,12 @@ function updateViewSummaryFromRecords(records, vs) {
         '<div class="ms-grid-label">2팀</div>' +
         cell('2팀', '', '발굴', team2, '') +
         cell('2팀', '개선', '개선', team2_complete, 'green') +
+        '</div>' +
+        // 트리거 카드: 이전주차 발굴 → 이번주 개선건 보기
+        '<div class="ms-grid">' +
+        '<div class="ms-cell ms-cell-prev" onclick="togglePrevWeekImproved()" style="flex:1;" title="이전 주차에 발굴된 위험요소 중 이번주에 개선완료된 건만 보기">' +
+        '<div class="ms-cell-label">+ 이번주 추가 개선건 보기 (이전 주차 발굴분)</div>' +
+        '</div>' +
         '</div>';
 }
 
@@ -615,18 +651,22 @@ function updatePeriodStats(data) {
     const weekImp = weekRecs.filter(r => r.completion === "완료").length;
     const weekRate = weekDisc > 0 ? Math.round(weekImp / weekDisc * 100) : 0;
 
-    // 이전 발굴 개선: 이번주 이전에 발굴된 건 중, actual_date가 이번주인 건
+    // 이전 발굴 개선: 이번주 이전(년도 무관)에 발굴된 건 중, actual_date가 이번주인 건
+    const curYearNum = parseInt(curYear);
     const prevWeekImproved = records.filter(r => {
         if (r.completion !== "완료" || !r.actual_date) return false;
-        // 발굴일이 이번주 이전인지
+        // 발굴일이 이번주 이전인지 (작년 이전 포함)
         var rd = r.date || "";
-        if (!rd.startsWith(curYear)) return false;
-        var rMonth = r.month;
+        if (!rd) return false;
+        var rYearNum = parseInt(rd.split("-")[0]);
         var rWeek = r.week > 0 ? r.week : getWeekFromDate(rd);
+        var rMonthNum = parseInt(r.month);
         var isBeforeThisWeek = false;
-        var rMonthNum = parseInt(rMonth);
-        if (rMonthNum < curMonth) isBeforeThisWeek = true;
-        else if (rMonthNum === curMonth && rWeek < curWeek) isBeforeThisWeek = true;
+        if (rYearNum < curYearNum) isBeforeThisWeek = true;
+        else if (rYearNum === curYearNum) {
+            if (rMonthNum < curMonth) isBeforeThisWeek = true;
+            else if (rMonthNum === curMonth && rWeek < curWeek) isBeforeThisWeek = true;
+        }
         if (!isBeforeThisWeek) return false;
         // actual_date가 이번주인지
         if (!r.actual_date.startsWith(curYear)) return false;
@@ -1010,7 +1050,7 @@ function goToRecordsFiltered(period, type) {
         month: (period === "month" || period === "week") ? curMonth : "전체",
         week: period === "week" ? curWeek : 0,
         statusFilter: type === "improved" ? "개선" : "",
-        improvedInWeek: null,
+        prevWeekImproved: false,
     };
 
     // Switch to records page (전체 channel)
@@ -1031,17 +1071,12 @@ function onPrevImprovedClick(e) {
 }
 
 function goToRecordsImprovedInWeek() {
-    const now = new Date();
-    const curYear = String(now.getFullYear());
-    const curMonth = now.getMonth() + 1;
-    const curWeek = getWeekFromDate(now.toISOString().split("T")[0]);
-
     window._pendingRecordsFilter = {
         year: "전체",
         month: "전체",
         week: 0,
         statusFilter: "",
-        improvedInWeek: { year: curYear, month: curMonth, week: curWeek },
+        prevWeekImproved: true,
     };
 
     const allLink = document.querySelector('#records-sub .nav-sub-item');
@@ -1052,25 +1087,27 @@ function goToRecordsImprovedInWeek() {
     }
 }
 
-function clearImprovedInWeekFilter() {
-    _activeImprovedInWeek = null;
-    updateImprovedInWeekBadge();
-    if (lastSummaryData) {
-        updateTable(getDisplayRecords(lastSummaryData));
-    }
-}
-
-function updateImprovedInWeekBadge() {
-    var badge = document.getElementById("improved-in-week-badge");
-    if (!badge) return;
-    if (_activeImprovedInWeek && currentPage === "records") {
-        var iiw = _activeImprovedInWeek;
-        var label = document.getElementById("iiw-badge-label");
-        if (label) label.textContent = iiw.month + "월 " + iiw.week + "주차에 개선완료된 건 (이전 주차 발굴분)";
-        badge.style.display = "flex";
+// 이전주차 개선 모드 토글 — 활성 시 모든 발굴일 필터 해제, 비활성 시 현재 월로 복원
+function togglePrevWeekImproved() {
+    if (_activePrevWeekImproved) {
+        // 비활성화: 현재 월로 드롭다운 복원
+        _activePrevWeekImproved = false;
+        var now = new Date();
+        setFilterValue("f-rec-year", String(now.getFullYear()));
+        if (typeof updateMonthDropdown === "function") updateMonthDropdown();
+        setFilterValue("f-rec-month", (now.getMonth() + 1) + "월");
+        setFilterValue("f-rec-week", "0");
     } else {
-        badge.style.display = "none";
+        // 활성화: 모든 발굴일 필터 해제 + 팀/상태 필터 클리어
+        _activePrevWeekImproved = true;
+        _activeTeamFilter = "";
+        _activeStatusFilter = "";
+        setFilterValue("f-rec-year", "전체");
+        if (typeof updateMonthDropdown === "function") updateMonthDropdown();
+        setFilterValue("f-rec-month", "전체");
+        setFilterValue("f-rec-week", "0");
     }
+    fetchSummary();
 }
 
 function applyPendingRecordsFilter() {
@@ -1089,8 +1126,7 @@ function applyPendingRecordsFilter() {
     // 발굴/개선 카드 활성화
     _activeTeamFilter = "";
     _activeStatusFilter = f.statusFilter;
-    _activeImprovedInWeek = f.improvedInWeek || null;
-    updateImprovedInWeekBadge();
+    _activePrevWeekImproved = !!f.prevWeekImproved;
 
     // Open filter panel so user sees what's applied
     const fp = document.getElementById("filter-panel");
