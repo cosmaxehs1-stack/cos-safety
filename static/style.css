@@ -886,60 +886,67 @@ td.red { color: #e74c3c; font-weight: 600; }
 .saved-badge:hover { background: #d4e9fc; }
 .weekly-sep { color: #ccc; font-size: 18px; }
 
+/* --- Weekly Table: Clean Minimal (참고: COSMAX 내부 표 스타일) --- */
 .weekly-table-wrap { margin-bottom: 28px; }
 .weekly-site-title {
-    font-size: 15px; font-weight: 700; margin: 0 0 8px 0; color: #1e293b;
-    padding: 6px 0; border-bottom: 3px solid #1e40af;
+    font-size: 14px; font-weight: 700; margin: 0 0 10px 0; color: #111;
+    padding: 0 0 0 8px; border-left: 4px solid #111;
 }
 .weekly-table {
     width: 100%; border-collapse: collapse; font-size: 12px; background: #fff;
-    border: 2px solid #64748b;
+    border-top: 2px solid #333; border-bottom: 2px solid #333;
 }
 .weekly-table th {
-    padding: 6px 8px; text-align: center; font-weight: 700; font-size: 11px;
-    color: #1e293b; border: 1px solid #cbd5e1;
+    padding: 7px 8px; text-align: center; font-weight: 700; font-size: 11px;
+    color: #111; border: 1px solid #ddd; background: #fff;
 }
 .weekly-table th.wt-month-group {
-    background: #1e40af; color: #fff; font-size: 12px; border: 1px solid #1e3a8a;
+    background: #f5f5f5; color: #111; font-size: 12px; border: 1px solid #ddd;
+    border-bottom: 1px solid #bbb;
 }
-.weekly-table thead tr:last-child th { background: #e2e8f0; color: #334155; }
+.weekly-table thead tr:last-child th { background: #fff; color: #111; border-bottom: 1px solid #999; }
 .weekly-table td {
     padding: 5px 7px; text-align: center;
-    border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;
+    border-right: 1px solid #eee; border-bottom: 1px solid #eee;
 }
 .weekly-table td.ch-name {
     text-align: left; font-weight: 600; white-space: nowrap;
-    background: #f8fafc; border-right: 2px solid #94a3b8; color: #1e293b;
+    background: #fff; border-right: 1px solid #ddd; color: #111;
 }
 .weekly-table td.row-type {
-    font-size: 11px; color: #64748b; white-space: nowrap; width: 36px;
-    background: #f8fafc; border-right: 2px solid #94a3b8; font-weight: 500;
+    font-size: 11px; color: #666; white-space: nowrap; width: 36px;
+    background: #fff; border-right: 1px solid #ddd; font-weight: 500;
 }
-.weekly-table td.num { font-variant-numeric: tabular-nums; color: #334155; }
+.weekly-table td.num { font-variant-numeric: tabular-nums; color: #111; background: #fff; }
 .weekly-table td.wt-sub {
-    background: #f1f5f9; font-weight: 700; color: #1e293b;
-    border-right: 2px solid #94a3b8;
+    background: #fff; font-weight: 700; color: #111;
+    border-right: 1px solid #999;
 }
 .weekly-table th.wt-sub {
-    background: #cbd5e1; color: #1e293b; border-right: 2px solid #94a3b8;
+    background: #f5f5f5; color: #111; border-right: 1px solid #999;
 }
-.weekly-table td.wt-qtr { background: #fefce8; font-weight: 700; color: #92400e; }
+.weekly-table td.wt-qtr { background: #fff; font-weight: 700; color: #111; border-right: 1px solid #999; }
 .weekly-table td.rate {
-    font-weight: 700; color: #1e40af; background: #eff6ff;
-    border-left: 1px solid #cbd5e1;
+    font-weight: 700; color: #111; background: #fff;
+    border-left: 1px solid #999;
 }
-.weekly-table .wt-current { background: #dbeafe !important; }
-.weekly-table th.wt-current { background: #60a5fa !important; color: #fff !important; font-weight: 700; }
-.weekly-table td.wt-month-start, .weekly-table th.wt-month-start { border-left: 2px solid #94a3b8; }
-.weekly-table tr.wt-ch-first td { border-top: 1px solid #cbd5e1; }
-.weekly-table tr.wt-before-total td { border-bottom: 2px solid #475569; }
-.weekly-total-row td { background: #fef9c3 !important; font-weight: 700; color: #92400e; }
-.weekly-total-row td.ch-name { background: #fde68a !important; color: #78350f; }
-.weekly-total-row td.row-type { background: #fde68a !important; color: #78350f; }
-.weekly-total-row td.rate { background: #fef3c7 !important; color: #1e40af; }
+.weekly-table .wt-current { background: #fff !important; }
+.weekly-table th.wt-current { background: #fff !important; color: #EA1D22 !important; font-weight: 700; border-bottom: 2px solid #EA1D22; }
+.weekly-table td.wt-month-start, .weekly-table th.wt-month-start { border-left: 1px solid #999; }
+.weekly-table tr.wt-ch-first td { border-top: 1px solid #ddd; }
+.weekly-table tr.wt-before-total td, .weekly-table .wt-border-bottom { border-bottom: 1px solid #999; }
+.weekly-total-row td { background: #fff !important; font-weight: 700; color: #111; }
+.weekly-total-row td.ch-name { color: #111; }
+.weekly-total-row td.row-type { color: #111; }
+.weekly-total-row td.rate { color: #EA1D22; }
 .wt-diff { display: block; font-size: 9px; line-height: 1; margin-top: 2px; font-weight: 700; }
-.weekly-table .diff-up { color: #dc2626; }
-.weekly-table .diff-down { color: #2563eb; }
+.weekly-table .diff-up { color: #EA1D22; }
+.weekly-table .diff-down { color: #111; }
+/* 미래 주차: 비활성화 */
+.weekly-table .wt-future { color: #e0e0e0 !important; background: #f5f5f5 !important; }
+.weekly-table th.wt-future { color: #d5d5d5 !important; background: #f0f0f0 !important; }
+.weekly-table .wt-future .wt-diff { color: #e8e8e8 !important; }
+.weekly-table .weekly-total-row .wt-future { color: #e0e0e0 !important; }
 
 /* ===== Modal ===== */
 .modal-overlay {
