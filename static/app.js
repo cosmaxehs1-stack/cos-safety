@@ -354,7 +354,7 @@ function openRecordsChannel(channel, el) {
     setFilterValue("f-rec-month", currentMonth);
     setFilterValue("f-rec-week", "0");
     document.getElementById("records-page-title").textContent =
-        channel === "전체" ? "개별 위험요소 확인 - 전체" : "개별 위험요소 확인 - " + channel;
+        channel === "전체" ? "개별 위험요소 관리 - 전체" : "개별 위험요소 관리 - " + channel;
     fetchSummary();
     // Close mobile sidebar
     document.getElementById("sidebar").classList.remove("open");
@@ -1330,7 +1330,23 @@ function toggleCompletion() {
         label.textContent = "미완료";
         fields.style.display = "none";
     }
+    updateCompletionDateDisplay();
     checkStep3Submit();
+}
+
+function updateCompletionDateDisplay() {
+    const completion = document.getElementById("ar-completion").value;
+    const wrap = document.getElementById("completion-date-display");
+    const valEl = document.getElementById("completion-date-value");
+    if (!wrap || !valEl) return;
+    if (completion === "완료") {
+        const existing = document.getElementById("ar-actual-date").value;
+        const today = new Date().toISOString().split("T")[0];
+        valEl.textContent = existing || today;
+        wrap.style.display = "";
+    } else {
+        wrap.style.display = "none";
+    }
 }
 
 function setCompletionToggle(value) {
@@ -1349,6 +1365,7 @@ function setCompletionToggle(value) {
         label.textContent = "미완료";
         fields.style.display = "none";
     }
+    updateCompletionDateDisplay();
     checkStep3Submit();
 }
 
@@ -1451,6 +1468,11 @@ function resetForm() {
     document.getElementById("ar-cancel-btn").style.display = "none";
     document.getElementById("register-page-title").textContent = "위험요소 등록";
     clearRatingCards();
+    document.getElementById("ar-actual-date").value = "";
+    const toggleEl = document.getElementById("completion-toggle");
+    toggleEl.classList.remove("locked");
+    toggleEl.onclick = toggleCompletion;
+    setFormMode(null);
     setCompletionToggle("미완료");
     wizardGo(1);
     document.getElementById("btn-step1-next").disabled = true;
@@ -1460,6 +1482,10 @@ function resetForm() {
 }
 
 function cancelEdit() {
+    if (editingRecordId) {
+        if (!confirm("수정 중인 내용이 저장되지 않습니다. 닫으시겠습니까?")) return;
+    }
+    closeEditModal();
     resetForm();
     window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -1576,6 +1602,7 @@ async function submitAddRecord(e) {
         const data = await res.json();
         if (!res.ok) { alert(data.detail || (isEdit ? "수정 실패" : "등록 실패")); return; }
         alert(data.message);
+        if (isEdit) closeEditModal();
         resetForm();
         fetchSummary();
     } catch (e) { alert((isEdit ? "수정" : "등록") + " 실패: " + e.message); }
@@ -1586,10 +1613,133 @@ function editRecord(id) {
     if (!lastSummaryData) return;
     const r = lastSummaryData.records.find(rec => rec._id === id);
     if (!r) { alert("레코드를 찾을 수 없습니다."); return; }
+    doEditRecord(id, "edit");
+}
 
-    // Navigate to register page
-    switchPage("register", document.querySelector('[data-page="register"]'));
-    switchRegisterMethod("direct", document.querySelector('.register-tab'));
+function confirmCompletionTransition() {
+    const current = document.getElementById("ar-completion").value;
+    if (current === "미완료") {
+        const lh = parseInt(document.getElementById("ar-lh-after").value) || 0;
+        const sv = parseInt(document.getElementById("ar-sv-after").value) || 0;
+        if (!lh || !sv) {
+            alert("개선 후 가능성/중대성 평가를 먼저 입력해주세요.");
+            return;
+        }
+        if (!confirm("이 위험요소를 완료로 전환하시겠습니까?\n완료 등록일이 오늘 날짜로 기록됩니다.\n(전환 후 하단의 '수정' 버튼을 눌러 저장해주세요.)")) return;
+        setCompletionToggle("완료");
+    } else {
+        if (!confirm("완료 상태를 취소하시겠습니까?\n완료 등록일이 초기화됩니다.\n(전환 후 하단의 '수정' 버튼을 눌러 저장해주세요.)")) return;
+        setCompletionToggle("미완료");
+    }
+}
+
+let editFormOriginalParent = null;
+
+function setStep12ReadOnly(readOnly) {
+    ["wizard-page-1", "wizard-page-2"].forEach(pid => {
+        const page = document.getElementById(pid);
+        if (!page) return;
+        page.classList.toggle("view-only", readOnly);
+        page.querySelectorAll("input, select, textarea").forEach(el => {
+            if (el.type === "hidden") return;
+            el.disabled = readOnly;
+        });
+    });
+}
+
+// mode: "complete" | "edit" | null (기본 위자드)
+function setFormMode(mode) {
+    const form = document.getElementById("add-record-form");
+    const stepsEl = form.querySelector(".wizard-steps");
+    const page1 = document.getElementById("wizard-page-1");
+    const page2 = document.getElementById("wizard-page-2");
+    const page3 = document.getElementById("wizard-page-3");
+    const toggleWrap = document.getElementById("view-collapse-toggle");
+    const prevBtn = document.getElementById("btn-step3-prev");
+    const step1NavEl = page1 ? page1.querySelector(".wizard-nav") : null;
+    const step2NavEl = page2 ? page2.querySelector(".wizard-nav") : null;
+
+    if (mode === "complete") {
+        // 완료 등록: Step 3만 보이고 1,2는 접힘 토글로 열람
+        stepsEl.style.display = "none";
+        toggleWrap.style.display = "";
+        page1.style.display = "none";
+        page2.style.display = "none";
+        page3.style.display = "";
+        if (step1NavEl) step1NavEl.style.display = "none";
+        if (step2NavEl) step2NavEl.style.display = "none";
+        if (prevBtn) prevBtn.style.display = "none";
+        document.getElementById("view-collapse-icon").textContent = "▶";
+        setStep12ReadOnly(true);
+    } else if (mode === "edit") {
+        // 내용 수정: 1,2,3 모두 펼쳐서 스크롤로 확인·편집
+        stepsEl.style.display = "none";
+        toggleWrap.style.display = "none";
+        page1.style.display = "";
+        page2.style.display = "";
+        page3.style.display = "";
+        if (step1NavEl) step1NavEl.style.display = "none";
+        if (step2NavEl) step2NavEl.style.display = "none";
+        if (prevBtn) prevBtn.style.display = "none";
+        setStep12ReadOnly(false);
+    } else {
+        // 기본 위자드 (신규 등록)
+        stepsEl.style.display = "";
+        toggleWrap.style.display = "none";
+        if (step1NavEl) step1NavEl.style.display = "";
+        if (step2NavEl) step2NavEl.style.display = "";
+        if (prevBtn) prevBtn.style.display = "";
+        setStep12ReadOnly(false);
+    }
+}
+
+// 하위 호환
+function setCompleteMode(on) { setFormMode(on ? "complete" : null); }
+
+function toggleViewCollapse() {
+    const page1 = document.getElementById("wizard-page-1");
+    const page2 = document.getElementById("wizard-page-2");
+    const icon = document.getElementById("view-collapse-icon");
+    const expanded = page1.style.display !== "none";
+    if (expanded) {
+        page1.style.display = "none";
+        page2.style.display = "none";
+        icon.textContent = "▶";
+    } else {
+        page1.style.display = "";
+        page2.style.display = "";
+        icon.textContent = "▼";
+    }
+}
+
+function openEditModal(mode) {
+    const formEl = document.getElementById("method-direct");
+    const modal = document.getElementById("edit-record-modal");
+    const body = document.getElementById("edit-record-modal-body");
+    if (!editFormOriginalParent) editFormOriginalParent = formEl.parentNode;
+    body.appendChild(formEl);
+    formEl.style.display = "";
+    document.getElementById("edit-record-modal-title").textContent =
+        mode === "complete" ? "완료 등록" : "위험요소 수정";
+    modal.style.display = "flex";
+}
+
+function closeEditModal() {
+    const formEl = document.getElementById("method-direct");
+    const modal = document.getElementById("edit-record-modal");
+    if (editFormOriginalParent && formEl.parentNode !== editFormOriginalParent) {
+        editFormOriginalParent.appendChild(formEl);
+        formEl.style.display = "none";
+    }
+    modal.style.display = "none";
+}
+
+function doEditRecord(id, mode) {
+    if (!lastSummaryData) return;
+    const r = lastSummaryData.records.find(rec => rec._id === id);
+    if (!r) { alert("레코드를 찾을 수 없습니다."); return; }
+
+    openEditModal(mode);
 
     editingRecordId = id;
     document.getElementById("register-page-title").textContent = "위험요소 수정 (No." + r.no + ")";
@@ -1600,6 +1750,7 @@ function editRecord(id) {
     updateChannelOptions(true);
 
     document.getElementById("ar-channel").value = r.channel || "부서별 위험요소발굴";
+    syncChannelCard();
     document.getElementById("ar-person").value = r.person || "";
     document.getElementById("ar-date").value = r.date || "";
     document.getElementById("ar-location").value = r.location || "";
@@ -1610,6 +1761,7 @@ function editRecord(id) {
     document.getElementById("ar-disaster").value = r.disaster_type || "";
     document.getElementById("ar-week").value = r.date ? parseInt(r.date.split("-")[1]) + "월 " + getWeekFromDate(r.date) + "주차" : "";
     document.getElementById("ar-improvement").value = r.improvement_plan || "";
+    document.getElementById("ar-actual-date").value = r.actual_date || "";
     setCompletionToggle(r.completion || "미완료");
 
     clearRatingCards();
@@ -1641,6 +1793,11 @@ function editRecord(id) {
                 }
             });
     }
+
+    const toggleEl = document.getElementById("completion-toggle");
+    toggleEl.classList.remove("locked");
+    toggleEl.onclick = confirmCompletionTransition;
+    setFormMode("edit");
 
     window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -1828,6 +1985,56 @@ function updateChannelOptions(forceAll) {
         });
         uploadChannel.value = ["부서별 위험요소발굴", "5S/EHS평가"].includes(prevUpVal) ? prevUpVal : "부서별 위험요소발굴";
     }
+
+    syncChannelCard();
+}
+
+const CHANNEL_DESCRIPTIONS = {
+    "부서별 위험요소발굴": "평소 업무 중 직접 발견하신 위험요소를 등록해주세요.",
+    "5S/EHS평가": "5S 점검 활동 중 발견한 위험요소를 등록해주세요."
+};
+
+function syncChannelCard() {
+    const arChannel = document.getElementById("ar-channel");
+    const optionsWrap = document.getElementById("ar-channel-options");
+    if (!arChannel || !optionsWrap) return;
+
+    const currentVal = arChannel.value;
+    const channels = Array.from(arChannel.options).map(o => o.value);
+    const isAdminMode = channels.length > 2;
+
+    optionsWrap.className = "channel-card-options" + (isAdminMode ? " admin" : "");
+    optionsWrap.style.gridTemplateColumns = "repeat(" + channels.length + ", minmax(0, 1fr))";
+
+    optionsWrap.innerHTML = "";
+    channels.forEach(ch => {
+        const label = document.createElement("label");
+        label.className = "channel-option" + (ch === currentVal ? " selected" : "");
+        const input = document.createElement("input");
+        input.type = "radio";
+        input.name = "ar-channel-radio";
+        input.value = ch;
+        if (ch === currentVal) input.checked = true;
+        input.addEventListener("change", () => {
+            arChannel.value = ch;
+            optionsWrap.querySelectorAll(".channel-option").forEach(el => el.classList.remove("selected"));
+            label.classList.add("selected");
+        });
+        const title = document.createElement("span");
+        title.className = "channel-option-title";
+        title.textContent = ch;
+        label.appendChild(input);
+        label.appendChild(title);
+
+        if (!isAdminMode && CHANNEL_DESCRIPTIONS[ch]) {
+            const desc = document.createElement("span");
+            desc.className = "channel-option-desc";
+            desc.textContent = CHANNEL_DESCRIPTIONS[ch];
+            label.appendChild(desc);
+        }
+
+        optionsWrap.appendChild(label);
+    });
 }
 
 // ===== Manage Modal =====

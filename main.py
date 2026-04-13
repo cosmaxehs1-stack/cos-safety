@@ -822,7 +822,7 @@ async def add_record(request: Request):
         "improvement_plan": improvement_plan,
         "improve_dept": "",
         "planned_date": None,
-        "actual_date": None,
+        "actual_date": date.today().isoformat() if completion == "완료" else None,
         "likelihood_after": likelihood_after,
         "severity_after": severity_after,
         "risk_after": risk_after,
@@ -860,14 +860,21 @@ async def update_record(request: Request):
     if not target:
         raise HTTPException(status_code=404, detail="레코드를 찾을 수 없습니다.")
 
-    # Update editable fields
-    for field in ("channel", "month", "person", "date", "location", "workplace", "content",
+    prev_completion = target.get("completion", "")
+
+    # Update editable fields (date=등록일, actual_date=완료등록일은 서버에서만 관리 — body 값 무시)
+    for field in ("channel", "month", "person", "location", "workplace", "content",
                   "cause_object", "process", "disaster_type", "improvement_plan", "completion", "image", "image_after"):
         if field in body:
             target[field] = body[field].strip() if isinstance(body[field], str) else body[field]
 
-    if "date" in body:
-        target["date"] = parse_date(body["date"])
+    # 완료 상태 전환 시 개선일(actual_date) 자동 관리
+    new_completion = target.get("completion", "")
+    if new_completion == "완료" and prev_completion != "완료":
+        target["actual_date"] = date.today().isoformat()
+    elif new_completion != "완료" and prev_completion == "완료":
+        target["actual_date"] = None
+
     if "location" in body:
         target["location"] = body["location"].strip()
         target["location_group"] = extract_location_group(target["location"])

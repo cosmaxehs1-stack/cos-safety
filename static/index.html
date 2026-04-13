@@ -44,7 +44,7 @@
                     <span class="nav-text">위험요소 등록</span>
                 </a>
                 <a href="#" class="nav-item has-sub" data-page="records" onclick="toggleRecordsSub(this);return false;">
-                    <span class="nav-text">개별 위험요소 확인</span>
+                    <span class="nav-text">개별 위험요소 관리</span>
                 </a>
                 <div class="nav-sub" id="records-sub">
                     <a href="#" class="nav-sub-item" onclick="openRecordsChannel('전체',this);return false;">전체</a>
@@ -246,17 +246,32 @@
                             <div class="wizard-step" data-step="3"><span class="wizard-step-num">3</span><span class="wizard-step-label">개선 후</span></div>
                         </div>
 
+                        <!-- 완료 등록 모드: 기본정보/개선전 열람 토글 (평소 숨김) -->
+                        <div id="view-collapse-toggle" style="display:none;">
+                            <button type="button" class="view-collapse-btn" onclick="toggleViewCollapse()">
+                                <span id="view-collapse-icon">▶</span>
+                                <span>기본정보 및 개선 전 내용 보기</span>
+                            </button>
+                        </div>
+
                         <!-- STEP 1: 기본정보 -->
                         <div class="wizard-page" id="wizard-page-1">
-                            <div class="wizard-page-title">기본 정보를 입력하세요</div>
-                            <div class="form-grid">
-                                <div class="form-group">
-                                    <label>구분 (채널) *</label>
-                                    <select id="ar-channel" required>
-                                        <option value="부서별 위험요소발굴" selected>부서별 위험요소발굴</option>
-                                        <option value="5S/EHS평가">5S/EHS평가</option>
-                                    </select>
+                            <div class="wizard-page-title"><span class="step-badge">STEP 1</span>기본 정보를 입력하세요</div>
+
+                            <!-- 채널 선택 카드 (강조) -->
+                            <div class="channel-card">
+                                <div class="channel-card-header">
+                                    <span class="channel-card-label">구분 (채널) 선택 *</span>
+                                    <span class="channel-card-hint">어느 활동으로 발굴하셨나요?</span>
                                 </div>
+                                <div class="channel-card-options" id="ar-channel-options"></div>
+                                <select id="ar-channel" required style="display:none;">
+                                    <option value="부서별 위험요소발굴" selected>부서별 위험요소발굴</option>
+                                    <option value="5S/EHS평가">5S/EHS평가</option>
+                                </select>
+                            </div>
+
+                            <div class="form-grid">
                                 <div class="form-group">
                                     <label>발굴자 *</label>
                                     <input type="text" id="ar-person" placeholder="이름" oninput="checkStep1Required()">
@@ -299,7 +314,7 @@
 
                         <!-- STEP 2: 개선 전 -->
                         <div class="wizard-page" id="wizard-page-2" style="display:none;">
-                            <div class="wizard-page-title">[개선 전] 위험요소 정보</div>
+                            <div class="wizard-page-title"><span class="step-badge">STEP 2</span>[개선 전] 위험요소 정보</div>
                             <input type="hidden" id="ar-lh-before" value="">
                             <input type="hidden" id="ar-sv-before" value="">
 
@@ -415,10 +430,14 @@
                                     <span id="completion-label" style="margin-left:10px;font-weight:600;">미완료</span>
                                 </div>
                                 <input type="hidden" id="ar-completion" value="미완료">
+                                <input type="hidden" id="ar-actual-date" value="">
+                                <div id="completion-date-display" style="display:none;margin-top:10px;padding:8px 12px;background:#f8f9fa;border-left:3px solid #EA1D22;border-radius:4px;font-size:13px;color:#555;">
+                                    개선 완료 등록일: <strong id="completion-date-value" style="color:#EA1D22;">-</strong>
+                                </div>
                             </div>
 
                             <div id="completion-fields" style="display:none;margin-top:24px;">
-                            <div class="wizard-page-title">[개선 후] 위험도 평가</div>
+                            <div class="wizard-page-title"><span class="step-badge">STEP 3</span>[개선 후] 위험도 평가</div>
                             <div id="before-risk-info" style="background:#f0f0f0;padding:10px 14px;border-radius:6px;margin-bottom:16px;font-size:14px;">
                                 개선 전 위험도: <strong id="before-risk-display">-</strong>
                             </div>
@@ -506,7 +525,7 @@
                             </div><!-- /completion-fields -->
 
                             <div class="wizard-nav">
-                                <button type="button" class="btn-wizard-prev" onclick="wizardGo(2)">&#8592; 이전</button>
+                                <button type="button" class="btn-wizard-prev" id="btn-step3-prev" onclick="wizardGo(2)">&#8592; 이전</button>
                                 <div class="wizard-nav-right">
                                     <button type="button" class="btn-cancel" id="ar-cancel-btn" onclick="cancelEdit()" style="display:none;">취소</button>
                                     <button type="submit" class="btn-submit" id="ar-submit-btn">등록</button>
@@ -539,10 +558,10 @@
 
             </div>
 
-            <!-- ===== PAGE: 개별 위험요소 확인 ===== -->
+            <!-- ===== PAGE: 개별 위험요소 관리 ===== -->
             <div id="page-records" class="page" style="display:none;">
                 <div class="page-header">
-                    <h2 id="records-page-title">개별 위험요소 확인</h2>
+                    <h2 id="records-page-title">개별 위험요소 관리</h2>
                 </div>
 
                 <!-- 시간 선택: 연도 + 월 + 주차 -->
@@ -763,6 +782,17 @@
                 </div>
             </div>
         </main>
+    </div>
+
+    <!-- Edit Record Modal (wizard popup) -->
+    <div id="edit-record-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-box edit-record-modal-box">
+            <div class="edit-record-modal-header">
+                <h3 id="edit-record-modal-title">위험요소 수정</h3>
+                <button type="button" class="edit-record-modal-close" onclick="cancelEdit()" aria-label="닫기">&times;</button>
+            </div>
+            <div id="edit-record-modal-body"></div>
+        </div>
     </div>
 
     <!-- Manage Modal -->
