@@ -150,6 +150,10 @@ function showRegisterMethod(method) {
     document.getElementById("register-back-btn").style.display = "inline-block";
     document.getElementById("method-direct").style.display = method === "direct" ? "block" : "none";
     document.getElementById("method-excel").style.display = method === "excel" ? "block" : "none";
+    // 직접 입력 진입 시 이전 작업 내용 초기화 (수정 중이 아닐 때만)
+    if (method === "direct" && !editingRecordId) {
+        resetForm();
+    }
 }
 
 function showRegisterSelect() {
@@ -1016,6 +1020,13 @@ function renderRepeatTable(data) {
 // ===== Data Table =====
 let _allTableRecords = [];
 
+function formatShortDate(dateStr) {
+    if (!dateStr) return "-";
+    const m = String(dateStr).match(/^(\d{2})(\d{2})-(\d{2})-(\d{2})/);
+    if (!m) return dateStr;
+    return m[2] + "/" + m[3] + "/" + m[4];
+}
+
 function updateTable(records) {
     _allTableRecords = records;
     const tbody = document.getElementById("data-tbody");
@@ -1035,19 +1046,24 @@ function updateTable(records) {
             ? '<img src="' + escapeHtml(r.image_after) + '" class="table-thumb" onclick="event.stopPropagation();showImageModal(\'' + escapeHtml(r.image_after) + '\')">'
             : (r.has_image_after ? '<button class="btn-img-load" onclick="event.stopPropagation();loadRecordImage(\'' + escapeHtml(r._id) + '\',\'image_after\',this)">📷</button>' : '-');
         const rid = escapeHtml(r._id || "");
+        const contentFull = r.content_full || r.content || "";
+        const planFull = r.improvement_plan || "";
         tr.innerHTML =
-            '<td>' + r.no + '</td><td>' + escapeHtml(r.month) + '</td>' +
-            '<td>' + (r.date || "-") + '</td><td>' + escapeHtml(r.location || "-") + '</td>' +
+            '<td class="td-no">' + r.no + '</td>' +
+            '<td>' + formatShortDate(r.date) + '</td><td>' + escapeHtml(r.location || "-") + '</td>' +
             '<td>' + escapeHtml(r.disaster_type || "-") + '</td>' +
-            '<td><span class="grade-badge grade-' + r.grade_before + '">' + r.grade_before + '</span></td>' +
-            '<td><span class="grade-badge grade-' + (r.grade_after || "-") + '">' + (r.grade_after || "-") + '</span></td>' +
-            '<td class="' + (r.completion === "완료" ? "status-complete" : "status-incomplete") + '">' + (r.completion || "-") + '</td>' +
-            '<td>' + (r.week || "-") + '</td>' +
-            '<td>' + imgBefore + '</td><td>' + imgAfter + '</td>' +
+            '<td class="td-content td-content-risk" title="' + escapeHtml(contentFull) + '">' + escapeHtml(contentFull) + '</td>' +
+            '<td class="td-content td-content-plan" title="' + escapeHtml(planFull) + '">' + escapeHtml(planFull || "-") + '</td>' +
+            '<td class="td-status ' + (r.completion === "완료" ? "status-complete" : "status-incomplete") + '">' + (r.completion || "-") + '</td>' +
+            '<td class="td-img-pair"><div class="img-pair">' +
+                '<div class="img-col">' + imgBefore + '<span class="grade-badge grade-' + r.grade_before + '">' + r.grade_before + '</span></div>' +
+                '<span class="grade-arrow">→</span>' +
+                '<div class="img-col">' + imgAfter + '<span class="grade-badge grade-' + (r.grade_after || "-") + '">' + (r.grade_after || "-") + '</span></div>' +
+            '</div></td>' +
             (ADMIN_TOKEN
                 ? '<td class="action-cell">' +
-                    '<button class="btn-edit" onclick="event.stopPropagation();editRecord(\'' + rid + '\')">수정</button>' +
-                    '<button class="btn-row-del" onclick="event.stopPropagation();deleteRecord(\'' + rid + '\')">삭제</button>' +
+                    '<button class="btn-icon btn-edit" title="수정" onclick="event.stopPropagation();editRecord(\'' + rid + '\')">✏️</button>' +
+                    '<button class="btn-icon btn-row-del" title="삭제" onclick="event.stopPropagation();deleteRecord(\'' + rid + '\')">🗑️</button>' +
                   '</td>'
                 : '');
         tbody.appendChild(tr);
