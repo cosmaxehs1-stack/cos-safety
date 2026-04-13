@@ -1155,10 +1155,14 @@ function updateTable(records) {
         };
         const imgBefore = r.image
             ? '<img src="' + escapeHtml(r.image) + '" class="table-thumb" onclick="event.stopPropagation();showImageModal(\'' + escapeHtml(r.image) + '\')">'
-            : (r.has_image ? '<button class="btn-img-load" onclick="event.stopPropagation();loadRecordImage(\'' + escapeHtml(r._id) + '\',\'image\',this)">📷</button>' : '-');
+            : (r.has_image
+                ? '<button class="btn-img-load" onclick="event.stopPropagation();loadRecordImage(\'' + escapeHtml(r._id) + '\',\'image\',this)">📷</button>'
+                : '<span class="table-thumb-empty">-</span>');
         const imgAfter = r.image_after
             ? '<img src="' + escapeHtml(r.image_after) + '" class="table-thumb" onclick="event.stopPropagation();showImageModal(\'' + escapeHtml(r.image_after) + '\')">'
-            : (r.has_image_after ? '<button class="btn-img-load" onclick="event.stopPropagation();loadRecordImage(\'' + escapeHtml(r._id) + '\',\'image_after\',this)">📷</button>' : '-');
+            : (r.has_image_after
+                ? '<button class="btn-img-load" onclick="event.stopPropagation();loadRecordImage(\'' + escapeHtml(r._id) + '\',\'image_after\',this)">📷</button>'
+                : '<span class="table-thumb-empty">-</span>');
         const rid = escapeHtml(r._id || "");
         const contentFull = r.content_full || r.content || "";
         const planFull = r.improvement_plan || "";
