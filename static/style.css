@@ -759,7 +759,68 @@ body {
 .ms-cell:hover { background: #f5f6f8; }
 .ms-cell-label { font-size: 11px; color: #888; font-weight: 600; margin-bottom: 2px; }
 .ms-cell-num { font-size: 16px; font-weight: 700; color: #333; }
+/* Unified Chip Bar */
+.chip-bar {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 16px;
+    padding: 14px 16px; margin-bottom: 14px;
+    background: #fafbfc;
+    border: 1px solid #e8e8e8; border-radius: 10px;
+    align-items: start;
+}
+.chip-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.chip-col-divider { width: 1px; background: #e8e8e8; align-self: stretch; }
+.chip-toolbar { gap: 8px !important; }
+.chip-toolbar .search-inline {
+    flex: 1; min-width: 120px;
+    padding: 5px 10px; border: 1px solid #d8d8d8; border-radius: 6px;
+    font-size: 12px; outline: none;
+}
+.chip-toolbar .search-inline:focus { border-color: #EA1D22; }
+.chip-toolbar .btn-filter-toggle,
+.chip-toolbar .btn-reset-sm {
+    padding: 5px 12px; border: 1px solid #d8d8d8; border-radius: 6px;
+    background: #fff; color: #555; font-size: 12px; font-weight: 600;
+    cursor: pointer;
+}
+.chip-toolbar .btn-filter-toggle:hover,
+.chip-toolbar .btn-reset-sm:hover { border-color: #EA1D22; color: #EA1D22; }
+@media (max-width: 900px) {
+    .chip-bar { grid-template-columns: 1fr; }
+    .chip-col-divider { display: none; }
+}
+.chip-group { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.chip-group-label {
+    font-size: 11px; font-weight: 700; color: #888;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    min-width: 42px;
+}
+.chip-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip {
+    padding: 5px 12px; border: 1px solid #d8d8d8; border-radius: 16px;
+    background: #fff; color: #555; font-size: 12px; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+    transition: all 0.12s ease;
+}
+.chip:hover { border-color: #EA1D22; color: #EA1D22; }
+.chip.active { background: #EA1D22; border-color: #EA1D22; color: #fff; }
+.chip.chip-status-미개선.active { background: #c0432b; border-color: #c0432b; }
+.chip.chip-status-개선.active { background: #6c757d; border-color: #6c757d; }
+.chip-badge {
+    display: inline-block; margin-left: 6px;
+    background: rgba(0,0,0,0.06); color: inherit;
+    padding: 0 6px; border-radius: 8px;
+    font-size: 11px; font-weight: 700; min-width: 18px; text-align: center;
+}
+.chip.active .chip-badge { background: rgba(255,255,255,0.22); color: #fff; }
+
+.mini-stats .ms-grid { display: none; }
 .ms-cell.green .ms-cell-num { color: #555; }
+.ms-cell.orange .ms-cell-num { color: #c0432b; }
+.ms-cell-active.orange { background: #c0432b !important; }
+.ms-cell-active.orange .ms-cell-num { color: #fff; }
+.ms-cell-active.orange .ms-cell-label { color: rgba(255,255,255,0.8); }
 .ms-cell-active { background: #EA1D22 !important; }
 .ms-cell-active .ms-cell-label { color: rgba(255,255,255,0.7); }
 .ms-cell-active .ms-cell-num { color: white; }
@@ -842,8 +903,8 @@ body {
 .grade-arrow { margin: 0 4px; color: #888; font-size: 11px; }
 #data-table .th-content, #data-table .td-content {
     white-space: normal !important;
-    word-break: break-word;
-    overflow-wrap: anywhere;
+    word-break: keep-all;
+    overflow-wrap: break-word;
     max-width: none !important;
     overflow: visible !important;
     text-overflow: clip !important;

@@ -564,40 +564,49 @@
                     <h2 id="records-page-title">개별 위험요소 관리</h2>
                 </div>
 
-                <!-- 시간 선택: 연도 + 월 + 주차 -->
-                <div class="time-selector">
-                    <div class="time-dropdowns">
-                        <div class="time-item">
-                            <label>연도</label>
-                            <select id="f-rec-year" onchange="onRecordYearChange()">
-                                <option value="전체">전체</option>
-                            </select>
+                <!-- 숨김: 원본 시간 선택 (칩 바에서 값 변경) -->
+                <div class="time-selector" style="display:none;">
+                    <select id="f-rec-year" onchange="onRecordYearChange()"><option value="전체">전체</option></select>
+                    <select id="f-rec-month" onchange="onRecordMonthChange()"><option value="전체">전체</option></select>
+                    <select id="f-rec-week" onchange="onRecordWeekChange()"><option value="0">전체</option></select>
+                </div>
+
+                <!-- 통합 칩 필터 바 -->
+                <div class="chip-bar">
+                    <div class="chip-col chip-col-left">
+                        <div class="chip-group">
+                            <span class="chip-group-label">연도</span>
+                            <div class="chip-row" id="chip-row-year"></div>
                         </div>
-                        <div class="time-item">
-                            <label>월</label>
-                            <select id="f-rec-month" onchange="onRecordMonthChange()">
-                                <option value="전체">전체</option>
-                            </select>
+                        <div class="chip-group">
+                            <span class="chip-group-label">월</span>
+                            <div class="chip-row" id="chip-row-month"></div>
                         </div>
-                        <div class="time-item">
-                            <label>주차</label>
-                            <select id="f-rec-week" onchange="onRecordWeekChange()">
-                                <option value="0">전체</option>
-                            </select>
+                        <div class="chip-group">
+                            <span class="chip-group-label">주차</span>
+                            <div class="chip-row" id="chip-row-week"></div>
+                        </div>
+                    </div>
+                    <div class="chip-col-divider"></div>
+                    <div class="chip-col chip-col-right">
+                        <div class="chip-group">
+                            <span class="chip-group-label">팀</span>
+                            <div class="chip-row" id="chip-row-team"></div>
+                        </div>
+                        <div class="chip-group">
+                            <span class="chip-group-label">상태</span>
+                            <div class="chip-row" id="chip-row-status"></div>
+                        </div>
+                        <div class="chip-group chip-toolbar">
+                            <input type="text" id="f-keyword" class="search-inline" placeholder="키워드 검색..." onkeydown="if(event.key==='Enter') fetchSummary()">
+                            <button class="btn-filter-toggle" onclick="toggleFilters()">필터</button>
+                            <button class="btn-reset-sm" onclick="resetFilters()">초기화</button>
                         </div>
                     </div>
                 </div>
 
-
-                <!-- 요약 카드 + 필터 토글 -->
-                <div class="records-toolbar">
-                    <div class="mini-stats" id="channel-team-summary"></div>
-                    <div class="toolbar-actions">
-                        <input type="text" id="f-keyword" class="search-inline" placeholder="키워드 검색..." onkeydown="if(event.key==='Enter') fetchSummary()">
-                        <button class="btn-filter-toggle" onclick="toggleFilters()">필터</button>
-                        <button class="btn-reset-sm" onclick="resetFilters()">초기화</button>
-                    </div>
-                </div>
+                <!-- 숨김: 기존 mini-stats (이전 주차 개선 인디케이터용) -->
+                <div class="mini-stats" id="channel-team-summary" style="display:none;"></div>
 
                 <!-- 접히는 필터 -->
                 <div class="filter-bar filter-collapsed" id="filter-panel">
@@ -626,14 +635,6 @@
                     <div class="filter-item">
                         <label>공정</label>
                         <select id="f-process" onchange="fetchSummary()"><option value="전체">전체</option></select>
-                    </div>
-                    <div class="filter-item">
-                        <label>완료여부</label>
-                        <select id="f-completion" onchange="fetchSummary()">
-                            <option value="전체">전체</option>
-                            <option value="완료">완료</option>
-                            <option value="미완료">미완료</option>
-                        </select>
                     </div>
                     <div class="filter-item">
                         <label>반복여부</label>

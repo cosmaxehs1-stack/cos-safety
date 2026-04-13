@@ -403,6 +403,7 @@ async function fetchSummary() {
         _activeTeamFilter = savedTeam;
         _activeStatusFilter = savedStatus;
         updateViewSummaryFromRecords(allRecords, data.view_summary);
+        renderChipBar();
 
         if (currentPage === "analysis") {
             updateAnalysisCharts(data);
@@ -467,6 +468,8 @@ function getDisplayRecords(data) {
     var statusFilter = getActiveStatusFilter();
     if (statusFilter === "개선") {
         records = records.filter(function(r) { return r.completion === "완료"; });
+    } else if (statusFilter === "미개선") {
+        records = records.filter(function(r) { return r.completion !== "완료"; });
     }
     return records;
 }
@@ -558,6 +561,8 @@ function updateViewSummaryFromRecords(records, vs) {
         }
     });
     var incomplete = total - complete;
+    var team1_incomplete = team1 - team1_complete;
+    var team2_incomplete = team2 - team2_complete;
 
     var selWeek = getSelectedWeek();
 
@@ -576,20 +581,129 @@ function updateViewSummaryFromRecords(records, vs) {
         '<div class="ms-grid">' +
         '<div class="ms-grid-label">' + label + '</div>' +
         cell('', '', '발굴', total, '') +
+        cell('', '미개선', '미개선', incomplete, 'orange') +
         cell('', '개선', '개선', complete, 'green') +
         '</div>' +
         '<div class="ms-grid">' +
         '<div class="ms-grid-label">1팀</div>' +
         cell('1팀', '', '발굴', team1, '') +
+        cell('1팀', '미개선', '미개선', team1_incomplete, 'orange') +
         cell('1팀', '개선', '개선', team1_complete, 'green') +
         '</div>' +
         '<div class="ms-grid">' +
         '<div class="ms-grid-label">2팀</div>' +
         cell('2팀', '', '발굴', team2, '') +
+        cell('2팀', '미개선', '미개선', team2_incomplete, 'orange') +
         cell('2팀', '개선', '개선', team2_complete, 'green') +
         '</div>' +
         // 트리거 텍스트 링크: 이전주차 발굴 → 이번주 개선건 보기
         '<span class="prev-week-link" onclick="togglePrevWeekImproved()" title="이전 주차에 발굴된 위험요소 중 이번주에 개선완료된 건만 보기">+ 이번주 추가 개선건 보기 (이전 주차 발굴분)</span>';
+}
+
+// ===== Chip Bar (통합 필터) =====
+function renderChipBar() {
+    function renderChips(rowId, selectId, triggerFn) {
+        const sel = document.getElementById(selectId);
+        const row = document.getElementById(rowId);
+        if (!sel || !row) return;
+        const cur = sel.value;
+        row.innerHTML = "";
+        Array.from(sel.options).forEach(opt => {
+            const chip = document.createElement("button");
+            chip.type = "button";
+            chip.className = "chip" + (String(opt.value) === String(cur) ? " active" : "");
+            chip.textContent = opt.textContent;
+            chip.onclick = function() {
+                sel.value = opt.value;
+                if (triggerFn) triggerFn();
+                renderChipBar();
+            };
+            row.appendChild(chip);
+        });
+    }
+    renderChips("chip-row-year", "f-rec-year", onRecordYearChange);
+    renderChips("chip-row-month", "f-rec-month", onRecordMonthChange);
+    renderChips("chip-row-week", "f-rec-week", onRecordWeekChange);
+
+    renderTeamStatusChips();
+}
+
+function renderTeamStatusChips() {
+    const teamRow = document.getElementById("chip-row-team");
+    const statusRow = document.getElementById("chip-row-status");
+    if (!teamRow || !statusRow) return;
+
+    const at = getActiveTeamFilter();
+    const as = getActiveStatusFilter();
+
+    // 카운트 계산: 시간 필터는 적용, 팀/상태 필터는 각 칩별로 별도 적용
+    let baseRecords = [];
+    if (lastSummaryData) {
+        const savedT = _activeTeamFilter, savedS = _activeStatusFilter;
+        _activeTeamFilter = ""; _activeStatusFilter = "";
+        baseRecords = getDisplayRecords(lastSummaryData);
+        _activeTeamFilter = savedT; _activeStatusFilter = savedS;
+    }
+
+    function countFor(team, status) {
+        return baseRecords.filter(r => {
+            if (team) {
+                const tm = getTeamFromLocation(r.location_group || "");
+                if (tm !== team) return false;
+            }
+            if (status === "개선" && r.completion !== "완료") return false;
+            if (status === "미개선" && r.completion === "완료") return false;
+            return true;
+        }).length;
+    }
+
+    const teams = [["", "전체"], ["1팀", "1팀"], ["2팀", "2팀"]];
+    teamRow.innerHTML = "";
+    teams.forEach(([val, label]) => {
+        const n = countFor(val, as);
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "chip chip-count" + (at === val ? " active" : "");
+        chip.innerHTML = label + '<span class="chip-badge">' + n + '</span>';
+        chip.onclick = function() {
+            if (at === val) return;
+            _activeTeamFilter = val;
+            applyCardFilter();
+        };
+        teamRow.appendChild(chip);
+    });
+
+    const statuses = [["", "전체"], ["미개선", "미개선"], ["개선", "개선"]];
+    statusRow.innerHTML = "";
+    statuses.forEach(([val, label]) => {
+        const n = countFor(at, val);
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "chip chip-count chip-status-" + (val || "all") +
+            (as === val ? " active" : "");
+        chip.innerHTML = label + '<span class="chip-badge">' + n + '</span>';
+        chip.onclick = function() {
+            if (as === val) return;
+            _activeStatusFilter = val;
+            applyCardFilter();
+        };
+        statusRow.appendChild(chip);
+    });
+}
+
+function applyCardFilter() {
+    if (!lastSummaryData) { renderChipBar(); return; }
+    const displayRecords = getDisplayRecords(lastSummaryData);
+    updateTable(displayRecords);
+    const savedTeam = _activeTeamFilter;
+    const savedStatus = _activeStatusFilter;
+    _activeTeamFilter = "";
+    _activeStatusFilter = "";
+    const allRecords = getDisplayRecords(lastSummaryData);
+    _activeTeamFilter = savedTeam;
+    _activeStatusFilter = savedStatus;
+    updateViewSummaryFromRecords(allRecords, lastSummaryData.view_summary);
+    renderChipBar();
 }
 
 // ===== Period Stats =====
