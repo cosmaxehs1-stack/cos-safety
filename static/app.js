@@ -867,7 +867,7 @@ function updateSummaryCharts(data) {
             indexAxis: "y", responsive: true, maintainAspectRatio: false,
             plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(ctx) { return ctx.parsed.x + "건"; } } } },
             scales: {
-                x: { beginAtZero: true, max: maxVal + Math.ceil(maxVal * 0.15), ticks: { stepSize: 1, font: { size: 10 } }, grid: { color: "#f0f0f0" } },
+                x: { beginAtZero: true, max: Math.max(50, Math.ceil((maxVal * 1.1) / 50) * 50), ticks: { stepSize: 50, font: { size: 10 } }, grid: { color: "#f0f0f0" } },
                 y: { ticks: { display: showY, font: { size: 12, weight: "600" } }, grid: { display: false } }
             }
         };
