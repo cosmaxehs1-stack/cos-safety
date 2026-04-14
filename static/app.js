@@ -1615,9 +1615,28 @@ function resetForm() {
     updateChannelOptions();
 }
 
+function getEditFormSnapshot() {
+    const ids = [
+        "ar-channel", "ar-person", "ar-date", "ar-location", "ar-workplace",
+        "ar-content", "ar-cause-object", "ar-disaster", "ar-week",
+        "ar-improvement", "ar-actual-date", "ar-completion",
+        "ar-lh-before", "ar-sv-before", "ar-lh-after", "ar-sv-after",
+        "ar-image-url", "ar-image-after-url",
+    ];
+    return ids.map(id => {
+        const el = document.getElementById(id);
+        return el ? (el.value || "") : "";
+    }).join("\u0001");
+}
+
+let editFormSnapshot = null;
+
 function cancelEdit() {
     if (editingRecordId) {
-        if (!confirm("수정 중인 내용이 저장되지 않습니다. 닫으시겠습니까?")) return;
+        const changed = editFormSnapshot === null || getEditFormSnapshot() !== editFormSnapshot;
+        if (changed) {
+            if (!confirm("수정 중인 내용이 저장되지 않습니다. 닫으시겠습니까?")) return;
+        }
     }
     closeEditModal();
     resetForm();
@@ -1905,8 +1924,9 @@ function doEditRecord(id, mode) {
     if (r.severity_after) selectRating("sv", "after", r.severity_after);
 
     // Lazy load images for edit
+    const imgPromises = [];
     if (r.has_image) {
-        fetch("/api/record-image/" + id + "?field=image", { headers: authHeaders() })
+        imgPromises.push(fetch("/api/record-image/" + id + "?field=image", { headers: authHeaders() })
             .then(res => res.json()).then(data => {
                 if (data.url) {
                     document.getElementById("ar-image-url").value = data.url;
@@ -1914,10 +1934,10 @@ function doEditRecord(id, mode) {
                     document.getElementById("ar-image-thumb").src = data.url;
                     document.getElementById("ar-image-preview").style.display = "flex";
                 }
-            });
+            }).catch(() => {}));
     }
     if (r.has_image_after) {
-        fetch("/api/record-image/" + id + "?field=image_after", { headers: authHeaders() })
+        imgPromises.push(fetch("/api/record-image/" + id + "?field=image_after", { headers: authHeaders() })
             .then(res => res.json()).then(data => {
                 if (data.url) {
                     document.getElementById("ar-image-after-url").value = data.url;
@@ -1925,7 +1945,13 @@ function doEditRecord(id, mode) {
                     document.getElementById("ar-image-after-thumb").src = data.url;
                     document.getElementById("ar-image-after-preview").style.display = "flex";
                 }
-            });
+            }).catch(() => {}));
+    }
+    editFormSnapshot = getEditFormSnapshot();
+    if (imgPromises.length) {
+        Promise.all(imgPromises).then(() => {
+            if (editingRecordId === id) editFormSnapshot = getEditFormSnapshot();
+        });
     }
 
     const toggleEl = document.getElementById("completion-toggle");
