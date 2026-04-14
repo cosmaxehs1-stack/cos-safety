@@ -785,12 +785,12 @@ async def add_record(request: Request):
     likelihood_before = parse_number(body.get("likelihood_before", 0))
     severity_before = parse_number(body.get("severity_before", 0))
     risk_before = likelihood_before * severity_before
-    grade_before = "A" if risk_before <= 4 else "B" if risk_before <= 8 else "C" if risk_before <= 12 else "D" if risk_before > 0 else "-"
+    grade_before = "-" if risk_before <= 0 else "A" if risk_before <= 4 else "B" if risk_before <= 8 else "C" if risk_before <= 12 else "D"
 
     likelihood_after = parse_number(body.get("likelihood_after", 0))
     severity_after = parse_number(body.get("severity_after", 0))
     risk_after = likelihood_after * severity_after
-    grade_after = "A" if risk_after <= 4 else "B" if risk_after <= 8 else "C" if risk_after <= 12 else "D" if risk_after > 0 else "-"
+    grade_after = "-" if risk_after <= 0 else "A" if risk_after <= 4 else "B" if risk_after <= 8 else "C" if risk_after <= 12 else "D"
 
     if not channel or not content:
         raise HTTPException(status_code=400, detail="구분(채널)과 위험요소 내용은 필수입니다.")
@@ -892,7 +892,7 @@ async def update_record(request: Request):
         target["severity_before"] = sv
         target["risk_before"] = lh * sv
         risk = lh * sv
-        target["grade_before"] = "A" if risk <= 4 else "B" if risk <= 8 else "C" if risk <= 12 else "D" if risk > 0 else "-"
+        target["grade_before"] = "-" if risk <= 0 else "A" if risk <= 4 else "B" if risk <= 8 else "C" if risk <= 12 else "D"
 
     if "likelihood_after" in body or "severity_after" in body:
         lh = parse_number(body.get("likelihood_after", target.get("likelihood_after", 0)))
@@ -901,7 +901,7 @@ async def update_record(request: Request):
         target["severity_after"] = sv
         target["risk_after"] = lh * sv
         risk = lh * sv
-        target["grade_after"] = "A" if risk <= 4 else "B" if risk <= 8 else "C" if risk <= 12 else "D" if risk > 0 else "-"
+        target["grade_after"] = "-" if risk <= 0 else "A" if risk <= 4 else "B" if risk <= 8 else "C" if risk <= 12 else "D"
 
     save_data(data)
 
