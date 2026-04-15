@@ -1146,13 +1146,14 @@ function updateTable(records) {
     const tbody = document.getElementById("data-tbody");
     if (!tbody) return;
     tbody.innerHTML = "";
-    records.forEach(r => {
+    records.forEach((r, i) => {
         const tr = document.createElement("tr");
         tr.style.cursor = "pointer";
         tr.onclick = function(e) {
             if (e.target.closest("button") || e.target.closest("img")) return;
             showRecordDetail(r);
         };
+        const rowNo = i + 1;
         const imgBefore = r.image
             ? '<img src="' + escapeHtml(r.image) + '" class="table-thumb" onclick="event.stopPropagation();showImageModal(\'' + escapeHtml(r.image) + '\')">'
             : (r.has_image
@@ -1167,7 +1168,7 @@ function updateTable(records) {
         const contentFull = r.content_full || r.content || "";
         const planFull = r.improvement_plan || "";
         tr.innerHTML =
-            '<td class="td-no">' + r.no + '</td>' +
+            '<td class="td-no">' + rowNo + '</td>' +
             '<td>' + formatShortDate(r.date) + '</td><td>' + escapeHtml(r.location || "-") + '</td>' +
             '<td>' + escapeHtml(r.disaster_type || "-") + '</td>' +
             '<td class="td-content td-content-risk" title="' + escapeHtml(contentFull) + '">' + escapeHtml(contentFull) + '</td>' +

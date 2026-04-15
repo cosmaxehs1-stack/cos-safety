@@ -989,7 +989,7 @@ td.red { color: #e74c3c; font-weight: 600; }
 .table-thumb:hover { transform: scale(2.5); z-index: 10; position: relative; }
 
 .image-viewer-img {
-    max-width: 92vw; max-height: 88vh; border-radius: 10px;
+    width: 90vw; height: 85vh; border-radius: 10px;
     box-shadow: 0 20px 60px rgba(0,0,0,0.6); image-rendering: high-quality;
     object-fit: contain; background: #000;
 }

@@ -1363,6 +1363,9 @@ async def get_summary(
         r["repeat_count"] = cnt
         r["is_repeat"] = cnt >= 2
 
+    # 날짜 최신순 정렬 (빈 날짜는 뒤로)
+    records.sort(key=lambda r: (r.get("date") or "", r.get("no", 0)), reverse=True)
+
     total = len(records)
     repeat_total = sum(1 for r in records if r["is_repeat"])
 
