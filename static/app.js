@@ -1352,6 +1352,11 @@ async function uploadFile(input) {
     formData.append("file", file);
     formData.append("channel", channel);
 
+    // 로딩 표시
+    const btn = input.parentElement.querySelector('.btn-upload');
+    const origText = btn ? btn.textContent : '';
+    if (btn) { btn.textContent = '업로드 중...'; btn.disabled = true; btn.style.opacity = '0.6'; }
+
     try {
         const res = await fetch("/api/upload", { method: "POST", headers: authHeaders(), body: formData });
         if (res.status === 401) { logout(); return; }
@@ -1359,9 +1364,12 @@ async function uploadFile(input) {
         let data;
         try { data = JSON.parse(text); } catch { data = null; }
         if (!res.ok) { alert("업로드 실패: " + (data?.detail || text || "서버 오류")); return; }
-        alert(data?.message || "업로드 완료");
+        alert((data?.message || "업로드 완료") + "\n(이미지는 백그라운드에서 처리 중입니다)");
         fetchSummary();
     } catch (e) { alert("업로드 실패: " + e.message); }
+    finally {
+        if (btn) { btn.textContent = origText; btn.disabled = false; btn.style.opacity = '1'; }
+    }
     input.value = "";
 }
 

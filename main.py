@@ -12,7 +12,7 @@ from datetime import datetime, date, timedelta
 from typing import Optional, Union
 from xml.etree import ElementTree as ET
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Response
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Response, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -518,11 +518,14 @@ def extract_excel_images(file_source: Union[str, io.BytesIO]) -> dict[str, dict[
     return result
 
 
-def parse_excel(file_source: Union[str, io.BytesIO]) -> list[dict]:
+def parse_excel(file_source: Union[str, io.BytesIO], skip_images: bool = False) -> list[dict]:
     # ZIP 기반으로 이미지 먼저 추출 (openpyxl 의존 X)
-    if isinstance(file_source, io.BytesIO):
-        file_source.seek(0)
-    all_images = extract_excel_images(file_source)
+    if skip_images:
+        all_images = {}
+    else:
+        if isinstance(file_source, io.BytesIO):
+            file_source.seek(0)
+        all_images = extract_excel_images(file_source)
 
     if isinstance(file_source, io.BytesIO):
         file_source.seek(0)
@@ -625,6 +628,8 @@ def parse_excel(file_source: Union[str, io.BytesIO]) -> list[dict]:
                 "week": week,
                 "image": (image_map.get(row_num) or {}).get("before", ""),
                 "image_after": (image_map.get(row_num) or {}).get("after", ""),
+                "_sheet_name": sheet_name,
+                "_row_num": row_num,
             }
             all_records.append(record)
 
@@ -643,8 +648,62 @@ CHANNELS = [
 ]
 
 
+def _process_images_background(file_bytes: bytes, record_ids: dict[tuple[str, int], str]):
+    """백그라운드에서 이미지 추출 → R2 업로드 → DB 레코드 업데이트"""
+    try:
+        file_buf = io.BytesIO(file_bytes)
+        all_images = extract_excel_images(file_buf)
+        if not all_images:
+            print("[bg-image] 이미지 없음, 완료")
+            return
+
+        # record_ids: (sheet_name, row_num) → _id 매핑
+        updates: list[tuple[str, str, str]] = []  # (_id, field, url)
+        for sheet_name, rows in all_images.items():
+            for row_num, img_dict in rows.items():
+                rec_id = record_ids.get((sheet_name, row_num))
+                if not rec_id:
+                    continue
+                if img_dict.get("before"):
+                    updates.append((rec_id, "image", img_dict["before"]))
+                if img_dict.get("after"):
+                    updates.append((rec_id, "image_after", img_dict["after"]))
+
+        if not updates:
+            print("[bg-image] 매핑된 이미지 없음, 완료")
+            return
+
+        # DB 업데이트
+        if DATABASE_URL:
+            conn = get_db()
+            try:
+                cur = conn.cursor()
+                for rec_id, field, url in updates:
+                    cur.execute(
+                        "UPDATE records SET data = jsonb_set(data, %s, %s) WHERE _id = %s",
+                        ([field], json.dumps(url), rec_id)
+                    )
+                conn.commit()
+                cur.close()
+            finally:
+                release_db(conn)
+        else:
+            data = load_data()
+            id_map = {r["_id"]: r for r in data}
+            for rec_id, field, url in updates:
+                if rec_id in id_map:
+                    id_map[rec_id][field] = url
+            save_data(data)
+
+        invalidate_data_cache()
+        print(f"[bg-image] {len(updates)}개 이미지 업데이트 완료")
+    except Exception as e:
+        print(f"[bg-image] 오류: {e}")
+        import traceback; traceback.print_exc()
+
+
 @app.post("/api/upload")
-async def upload_excel(request: Request, file: UploadFile = File(...), channel: str = Form("안전점검")):
+async def upload_excel(request: Request, background_tasks: BackgroundTasks, file: UploadFile = File(...), channel: str = Form("안전점검")):
     verify_token(request)
 
     if not file.filename.endswith((".xlsx", ".xlsm")):
@@ -660,8 +719,8 @@ async def upload_excel(request: Request, file: UploadFile = File(...), channel: 
 
     try:
         file_buf = io.BytesIO(content)
-        records = parse_excel(file_buf)
-        print(f"[upload] 파싱 완료: {len(records)}건")
+        records = parse_excel(file_buf, skip_images=True)
+        print(f"[upload] 파싱 완료: {len(records)}건 (이미지는 백그라운드 처리)")
     except Exception as e:
         print(f"[upload] 엑셀 파싱 오류: {e}")
         import traceback; traceback.print_exc()
@@ -673,6 +732,8 @@ async def upload_excel(request: Request, file: UploadFile = File(...), channel: 
     except Exception as e:
         pass
 
+    # sheet_name, row_num → _id 매핑 (백그라운드 이미지 처리용)
+    record_ids: dict[tuple[str, int], str] = {}
     for r in records:
         r["channel"] = channel
         r["source"] = "excel"
@@ -681,6 +742,7 @@ async def upload_excel(request: Request, file: UploadFile = File(...), channel: 
             r["image"] = ""
         if not r.get("image_after"):
             r["image_after"] = ""
+        record_ids[(r.get("_sheet_name", ""), r.get("_row_num", 0))] = r["_id"]
 
     try:
         existing = load_data()
@@ -694,6 +756,9 @@ async def upload_excel(request: Request, file: UploadFile = File(...), channel: 
         print(f"[upload] DB 저장 오류: {e}")
         import traceback; traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"데이터 저장 오류: {str(e)}")
+
+    # 이미지 처리는 백그라운드에서 실행
+    background_tasks.add_task(_process_images_background, content, record_ids)
 
     return {"message": f"[{channel}] {len(records)}건 업로드 완료 (전체 {len(existing)}건)", "count": len(records)}
 
