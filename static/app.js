@@ -15,47 +15,144 @@ let ADMIN_TOKEN = sessionStorage.getItem("admin_token") || "";
 let weeklyLiveData = null;
 let weeklySavedSnapshots = [];
 
+// ===== 신규 사용자 인증 (사번 + 비번) =====
+// AUTH_TOKEN은 sessionStorage에 저장되어 브라우저 종료 시 사라짐
+let AUTH_TOKEN = sessionStorage.getItem("auth_token") || "";
+let CURRENT_USER = null;  // { emp_id, name, team, workplace, role }
+let _usersCache = [];  // admin users list cache
+
 const ALL_CHANNELS = [
     "정기위험성평가(코스맥스)", "정기위험성평가(협력사)", "수시위험성평가",
     "안전점검", "부서별 위험요소발굴", "근로자 제안", "5S/EHS평가"
 ];
 
 // ===== Auth =====
-async function login() {
-    const pw = document.getElementById("password-input").value;
-    const errEl = document.getElementById("login-error");
+// 기존 비밀번호 게이트웨이는 제거. 대시보드는 누구나 즉시 열람 가능.
+// 등록/수정/삭제 시에만 로그인 요구.
+async function restoreAuthSession() {
+    if (!AUTH_TOKEN) { CURRENT_USER = null; updateAuthUI(); return; }
     try {
-        const res = await fetch("/api/login", {
+        const res = await fetch("/api/auth/me", { headers: authHeaders() });
+        if (!res.ok) throw new Error("me failed");
+        const data = await res.json();
+        CURRENT_USER = data.user;
+        if (!CURRENT_USER) {
+            AUTH_TOKEN = "";
+            sessionStorage.removeItem("auth_token");
+        }
+    } catch (e) {
+        CURRENT_USER = null;
+        AUTH_TOKEN = "";
+        sessionStorage.removeItem("auth_token");
+    }
+    updateAuthUI();
+}
+
+function openLoginModal() {
+    document.getElementById("auth-login-error").textContent = "";
+    document.getElementById("auth-emp-id").value = "";
+    document.getElementById("auth-password").value = "";
+    document.getElementById("auth-login-modal").style.display = "flex";
+    setTimeout(() => document.getElementById("auth-emp-id").focus(), 50);
+}
+
+function closeLoginModal() {
+    document.getElementById("auth-login-modal").style.display = "none";
+}
+
+async function authLogin() {
+    const empId = (document.getElementById("auth-emp-id").value || "").trim();
+    const pw = (document.getElementById("auth-password").value || "").trim();
+    const errEl = document.getElementById("auth-login-error");
+    errEl.textContent = "";
+    if (!empId || !pw) { errEl.textContent = "사번과 비밀번호를 입력해주세요."; return; }
+    try {
+        const res = await fetch("/api/auth/login", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ password: pw }),
+            body: JSON.stringify({ emp_id: empId, password: pw }),
         });
-        if (!res.ok) { errEl.textContent = "비밀번호가 올바르지 않습니다."; return; }
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            errEl.textContent = err.detail || "로그인에 실패했습니다.";
+            return;
+        }
         const data = await res.json();
-        TOKEN = data.token;
-        sessionStorage.setItem("token", TOKEN);
-        showDashboard();
-    } catch (e) { errEl.textContent = "서버 연결 실패"; }
+        AUTH_TOKEN = data.token;
+        CURRENT_USER = data.user;
+        sessionStorage.setItem("auth_token", AUTH_TOKEN);
+        closeLoginModal();
+        updateAuthUI();
+    } catch (e) {
+        errEl.textContent = "서버 연결 실패";
+    }
 }
 
-function logout() {
-    TOKEN = "";
-    ADMIN_TOKEN = "";
-    sessionStorage.removeItem("token");
-    sessionStorage.removeItem("admin_token");
-    document.getElementById("login-screen").style.display = "flex";
-    document.getElementById("dashboard").style.display = "none";
+async function authLogout() {
+    try {
+        if (AUTH_TOKEN) {
+            await fetch("/api/auth/logout", { method: "POST", headers: authHeaders() });
+        }
+    } catch (e) {}
+    AUTH_TOKEN = "";
+    CURRENT_USER = null;
+    sessionStorage.removeItem("auth_token");
+    updateAuthUI();
 }
 
+function updateAuthUI() {
+    const loggedIn = !!CURRENT_USER;
+    const isAdmin = loggedIn && (CURRENT_USER.role === "admin" || CURRENT_USER.role === "safety_lead");
+    const isSafetyLead = loggedIn && CURRENT_USER.role === "safety_lead";
+    document.getElementById("btn-auth-login").style.display = loggedIn ? "none" : "";
+    document.getElementById("btn-auth-logout").style.display = loggedIn ? "" : "none";
+    document.getElementById("btn-profile").style.display = loggedIn ? "" : "none";
+    document.getElementById("btn-users").style.display = isAdmin ? "" : "none";
+    const info = document.getElementById("sidebar-user-info");
+    if (loggedIn) {
+        info.style.display = "";
+        document.getElementById("sidebar-user-name").textContent = CURRENT_USER.name + " 님";
+        const meta = [CURRENT_USER.team, CURRENT_USER.workplace].filter(Boolean).join(" · ");
+        const roleLabel = CURRENT_USER.role === "safety_lead" ? "안전총괄"
+            : CURRENT_USER.role === "admin" ? "관리자" : "";
+        document.getElementById("sidebar-user-meta").textContent = (roleLabel ? roleLabel + " · " : "") + (meta || "");
+    } else {
+        info.style.display = "none";
+    }
+    // body에 권한 클래스 토글 (CSS에서 삭제 버튼 등 분기용)
+    document.body.classList.toggle("auth-logged-in", loggedIn);
+    document.body.classList.toggle("auth-is-admin", isAdmin);
+    document.body.classList.toggle("auth-is-safety-lead", isSafetyLead);
+    // 사이드바 내 기존 "관리자" 버튼은 이전 관리자 기능 (admin2026)과 별개로 유지
+    // 현재 로그인 사용자 기반 관리자는 별도 "사용자 관리" 버튼으로 노출
+    // 기존 동작에 영향 주지 않도록 updateAdminUI 호출
+    if (typeof updateAdminUI === "function") updateAdminUI();
+}
+
+function authHeaders() {
+    const h = { "Content-Type": "application/json" };
+    if (AUTH_TOKEN) h["Authorization"] = "Bearer " + AUTH_TOKEN;
+    return h;
+}
+
+function requireLoginOrPrompt(msg) {
+    if (!CURRENT_USER) {
+        alert(msg || "로그인이 필요합니다.");
+        openLoginModal();
+        return false;
+    }
+    return true;
+}
+
+// 구 비밀번호 게이트웨이와의 호환용 stub — 다른 곳에서 login() 호출 있을 수 있음
+async function login() { openLoginModal(); }
+function logout() { authLogout(); }
 function showDashboard() {
-    document.getElementById("login-screen").style.display = "none";
-    document.getElementById("dashboard").style.display = "flex";
     initDateDefaults();
     updateAdminUI();
+    updateAuthUI();
     fetchSummary();
 }
-
-function authHeaders() { return { Authorization: "Bearer " + TOKEN }; }
 
 // ===== Page Navigation =====
 function switchPage(pageName, el) {
@@ -1179,12 +1276,20 @@ function updateTable(records) {
                 '<span class="grade-arrow">→</span>' +
                 '<div class="img-col">' + imgAfter + '<span class="grade-badge grade-' + (r.grade_after || "-") + '">' + (r.grade_after || "-") + '</span></div>' +
             '</div></td>' +
-            (ADMIN_TOKEN
-                ? '<td class="action-cell">' +
-                    '<button class="btn-icon btn-edit" title="수정" onclick="event.stopPropagation();editRecord(\'' + rid + '\')">✏️</button>' +
-                    '<button class="btn-icon btn-row-del" title="삭제" onclick="event.stopPropagation();deleteRecord(\'' + rid + '\')">🗑️</button>' +
-                  '</td>'
-                : '');
+            (function() {
+                // 수정 버튼: 로그인 + (safety_lead 또는 본인 등록)
+                const loggedIn = !!CURRENT_USER;
+                const isSafetyLead = loggedIn && CURRENT_USER.role === "safety_lead";
+                const isOwner = loggedIn && r.registered_by && r.registered_by === CURRENT_USER.emp_id;
+                const showEdit = loggedIn && (isSafetyLead || isOwner);
+                const showDelete = isSafetyLead;
+                const showAdminEdit = !!ADMIN_TOKEN && !showEdit; // 레거시 관리자 호환
+                if (!showEdit && !showDelete && !showAdminEdit) return '';
+                let html = '<td class="action-cell">';
+                if (showEdit || showAdminEdit) html += '<button class="btn-icon btn-edit" title="수정" onclick="event.stopPropagation();editRecord(\'' + rid + '\')">✏️</button>';
+                if (showDelete) html += '<button class="btn-icon btn-row-del" title="삭제" onclick="event.stopPropagation();deleteRecord(\'' + rid + '\')">🗑️</button>';
+                return html + '</td>';
+            })();
         tbody.appendChild(tr);
     });
 }
@@ -1720,6 +1825,7 @@ function removeImage(phase) {
 async function submitAddRecord(e) {
     e.preventDefault();
     if (document.getElementById("ar-submit-btn").disabled) return;
+    if (!requireLoginOrPrompt("위험요소 등록은 로그인 후 가능합니다.")) return;
     const _completion = document.getElementById("ar-completion").value;
     if (_completion === "완료") {
         const imgAfter = document.getElementById("ar-image-after-url").value;
@@ -1775,6 +1881,18 @@ function editRecord(id) {
     if (!lastSummaryData) return;
     const r = lastSummaryData.records.find(rec => rec._id === id);
     if (!r) { alert("레코드를 찾을 수 없습니다."); return; }
+    if (!requireLoginOrPrompt("위험요소 수정은 로그인 후 가능합니다.")) return;
+    if (CURRENT_USER.role !== "safety_lead") {
+        const owner = r.registered_by || "";
+        if (!owner) {
+            alert("등록자 정보가 없는 기존 레코드는 수정할 수 없습니다.");
+            return;
+        }
+        if (owner !== CURRENT_USER.emp_id) {
+            alert("본인이 등록한 위험요소만 수정할 수 있습니다.");
+            return;
+        }
+    }
     doEditRecord(id, "edit");
 }
 
@@ -1972,6 +2090,10 @@ function doEditRecord(id, mode) {
 }
 
 async function deleteRecord(id) {
+    if (!CURRENT_USER || CURRENT_USER.role !== "safety_lead") {
+        alert("삭제는 안전총괄만 가능합니다.");
+        return;
+    }
     if (!confirm("이 위험요소를 삭제하시겠습니까?")) return;
     try {
         const res = await fetch("/api/record/delete", {
@@ -1979,7 +2101,6 @@ async function deleteRecord(id) {
             headers: { ...authHeaders(), "Content-Type": "application/json" },
             body: JSON.stringify({ _id: id }),
         });
-        if (res.status === 401) { logout(); return; }
         const data = await res.json();
         if (!res.ok) { alert(data.detail || "삭제 실패"); return; }
         alert(data.message);
@@ -2099,18 +2220,17 @@ function updateAdminUI() {
     const adminOnlyEls = document.querySelectorAll(".admin-only");
 
     if (ADMIN_TOKEN) {
-        btn.textContent = "관리자 ✓";
-        btn.classList.add("btn-admin-active");
+        if (btn) { btn.textContent = "관리자 ✓"; btn.classList.add("btn-admin-active"); }
         adminOnlyEls.forEach(el => el.style.display = "");
     } else {
-        btn.textContent = "관리자";
-        btn.classList.remove("btn-admin-active");
+        if (btn) { btn.textContent = "관리자"; btn.classList.remove("btn-admin-active"); }
         adminOnlyEls.forEach(el => el.style.display = "none");
     }
     updateChannelOptions();
-    // Show/hide 작업 column header
+    // Show/hide 작업 column header — 로그인 사용자도 본인 레코드 수정 가능하므로 표시
+    const showActionCol = !!ADMIN_TOKEN || !!CURRENT_USER;
     document.querySelectorAll(".th-action").forEach(el => {
-        el.style.display = ADMIN_TOKEN ? "" : "none";
+        el.style.display = showActionCol ? "" : "none";
     });
     // Redraw table so edit/delete buttons reflect admin state
     if (lastSummaryData) updateTable(getDisplayRecords(lastSummaryData));
@@ -2843,9 +2963,153 @@ function closeSummaryNotif(notifId) {
 // Poll notifications every 30 seconds
 setInterval(() => { loadNotifications(); loadSummaryNotifications(); }, 30000);
 
+// ===== Profile Modal =====
+async function openProfileModal() {
+    if (!requireLoginOrPrompt()) return;
+    document.getElementById("auth-profile-modal").style.display = "flex";
+    // 프로필 정보
+    const u = CURRENT_USER;
+    const roleLabel = u.role === "safety_lead" ? "안전총괄"
+        : u.role === "admin" ? "관리자" : "일반 사용자";
+    const meta = [u.team, u.workplace].filter(Boolean).join(" · ");
+    document.getElementById("profile-info").innerHTML = `
+        <div class="profile-info-row"><span class="profile-info-label">이름</span><span>${escapeHtml(u.name)}</span></div>
+        <div class="profile-info-row"><span class="profile-info-label">사번</span><span>${escapeHtml(u.emp_id)}</span></div>
+        <div class="profile-info-row"><span class="profile-info-label">소속</span><span>${escapeHtml(meta || "-")}</span></div>
+        <div class="profile-info-row"><span class="profile-info-label">권한</span><span>${roleLabel}</span></div>
+    `;
+    // 내 위험요소
+    const listEl = document.getElementById("profile-records-list");
+    listEl.textContent = "불러오는 중...";
+    document.getElementById("profile-records-count").textContent = "0";
+    try {
+        const res = await fetch("/api/record/my", { headers: authHeaders() });
+        if (!res.ok) throw new Error("failed");
+        const data = await res.json();
+        document.getElementById("profile-records-count").textContent = String(data.count || 0);
+        if (!data.records || data.records.length === 0) {
+            listEl.innerHTML = `<div class="profile-empty">등록한 위험요소가 없습니다.</div>`;
+            return;
+        }
+        listEl.innerHTML = data.records.map(r => {
+            const grade = r.grade_after || r.grade_before || "-";
+            const done = r.completion === "완료";
+            return `
+                <div class="profile-record-item ${done ? "done" : ""}">
+                    <div class="profile-record-head">
+                        <span class="profile-record-no">No.${r.no || "-"}</span>
+                        <span class="profile-record-channel">${escapeHtml(r.channel || "")}</span>
+                        <span class="profile-record-grade grade-${grade.toLowerCase()}">${escapeHtml(grade)}</span>
+                        <span class="profile-record-status ${done ? "done" : "pending"}">${done ? "완료" : "미완료"}</span>
+                    </div>
+                    <div class="profile-record-content">${escapeHtml(r.content_full || r.content || "")}</div>
+                    <div class="profile-record-meta">
+                        <span>${escapeHtml(r.date || "")}</span>
+                        <span>${escapeHtml(r.location || "")}</span>
+                    </div>
+                </div>
+            `;
+        }).join("");
+    } catch (e) {
+        listEl.innerHTML = `<div class="profile-empty">조회 실패.</div>`;
+    }
+}
+
+function closeProfileModal() {
+    document.getElementById("auth-profile-modal").style.display = "none";
+}
+
+function escapeHtml(s) {
+    if (s == null) return "";
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ===== Users Management Modal (admin/safety_lead only) =====
+async function openUsersModal() {
+    if (!CURRENT_USER || (CURRENT_USER.role !== "admin" && CURRENT_USER.role !== "safety_lead")) {
+        alert("관리자 권한이 필요합니다.");
+        return;
+    }
+    document.getElementById("auth-users-modal").style.display = "flex";
+    document.getElementById("users-search").value = "";
+    const listEl = document.getElementById("users-list-box");
+    listEl.textContent = "불러오는 중...";
+    try {
+        const res = await fetch("/api/admin/users", { headers: authHeaders() });
+        if (!res.ok) { listEl.textContent = "조회 실패"; return; }
+        const data = await res.json();
+        _usersCache = data.users || [];
+        renderUsersList(_usersCache);
+    } catch (e) {
+        listEl.textContent = "조회 실패";
+    }
+}
+
+function closeUsersModal() {
+    document.getElementById("auth-users-modal").style.display = "none";
+}
+
+function filterUsersList() {
+    const q = (document.getElementById("users-search").value || "").trim().toLowerCase();
+    if (!q) { renderUsersList(_usersCache); return; }
+    const filtered = _usersCache.filter(u =>
+        (u.name || "").toLowerCase().includes(q) ||
+        (u.emp_id || "").toLowerCase().includes(q) ||
+        (u.team || "").toLowerCase().includes(q) ||
+        (u.workplace || "").toLowerCase().includes(q)
+    );
+    renderUsersList(filtered);
+}
+
+function renderUsersList(users) {
+    const listEl = document.getElementById("users-list-box");
+    if (!users || users.length === 0) { listEl.innerHTML = `<div class="profile-empty">결과 없음</div>`; return; }
+    listEl.innerHTML = `
+        <table class="users-table">
+            <thead>
+                <tr>
+                    <th>사번</th><th>이름</th><th>팀</th><th>작업장</th><th>권한</th><th>비고</th><th></th>
+                </tr>
+            </thead>
+            <tbody>
+                ${users.map(u => {
+                    const role = u.role === "safety_lead" ? "안전총괄"
+                        : u.role === "admin" ? "관리자" : "일반";
+                    return `<tr>
+                        <td>${escapeHtml(u.emp_id)}</td>
+                        <td>${escapeHtml(u.name)}</td>
+                        <td>${escapeHtml(u.team || "")}</td>
+                        <td>${escapeHtml(u.workplace || "")}</td>
+                        <td><span class="user-role-badge role-${u.role}">${role}</span></td>
+                        <td>${escapeHtml(u.note || "")}</td>
+                        <td><button class="btn-reset-pw" onclick="resetUserPassword('${escapeHtml(u.emp_id)}', '${escapeHtml(u.name)}')">비번 초기화</button></td>
+                    </tr>`;
+                }).join("")}
+            </tbody>
+        </table>
+    `;
+}
+
+async function resetUserPassword(empId, name) {
+    if (!confirm(`${name} (${empId}) 님의 비밀번호를 사번으로 초기화하시겠습니까?`)) return;
+    try {
+        const res = await fetch("/api/admin/reset-password", {
+            method: "POST",
+            headers: authHeaders(),
+            body: JSON.stringify({ emp_id: empId }),
+        });
+        const data = await res.json();
+        if (!res.ok) { alert(data.detail || "초기화 실패"); return; }
+        alert(data.message || "완료");
+    } catch (e) {
+        alert("서버 오류");
+    }
+}
+
 // ===== Init =====
 TOKEN = "public";
 sessionStorage.setItem("token", TOKEN);
 showDashboard();
+restoreAuthSession();
 loadNotifications();
 loadSummaryNotifications();
