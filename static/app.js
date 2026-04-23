@@ -13,6 +13,7 @@ let editingRecordId = null;
 let currentPage = "summary";
 let ADMIN_TOKEN = sessionStorage.getItem("admin_token") || "";
 let weeklyLiveData = null;
+let summaryWeeklyData = null;
 let weeklyCurrentMonth = null;
 let weeklyCurrentWeek = null;
 
@@ -32,6 +33,7 @@ function showDashboard() {
     initDateDefaults();
     updateAdminUI();
     fetchSummary();
+    loadSummaryWeekly();
 }
 
 function authHeaders() { return { Authorization: "Bearer " + TOKEN }; }
@@ -87,6 +89,7 @@ function switchPage(pageName, el) {
         const kw = document.getElementById("f-keyword");
         if (kw) kw.value = "";
         fetchSummary();
+        loadSummaryWeekly();
     }
 }
 
@@ -2283,13 +2286,51 @@ async function loadWeeklyTab() {
     } catch (e) { console.error("Weekly load error:", e); }
 }
 
-function renderQuarterTable(data) {
-    const container = document.getElementById("weekly-tables");
+async function loadSummaryWeekly() {
+    const yearEl = document.getElementById("sw-year");
+    const quarterEl = document.getElementById("sw-quarter");
+    if (!yearEl || !quarterEl) return;
+
+    // 분기 셀렉트가 아직 초기값이면 현재 분기로 자동 세팅
+    var now = new Date();
+    if (!quarterEl.dataset.initialized) {
+        quarterEl.value = String(Math.ceil((now.getMonth() + 1) / 3));
+        quarterEl.dataset.initialized = "1";
+    }
+
+    const year = yearEl.value;
+    const quarter = quarterEl.value;
+
+    weeklyCurrentMonth = now.getMonth() + 1;
+    weeklyCurrentWeek = getWeekFromDate(now.toISOString().split("T")[0]);
+
+    try {
+        const liveRes = await fetch("/api/weekly/quarter?year=" + year + "&quarter=" + quarter, { headers: authHeaders() });
+        summaryWeeklyData = await liveRes.json();
+        renderQuarterTable(summaryWeeklyData, { containerId: "summary-weekly-tables", siteSelectId: "f-team" });
+    } catch (e) { console.error("Summary weekly load error:", e); }
+}
+
+function onSummaryTeamChange() {
+    fetchSummary();
+    if (summaryWeeklyData) {
+        renderQuarterTable(summaryWeeklyData, { containerId: "summary-weekly-tables", siteSelectId: "f-team" });
+    } else {
+        loadSummaryWeekly();
+    }
+}
+
+function renderQuarterTable(data, opts) {
+    opts = opts || {};
+    const containerId = opts.containerId || "weekly-tables";
+    const siteSelectId = opts.siteSelectId || "w-site";
+    const container = document.getElementById(containerId);
+    if (!container) return;
     if (!data || !data.sites) { container.innerHTML = ""; return; }
 
     const months = data.months || [];
     const channels = data.channel_order || [];
-    const selectedSite = (document.getElementById("w-site") || {}).value || "전체";
+    const selectedSite = (document.getElementById(siteSelectId) || {}).value || "전체";
     const siteNames = [selectedSite];
     const curMonth = weeklyCurrentMonth;
     const curWeek = weeklyCurrentWeek;
