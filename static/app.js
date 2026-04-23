@@ -2289,7 +2289,8 @@ function renderQuarterTable(data) {
 
     const months = data.months || [];
     const channels = data.channel_order || [];
-    const siteNames = ["전체","환경안전1팀","환경안전2팀"];
+    const selectedSite = (document.getElementById("w-site") || {}).value || "전체";
+    const siteNames = [selectedSite];
     const curMonth = weeklyCurrentMonth;
     const curWeek = weeklyCurrentWeek;
 
