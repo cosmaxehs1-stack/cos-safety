@@ -6,6 +6,14 @@ document.addEventListener("click", function(e) {
         document.querySelectorAll(".info-tooltip.show").forEach(function(t) { t.classList.remove("show"); });
     }
 });
+
+// 뷰포트 변경 시 등급 차트 박스 높이 재적용
+window.addEventListener("resize", function() {
+    var isNarrow = window.innerWidth <= 1024;
+    document.querySelectorAll(".grade-chart-box").forEach(function(box) {
+        box.style.height = isNarrow ? "110px" : "180px";
+    });
+});
 let chartInstances = {};
 let locationViewMode = "grade";
 let lastSummaryData = null;
@@ -854,6 +862,12 @@ function updateSummaryCharts(data) {
             }
         };
     };
+    // 뷰포트 폭에 따라 차트 박스 높이 강제 설정 (CSS 캐시/우선순위 이슈 우회)
+    var isNarrow = window.innerWidth <= 1024;
+    document.querySelectorAll(".grade-chart-box").forEach(function(box) {
+        box.style.height = isNarrow ? "110px" : "180px";
+    });
+
     chartInstances["chart-grade-before"] = new Chart(document.getElementById("chart-grade-before"), {
         type: "bar",
         data: { labels: gradeLabels, datasets: [{ data: [data.grade_a, data.grade_b, data.grade_c, data.grade_d], backgroundColor: gradeBarColors, borderColor: gradeBarBorders, borderWidth: 1, borderRadius: 2 }] },
@@ -864,6 +878,11 @@ function updateSummaryCharts(data) {
         data: { labels: gradeLabels, datasets: [{ data: [data.grade_a_current||0, data.grade_b_current||0, data.grade_c_current||0, data.grade_d_current||0], backgroundColor: gradeBarColors, borderColor: gradeBarBorders, borderWidth: 1, borderRadius: 2 }] },
         options: gradeBarOpts(false)
     });
+    // 렌더 후 한번 더 리사이즈 (일부 브라우저에서 초기 크기 캐싱 대응)
+    setTimeout(function() {
+        if (chartInstances["chart-grade-before"]) chartInstances["chart-grade-before"].resize();
+        if (chartInstances["chart-grade-after"]) chartInstances["chart-grade-after"].resize();
+    }, 50);
 
     // Completion donut
     destroyChart("chart-completion");
