@@ -1012,6 +1012,9 @@ td.red { color: #e74c3c; font-weight: 600; }
 }
 .weekly-sep { color: #ccc; font-size: 18px; }
 
+/* 등급현황 차트 박스 기본 높이 (데스크톱) */
+.grade-chart-box { position: relative; height: 180px; }
+
 /* --- Weekly Table: Clean Minimal (참고: COSMAX 내부 표 스타일) --- */
 .weekly-table-wrap { margin-bottom: 28px; }
 .weekly-site-title {
