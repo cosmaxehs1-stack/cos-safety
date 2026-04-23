@@ -22,7 +22,6 @@ import psycopg2.extras
 import psycopg2.pool
 import hmac
 import urllib.request
-import bcrypt
 from concurrent.futures import ThreadPoolExecutor
 from PIL import Image
 
@@ -43,13 +42,6 @@ ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin2026")
 DATABASE_URL = os.environ.get("DATABASE_URL")
 SESSION_TOKENS: set[str] = set()
 ADMIN_TOKENS: set[str] = set()
-
-# --- User auth ---
-# token -> {"emp_id": ..., "name": ..., "role": ..., "team": ..., "workplace": ...}
-USER_SESSIONS: dict[str, dict] = {}
-
-# 안전총괄 5명 사번 (엑셀 F열과 무관하게 강제 지정)
-SAFETY_LEAD_EMP_IDS = {"122200147", "122250079", "122210160", "122220067", "122180249"}
 
 # --- Data Cache ---
 _data_cache: list[dict] | None = None
@@ -257,19 +249,6 @@ def init_db():
                 is_read BOOLEAN DEFAULT FALSE
             )
         """)
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                emp_id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                team TEXT,
-                workplace TEXT,
-                password_hash TEXT NOT NULL,
-                role TEXT NOT NULL DEFAULT 'user',
-                note TEXT,
-                created_at TEXT NOT NULL,
-                updated_at TEXT
-            )
-        """)
         conn.commit()
         cur.close()
     finally:
@@ -287,144 +266,9 @@ def on_startup():
 
 
 # --- Auth ---
-def _hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-
-
-def _verify_password(password: str, hashed: str) -> bool:
-    try:
-        return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
-    except Exception:
-        return False
-
-
-USERS_FILE = os.path.join(UPLOAD_DIR, "users.json")
-
-
-def _load_users_json() -> list[dict]:
-    if not os.path.exists(USERS_FILE):
-        return []
-    try:
-        with open(USERS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return []
-
-
-def _save_users_json(users: list[dict]):
-    with open(USERS_FILE, "w", encoding="utf-8") as f:
-        json.dump(users, f, ensure_ascii=False, indent=2)
-
-
-def _get_user_row(emp_id: str) -> Optional[dict]:
-    """DB 또는 JSON에서 사용자 조회."""
-    emp_id = str(emp_id).strip()
-    if not DATABASE_URL:
-        for u in _load_users_json():
-            if u.get("emp_id") == emp_id:
-                return dict(u)
-        return None
-    with db_conn() as conn:
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("SELECT * FROM users WHERE emp_id = %s", (emp_id,))
-        row = cur.fetchone()
-        cur.close()
-        return dict(row) if row else None
-
-
-def _list_users_all() -> list[dict]:
-    if not DATABASE_URL:
-        users = _load_users_json()
-        # password_hash 제외하고 반환
-        return [{k: v for k, v in u.items() if k != "password_hash"} for u in users]
-    with db_conn() as conn:
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("""
-            SELECT emp_id, name, team, workplace, role, note, created_at, updated_at
-            FROM users ORDER BY team NULLS LAST, name
-        """)
-        rows = [dict(r) for r in cur.fetchall()]
-        cur.close()
-    return rows
-
-
-def _session_user(request: Request) -> Optional[dict]:
-    """요청의 Authorization 헤더 토큰으로 세션 사용자 반환. 없으면 None."""
-    auth = request.headers.get("Authorization", "")
-    token = ""
-    if auth.startswith("Bearer "):
-        token = auth[7:].strip()
-    if not token:
-        return None
-    return USER_SESSIONS.get(token)
-
-
-def require_login(request: Request) -> dict:
-    user = _session_user(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
-    return user
-
-
-def require_admin(request: Request) -> dict:
-    user = require_login(request)
-    if user.get("role") not in ("admin", "safety_lead"):
-        raise HTTPException(status_code=403, detail="관리자 권한이 필요합니다.")
-    return user
-
-
-def require_safety_lead(request: Request) -> dict:
-    user = require_login(request)
-    if user.get("role") != "safety_lead":
-        raise HTTPException(status_code=403, detail="안전총괄 권한이 필요합니다.")
-    return user
-
-
 @app.post("/api/login")
 async def login(request: Request):
-    # 기존 게이트웨이 로그인 — 호환용 (비로그인 열람 허용으로 바뀌어 의미는 없음)
     return {"token": "public"}
-
-
-@app.post("/api/auth/login")
-async def auth_login(request: Request):
-    body = await request.json()
-    emp_id = str(body.get("emp_id", "")).strip()
-    password = str(body.get("password", "")).strip()
-    if not emp_id or not password:
-        raise HTTPException(status_code=400, detail="사번과 비밀번호를 입력해주세요.")
-    row = _get_user_row(emp_id)
-    if not row:
-        raise HTTPException(status_code=401, detail="사번 또는 비밀번호가 올바르지 않습니다.")
-    if not _verify_password(password, row.get("password_hash", "")):
-        raise HTTPException(status_code=401, detail="사번 또는 비밀번호가 올바르지 않습니다.")
-    token = secrets.token_hex(24)
-    user_info = {
-        "emp_id": row["emp_id"],
-        "name": row["name"],
-        "team": row.get("team") or "",
-        "workplace": row.get("workplace") or "",
-        "role": row.get("role") or "user",
-    }
-    USER_SESSIONS[token] = user_info
-    return {"token": token, "user": user_info}
-
-
-@app.post("/api/auth/logout")
-async def auth_logout(request: Request):
-    auth = request.headers.get("Authorization", "")
-    if auth.startswith("Bearer "):
-        token = auth[7:].strip()
-        USER_SESSIONS.pop(token, None)
-    return {"message": "로그아웃 되었습니다."}
-
-
-@app.get("/api/auth/me")
-async def auth_me(request: Request):
-    user = _session_user(request)
-    if not user:
-        return {"user": None}
-    return {"user": user}
 
 
 @app.post("/api/admin/login")
@@ -446,228 +290,6 @@ def verify_admin(request: Request):
     token = request.headers.get("X-Admin-Token", "")
     if token not in ADMIN_TOKENS:
         raise HTTPException(status_code=403, detail="관리자 권한이 필요합니다.")
-
-
-def _set_password(emp_id: str, new_hash: str):
-    """지정 사번의 비밀번호 해시 갱신 (DB 또는 JSON)."""
-    now = datetime.now().isoformat()
-    if not DATABASE_URL:
-        users = _load_users_json()
-        for u in users:
-            if u.get("emp_id") == emp_id:
-                u["password_hash"] = new_hash
-                u["updated_at"] = now
-                break
-        _save_users_json(users)
-        return
-    with db_conn() as conn:
-        cur = conn.cursor()
-        cur.execute(
-            "UPDATE users SET password_hash = %s, updated_at = %s WHERE emp_id = %s",
-            (new_hash, now, emp_id),
-        )
-        conn.commit()
-        cur.close()
-
-
-# --- User Management (admin only) ---
-@app.get("/api/admin/users")
-async def admin_list_users(request: Request):
-    require_admin(request)
-    return {"users": _list_users_all()}
-
-
-@app.post("/api/admin/reset-password")
-async def admin_reset_password(request: Request):
-    require_admin(request)
-    body = await request.json()
-    emp_id = str(body.get("emp_id", "")).strip()
-    if not emp_id:
-        raise HTTPException(status_code=400, detail="사번이 필요합니다.")
-    row = _get_user_row(emp_id)
-    if not row:
-        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
-    _set_password(emp_id, _hash_password(emp_id))
-    # 해당 사용자의 기존 세션 모두 무효화
-    for tok, info in list(USER_SESSIONS.items()):
-        if info.get("emp_id") == emp_id:
-            USER_SESSIONS.pop(tok, None)
-    return {"message": f"{row['name']} 님의 비밀번호를 사번으로 초기화했습니다."}
-
-
-@app.post("/api/auth/change-password")
-async def auth_change_password(request: Request):
-    user = require_login(request)
-    body = await request.json()
-    old_pw = str(body.get("old_password", "")).strip()
-    new_pw = str(body.get("new_password", "")).strip()
-    if not old_pw or not new_pw:
-        raise HTTPException(status_code=400, detail="기존/새 비밀번호를 입력해주세요.")
-    if len(new_pw) < 4:
-        raise HTTPException(status_code=400, detail="새 비밀번호는 4자 이상이어야 합니다.")
-    row = _get_user_row(user["emp_id"])
-    if not row or not _verify_password(old_pw, row.get("password_hash", "")):
-        raise HTTPException(status_code=401, detail="기존 비밀번호가 올바르지 않습니다.")
-    _set_password(user["emp_id"], _hash_password(new_pw))
-    return {"message": "비밀번호가 변경되었습니다."}
-
-
-# --- User Bulk Import from Excel ---
-@app.post("/api/admin/users/import")
-async def admin_import_users(request: Request):
-    """엑셀 파일(화성·평택, 판교 두 시트)로부터 사용자 일괄 등록.
-    이미 존재하는 사번은 name/team/workplace/role/note만 갱신하고 비밀번호는 유지한다.
-    새로운 사번은 초기 비밀번호 = 사번으로 생성.
-    """
-    require_admin(request)
-
-    body = await request.json()
-    file_path = str(body.get("file_path", "")).strip()
-    if not file_path or not os.path.exists(file_path):
-        raise HTTPException(status_code=400, detail="엑셀 파일 경로가 올바르지 않습니다.")
-
-    users = _parse_users_excel(file_path)
-    if not users:
-        raise HTTPException(status_code=400, detail="엑셀에서 사용자를 찾지 못했습니다.")
-
-    inserted, updated = _upsert_users(users)
-    return {"message": f"신규 {inserted}명, 갱신 {updated}명 반영 완료.", "total": len(users)}
-
-
-def _parse_users_excel(file_path: str) -> list[dict]:
-    """엑셀에서 사용자 리스트 파싱. 두 시트 구조가 다름."""
-    wb = openpyxl.load_workbook(file_path, data_only=True)
-    users = []
-    current_team = None  # A열 팀 (병합된 셀 처리)
-    current_workplace = None  # B열 작업장
-
-    # Sheet 1: 명단_화성, 평택
-    if "명단_화성, 평택" in wb.sheetnames:
-        ws = wb["명단_화성, 평택"]
-        current_team = None
-        current_workplace = None
-        for row in ws.iter_rows(min_row=3, values_only=True):
-            # A=팀, B=작업장, C=이름, D=직책, E=사번, F=비고
-            team_cell, workplace_cell, name, _position, emp_id, note = row[0], row[1], row[2], row[3], row[4], row[5] if len(row) > 5 else None
-            if team_cell:
-                current_team = str(team_cell).strip()
-                current_workplace = None
-            if workplace_cell:
-                current_workplace = str(workplace_cell).strip()
-            if not name or not emp_id:
-                continue
-            emp_id_str = str(emp_id).strip()
-            # 숫자 사번이 float로 읽힐 수 있음
-            try:
-                emp_id_str = str(int(float(emp_id_str)))
-            except (ValueError, TypeError):
-                pass
-            note_str = str(note).strip() if note else ""
-            role = "user"
-            if emp_id_str in SAFETY_LEAD_EMP_IDS:
-                role = "safety_lead"
-            elif note_str == "관리자":
-                role = "admin"
-            users.append({
-                "emp_id": emp_id_str,
-                "name": str(name).strip(),
-                "team": current_team or "",
-                "workplace": current_workplace or "",
-                "role": role,
-                "note": note_str,
-            })
-
-    # Sheet 2: 명단_판교 (A=구분, B=팀, D=이름, E=직책, F=사번)
-    if "명단_판교" in wb.sheetnames:
-        ws = wb["명단_판교"]
-        current_building = None
-        for row in ws.iter_rows(min_row=3, values_only=True):
-            building_cell = row[0]
-            team_cell = row[1]
-            name = row[3] if len(row) > 3 else None
-            emp_id = row[5] if len(row) > 5 else None
-            if building_cell:
-                current_building = str(building_cell).strip()
-            if not name or not emp_id:
-                continue
-            emp_id_str = str(emp_id).strip()
-            try:
-                emp_id_str = str(int(float(emp_id_str)))
-            except (ValueError, TypeError):
-                pass
-            team_name = str(team_cell).strip() if team_cell else ""
-            role = "user"
-            if emp_id_str in SAFETY_LEAD_EMP_IDS:
-                role = "safety_lead"
-            users.append({
-                "emp_id": emp_id_str,
-                "name": str(name).strip(),
-                "team": team_name,
-                "workplace": current_building or "",
-                "role": role,
-                "note": "",
-            })
-
-    # 사번 중복 제거 (첫 등장 우선)
-    seen = set()
-    unique = []
-    for u in users:
-        if u["emp_id"] in seen:
-            continue
-        seen.add(u["emp_id"])
-        unique.append(u)
-    return unique
-
-
-def _upsert_users(users: list[dict]) -> tuple[int, int]:
-    """신규 사용자는 초기 비번(사번)으로 INSERT, 기존 사용자는 메타데이터만 UPDATE (비번 유지)."""
-    inserted = 0
-    updated = 0
-    now = datetime.now().isoformat()
-
-    if not DATABASE_URL:
-        existing = _load_users_json()
-        by_id = {u["emp_id"]: u for u in existing}
-        for u in users:
-            if u["emp_id"] in by_id:
-                e = by_id[u["emp_id"]]
-                e.update({
-                    "name": u["name"], "team": u["team"], "workplace": u["workplace"],
-                    "role": u["role"], "note": u["note"], "updated_at": now,
-                })
-                updated += 1
-            else:
-                by_id[u["emp_id"]] = {
-                    "emp_id": u["emp_id"], "name": u["name"], "team": u["team"],
-                    "workplace": u["workplace"], "password_hash": _hash_password(u["emp_id"]),
-                    "role": u["role"], "note": u["note"], "created_at": now, "updated_at": None,
-                }
-                inserted += 1
-        _save_users_json(list(by_id.values()))
-        return inserted, updated
-
-    with db_conn() as conn:
-        cur = conn.cursor()
-        for u in users:
-            cur.execute("SELECT emp_id FROM users WHERE emp_id = %s", (u["emp_id"],))
-            exists = cur.fetchone()
-            if exists:
-                cur.execute("""
-                    UPDATE users
-                    SET name=%s, team=%s, workplace=%s, role=%s, note=%s, updated_at=%s
-                    WHERE emp_id=%s
-                """, (u["name"], u["team"], u["workplace"], u["role"], u["note"], now, u["emp_id"]))
-                updated += 1
-            else:
-                pw_hash = _hash_password(u["emp_id"])  # 초기 비번 = 사번
-                cur.execute("""
-                    INSERT INTO users (emp_id, name, team, workplace, password_hash, role, note, created_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                """, (u["emp_id"], u["name"], u["team"], u["workplace"], pw_hash, u["role"], u["note"], now))
-                inserted += 1
-        conn.commit()
-        cur.close()
-    return inserted, updated
 
 
 # --- Excel Parsing ---
@@ -1205,7 +827,7 @@ async def get_image(filename: str):
 # --- Direct Record Input ---
 @app.post("/api/record/add")
 async def add_record(request: Request):
-    user = require_login(request)
+    verify_token(request)
     body = await request.json()
 
     # Required fields
@@ -1278,8 +900,6 @@ async def add_record(request: Request):
         "source": "manual",
         "image": image,
         "image_after": image_after,
-        "registered_by": user["emp_id"],
-        "registered_by_name": user["name"],
     }
 
     existing.append(record)
@@ -1290,7 +910,7 @@ async def add_record(request: Request):
 
 @app.post("/api/record/update")
 async def update_record(request: Request):
-    user = require_login(request)
+    verify_token(request)
     body = await request.json()
     record_id = body.get("_id", "").strip()
     if not record_id:
@@ -1304,14 +924,6 @@ async def update_record(request: Request):
             break
     if not target:
         raise HTTPException(status_code=404, detail="레코드를 찾을 수 없습니다.")
-
-    # 본인이 등록한 위험요소만 수정 가능 (안전총괄은 예외로 모두 가능)
-    if user.get("role") != "safety_lead":
-        owner = target.get("registered_by", "")
-        if not owner:
-            raise HTTPException(status_code=403, detail="등록자 정보가 없는 기존 레코드는 수정할 수 없습니다.")
-        if owner != user["emp_id"]:
-            raise HTTPException(status_code=403, detail="본인이 등록한 위험요소만 수정할 수 있습니다.")
 
     prev_completion = target.get("completion", "")
 
@@ -1363,7 +975,7 @@ async def update_record(request: Request):
 
 @app.post("/api/record/delete")
 async def delete_record(request: Request):
-    require_safety_lead(request)
+    verify_token(request)
     body = await request.json()
     record_id = body.get("_id", "").strip()
     if not record_id:
@@ -1383,17 +995,6 @@ async def delete_record(request: Request):
     save_data(data)
 
     return {"message": "삭제 완료"}
-
-
-@app.get("/api/record/my")
-async def my_records(request: Request):
-    """로그인 사용자가 등록한 위험요소 목록."""
-    user = require_login(request)
-    data = load_data()
-    mine = [r for r in data if r.get("registered_by") == user["emp_id"]]
-    # 최신순 정렬
-    mine.sort(key=lambda r: (r.get("date") or "", r.get("no") or 0), reverse=True)
-    return {"records": mine, "count": len(mine)}
 
 
 # --- Data API ---

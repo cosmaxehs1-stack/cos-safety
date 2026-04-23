@@ -11,51 +11,21 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
-    <!-- Login Modal (로그인하지 않아도 열람 가능, 등록/수정/삭제 시 필요) -->
-    <div id="auth-login-modal" class="auth-modal" style="display:none;">
-        <div class="auth-modal-backdrop" onclick="closeLoginModal()"></div>
-        <div class="auth-modal-box">
-            <button class="auth-modal-close" onclick="closeLoginModal()">&times;</button>
-            <h2 class="auth-modal-title">로그인</h2>
-            <p class="auth-modal-subtitle">사번으로 로그인 (초기 비밀번호: 사번)</p>
-            <div class="auth-modal-form">
-                <input type="text" id="auth-emp-id" placeholder="사번" autocomplete="username" onkeydown="if(event.key==='Enter') document.getElementById('auth-password').focus()">
-                <input type="password" id="auth-password" placeholder="비밀번호" autocomplete="current-password" onkeydown="if(event.key==='Enter') authLogin()">
-                <button class="btn-primary" onclick="authLogin()">로그인</button>
+    <!-- Login Screen -->
+    <div id="login-screen" class="login-screen">
+        <div class="login-box">
+            <h1>COS-Safety Dashboard</h1>
+            <p>위험요소 관리대장 - 안전점검</p>
+            <div class="login-form">
+                <input type="password" id="password-input" placeholder="비밀번호를 입력하세요" onkeydown="if(event.key==='Enter') login()">
+                <button onclick="login()">로그인</button>
             </div>
-            <p id="auth-login-error" class="error-msg"></p>
-            <p class="auth-modal-hint">비밀번호 분실 시 관리자(환경안전팀)에게 문의하세요.</p>
-        </div>
-    </div>
-
-    <!-- Profile Modal (내 프로필 / 내가 등록한 위험요소) -->
-    <div id="auth-profile-modal" class="auth-modal" style="display:none;">
-        <div class="auth-modal-backdrop" onclick="closeProfileModal()"></div>
-        <div class="auth-modal-box auth-modal-wide">
-            <button class="auth-modal-close" onclick="closeProfileModal()">&times;</button>
-            <h2 class="auth-modal-title">내 프로필</h2>
-            <div id="profile-info" class="profile-info"></div>
-            <div class="profile-section">
-                <h3 class="profile-section-title">내가 등록한 위험요소 <span id="profile-records-count" class="count-badge">0</span></h3>
-                <div id="profile-records-list" class="profile-records-list">불러오는 중...</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- User Management Modal (관리자 전용) -->
-    <div id="auth-users-modal" class="auth-modal" style="display:none;">
-        <div class="auth-modal-backdrop" onclick="closeUsersModal()"></div>
-        <div class="auth-modal-box auth-modal-wide">
-            <button class="auth-modal-close" onclick="closeUsersModal()">&times;</button>
-            <h2 class="auth-modal-title">사용자 관리</h2>
-            <p class="auth-modal-subtitle">비밀번호 초기화 버튼을 누르면 해당 사용자의 비번이 사번으로 재설정됩니다.</p>
-            <input type="text" id="users-search" placeholder="이름 · 사번 · 팀 검색" oninput="filterUsersList()" class="users-search-input">
-            <div id="users-list-box" class="users-list-box">불러오는 중...</div>
+            <p id="login-error" class="error-msg"></p>
         </div>
     </div>
 
     <!-- Dashboard Layout -->
-    <div id="dashboard" class="dashboard-layout">
+    <div id="dashboard" class="dashboard-layout" style="display:none;">
         <!-- Floating reopen button (shown when sidebar collapsed) -->
         <button id="sidebar-reopen" class="sidebar-reopen" onclick="openSidebar()" style="display:none;">&#9776;</button>
 
@@ -91,14 +61,8 @@
                 </a>
             </nav>
             <div class="sidebar-footer">
-                <div id="sidebar-user-info" class="sidebar-user-info" style="display:none;">
-                    <div class="sidebar-user-name" id="sidebar-user-name"></div>
-                    <div class="sidebar-user-meta" id="sidebar-user-meta"></div>
-                </div>
-                <button id="btn-profile" class="btn-profile-sidebar" onclick="openProfileModal()" style="display:none;">내 프로필</button>
-                <button id="btn-users" class="btn-users-sidebar" onclick="openUsersModal()" style="display:none;">사용자 관리</button>
-                <button id="btn-auth-login" class="btn-login-sidebar" onclick="openLoginModal()">로그인</button>
-                <button id="btn-auth-logout" class="btn-logout-sidebar" onclick="authLogout()" style="display:none;">로그아웃</button>
+                <button id="btn-admin" class="btn-admin-sidebar" onclick="toggleAdmin()">관리자</button>
+                <button class="btn-logout-sidebar" onclick="logout()">로그아웃</button>
             </div>
         </aside>
 
@@ -559,15 +523,6 @@
                                 <input type="hidden" id="ar-image-after-url" value="">
                             </div>
                             </div><!-- /completion-fields -->
-
-                            <div class="register-warning">
-                                <strong>⚠ 등록 전 확인사항</strong>
-                                <ul>
-                                    <li>등록 후에는 <b>본인이 등록한 위험요소만</b> 수정 가능합니다.</li>
-                                    <li>삭제는 <b>안전총괄(환경안전팀 지정 담당자)</b>만 수행할 수 있습니다.</li>
-                                    <li>신중히 입력 후 등록해주세요.</li>
-                                </ul>
-                            </div>
 
                             <div class="wizard-nav">
                                 <button type="button" class="btn-wizard-prev" id="btn-step3-prev" onclick="wizardGo(2)">&#8592; 이전</button>
