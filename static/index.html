@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://hangeul.pstatic.net/hangeul_static/css/nanum-square-neo.css" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=22">
+    <link rel="stylesheet" href="/static/style.css?v=23">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -132,17 +132,17 @@
                 <div class="summary-cards">
                     <div class="stat-group">
                         <div class="stat-group-title">등급 현황 <span style="font-weight:400;color:#999;font-size:11px;">TOTAL <span id="s-total" style="font-weight:700;color:#333;">0</span>건</span></div>
-                        <div style="display:flex;gap:12px;">
+                        <div class="grade-charts-row" style="display:flex;gap:12px;">
                             <div style="flex:1;">
                                 <div style="text-align:center;font-size:12px;font-weight:600;color:#888;margin-bottom:4px;">개선 전</div>
-                                <div style="position:relative;height:180px;">
+                                <div class="grade-chart-box" style="position:relative;height:180px;">
                                     <canvas id="chart-grade-before"></canvas>
                                 </div>
                             </div>
-                            <div style="display:flex;align-items:center;font-size:24px;color:#ccc;">→</div>
+                            <div class="grade-chart-arrow" style="display:flex;align-items:center;font-size:24px;color:#ccc;">→</div>
                             <div style="flex:1;">
                                 <div style="text-align:center;font-size:12px;font-weight:600;color:#888;margin-bottom:4px;">현황</div>
-                                <div style="position:relative;height:180px;">
+                                <div class="grade-chart-box" style="position:relative;height:180px;">
                                     <canvas id="chart-grade-after"></canvas>
                                 </div>
                             </div>
@@ -166,7 +166,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div style="display:flex;gap:12px;justify-content:center;padding:4px 8px;margin-top:2px;font-size:11px;color:#9ca3af;">
+                        <div class="grade-legend" style="display:flex;gap:12px;justify-content:center;padding:4px 8px;margin-top:2px;font-size:11px;color:#9ca3af;">
                             <span><b style="color:#a09880;">A</b>&middot;<b style="color:#888d8e;">B</b> 필요 시 개선&middot;추적</span>
                             <span><b style="color:#c0432b;">C</b> 추적관리</span>
                             <span><b style="color:#EA1D22;">D</b> 신속개선</span>

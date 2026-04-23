@@ -1239,14 +1239,35 @@ td.red { color: #e74c3c; font-weight: 600; }
     .register-select-desc { font-size: 13px; }
 
     /* 현황요약 모바일 */
-    .stat-group { padding: 12px 14px; }
+    .stat-group { padding: 12px 14px; min-width: 0; }
     .stat-group-cards { flex-direction: column; gap: 8px; }
     .stat-group-cards.grade-detail-row { flex-direction: row; }
     .stat-value { font-size: 24px; }
-    .grade-detail-val { font-size: 14px; }
+    .grade-detail-val { font-size: 13px; }
     .grade-detail-label { font-size: 10px; }
+    .grade-detail-cols { gap: 4px; }
     .chart-grid { grid-template-columns: 1fr; }
     .chart-box { padding: 12px 10px; }
+
+    /* 등급현황/개선현황 가로 유지 + 크기 축소 */
+    .grade-charts-row { gap: 6px !important; }
+    .grade-chart-box { height: 110px !important; }
+    .grade-chart-arrow { font-size: 14px !important; }
+    #chart-completion { width: 90px !important; height: 90px !important; }
+    .grade-legend {
+        flex-wrap: wrap;
+        gap: 4px 10px !important;
+        font-size: 10px !important;
+    }
+
+    /* 주간현황: 내부 가로 스크롤 격리 */
+    #summary-weekly-tables, #weekly-tables {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        max-width: 100%;
+    }
+    #summary-weekly-tables .weekly-table,
+    #weekly-tables .weekly-table { min-width: 720px; }
 
     /* 테이블 모바일 */
     .table-container { font-size: 11px; }
