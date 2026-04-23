@@ -1010,21 +1010,6 @@ td.red { color: #e74c3c; font-weight: 600; }
 .weekly-controls select {
     padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;
 }
-.btn-weekly-save {
-    padding: 7px 18px; background: #EA1D22; color: white; border: none;
-    border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;
-}
-.btn-weekly-save:hover { background: #c0392b; }
-.btn-weekly-save:disabled { cursor: default; }
-.weekly-saved-list {
-    margin-bottom: 14px; font-size: 13px; color: #666;
-    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-}
-.saved-badge {
-    display: inline-block; padding: 3px 10px; background: #f0f0f0; color: #555;
-    border-radius: 4px; font-size: 12px; font-weight: 500; cursor: pointer;
-}
-.saved-badge:hover { background: #d4e9fc; }
 .weekly-sep { color: #ccc; font-size: 18px; }
 
 /* --- Weekly Table: Clean Minimal (참고: COSMAX 내부 표 스타일) --- */
@@ -1080,13 +1065,9 @@ td.red { color: #e74c3c; font-weight: 600; }
 .weekly-total-row td.ch-name { color: #111; }
 .weekly-total-row td.row-type { color: #111; }
 .weekly-total-row td.rate { color: #EA1D22; }
-.wt-diff { display: block; font-size: 9px; line-height: 1; margin-top: 2px; font-weight: 700; }
-.weekly-table .diff-up { color: #EA1D22; }
-.weekly-table .diff-down { color: #111; }
 /* 미래 주차: 비활성화 */
 .weekly-table .wt-future { color: #e0e0e0 !important; background: #f5f5f5 !important; }
 .weekly-table th.wt-future { color: #d5d5d5 !important; background: #f0f0f0 !important; }
-.weekly-table .wt-future .wt-diff { color: #e8e8e8 !important; }
 .weekly-table .weekly-total-row .wt-future { color: #e0e0e0 !important; }
 
 /* ===== Modal ===== */

@@ -13,7 +13,8 @@ let editingRecordId = null;
 let currentPage = "summary";
 let ADMIN_TOKEN = sessionStorage.getItem("admin_token") || "";
 let weeklyLiveData = null;
-let weeklySavedSnapshots = [];
+let weeklyCurrentMonth = null;
+let weeklyCurrentWeek = null;
 
 const ALL_CHANNELS = [
     "정기위험성평가(코스맥스)", "정기위험성평가(협력사)", "수시위험성평가",
@@ -2272,71 +2273,25 @@ async function loadWeeklyTab() {
 
     // 현재 날짜 기준 이번주 월/주차 자동 설정
     var now = new Date();
-    var curMonthEl = document.getElementById("w-cur-month");
-    var curWeekEl = document.getElementById("w-cur-week");
-    if (curMonthEl) curMonthEl.value = String(now.getMonth() + 1);
-    if (curWeekEl) curWeekEl.value = String(getWeekFromDate(now.toISOString().split("T")[0]));
+    weeklyCurrentMonth = now.getMonth() + 1;
+    weeklyCurrentWeek = getWeekFromDate(now.toISOString().split("T")[0]);
 
     try {
-        const [liveRes, listRes] = await Promise.all([
-            fetch("/api/weekly/quarter?year=" + year + "&quarter=" + quarter, { headers: authHeaders() }),
-            fetch("/api/weekly/list?year=" + year + "&quarter=" + quarter, { headers: authHeaders() }),
-        ]);
+        const liveRes = await fetch("/api/weekly/quarter?year=" + year + "&quarter=" + quarter, { headers: authHeaders() });
         weeklyLiveData = await liveRes.json();
-        const listData = await listRes.json();
-        weeklySavedSnapshots = listData.snapshots || [];
-
-        const badgeContainer = document.getElementById("w-saved-badges");
-        var selMonth = parseInt(document.getElementById("w-cur-month").value);
-        var selWeek = parseInt(document.getElementById("w-cur-week").value);
-        var filteredSnapshots = weeklySavedSnapshots.filter(function(s) {
-            return s.month === selMonth && s.week === selWeek;
-        });
-        if (filteredSnapshots.length === 0) {
-            badgeContainer.innerHTML = '<span style="color:#999;font-size:12px;">저장 이력 없음</span>';
-        } else {
-            badgeContainer.innerHTML = filteredSnapshots.map(s =>
-                '<span class="saved-badge">' + s.year + '년 ' + s.month + '월 ' + s.week + '주차 업데이트 완료 <span style="color:#64748b;font-size:10px;">(' + s.saved_at.slice(0,16).replace("T"," ") + ')</span></span>'
-            ).join(" ");
-        }
-
-        renderCurrentWeekly();
+        renderQuarterTable(weeklyLiveData);
     } catch (e) { console.error("Weekly load error:", e); }
 }
 
-async function renderCurrentWeekly() {
-    // 자동으로 직전 주차 스냅샷 찾아서 비교
-    var curM = parseInt(document.getElementById("w-cur-month").value);
-    var curW = parseInt(document.getElementById("w-cur-week").value);
-    var prevSnapshot = null;
-    // (month, week)이 현재보다 작은 것 중 가장 최근 스냅샷
-    weeklySavedSnapshots.forEach(function(s) {
-        if (s.month < curM || (s.month === curM && s.week < curW)) {
-            if (!prevSnapshot || s.month > prevSnapshot.month || (s.month === prevSnapshot.month && s.week > prevSnapshot.week)) {
-                prevSnapshot = s;
-            }
-        }
-    });
-    let prevData = null;
-    if (prevSnapshot) {
-        try {
-            const res = await fetch("/api/weekly/get?id=" + prevSnapshot.id, { headers: authHeaders() });
-            const result = await res.json();
-            if (result.snapshot) prevData = result.snapshot.data;
-        } catch (e) {}
-    }
-    renderQuarterTable(weeklyLiveData, prevData);
-}
-
-function renderQuarterTable(data, prevData) {
+function renderQuarterTable(data) {
     const container = document.getElementById("weekly-tables");
     if (!data || !data.sites) { container.innerHTML = ""; return; }
 
     const months = data.months || [];
     const channels = data.channel_order || [];
     const siteNames = ["전체","환경안전1팀","환경안전2팀"];
-    const curMonth = parseInt(document.getElementById("w-cur-month").value);
-    const curWeek = parseInt(document.getElementById("w-cur-week").value);
+    const curMonth = weeklyCurrentMonth;
+    const curWeek = weeklyCurrentWeek;
 
     const totalSite = data.sites["전체"] || {};
     const has5th = {};
@@ -2352,7 +2307,6 @@ function renderQuarterTable(data, prevData) {
     let html = "";
     siteNames.forEach(siteName => {
         const siteData = data.sites[siteName] || {};
-        const prevSiteData = prevData ? (prevData.sites || {})[siteName] || {} : null;
 
         html += '<div class="weekly-table-wrap"><h4 class="weekly-site-title">' + siteName + '</h4>';
         html += '<table class="weekly-table"><thead>';
@@ -2380,7 +2334,6 @@ function renderQuarterTable(data, prevData) {
         const allCh = [...channels, "합계"];
         allCh.forEach((ch, idx) => {
             const d = siteData[ch] || {};
-            const p = prevSiteData ? (prevSiteData[ch] || {}) : null;
             const isTotal = ch === "합계";
             const isLastBeforeTotal = (idx === allCh.length - 2);
             const rowCls = isTotal ? "weekly-total-row" : "";
@@ -2392,15 +2345,11 @@ function renderQuarterTable(data, prevData) {
                 const maxW = has5th[m] ? 5 : 4;
                 for (let w = 1; w <= maxW; w++) {
                     const wk = d.weeks ? (d.weeks[m+"-"+w] || {}) : {};
-                    const pw = p && p.weeks ? (p.weeks[m+"-"+w] || {}) : null;
                     const val = wk.discovered || 0;
-                    const pval = pw ? (pw.discovered || 0) : null;
                     const isCur = (m === curMonth && w === curWeek);
                     const isFuture = (m > curMonth || (m === curMonth && w > curWeek));
-                    const diff = pval !== null ? val - pval : null;
                     const display = isFuture ? "" : val;
-                    html += '<td class="num ' + (isCur?"wt-current":"") + (isFuture?" wt-future":"") + ' ' + (w===1?"wt-month-start":"") + '">' + display +
-                        (!isFuture && diff !== null && diff !== 0 ? '<span class="wt-diff ' + (diff>0?"diff-up":"diff-down") + '">' + (diff>0?"+"+diff:diff) + '</span>' : '') + '</td>';
+                    html += '<td class="num ' + (isCur?"wt-current":"") + (isFuture?" wt-future":"") + ' ' + (w===1?"wt-month-start":"") + '">' + display + '</td>';
                 }
                 const sub = d.month_subs ? (d.month_subs[String(m)] || {}) : {};
                 var monthFuture = m > curMonth;
@@ -2416,15 +2365,11 @@ function renderQuarterTable(data, prevData) {
                 const maxW = has5th[m] ? 5 : 4;
                 for (let w = 1; w <= maxW; w++) {
                     const wk = d.weeks ? (d.weeks[m+"-"+w] || {}) : {};
-                    const pw = p && p.weeks ? (p.weeks[m+"-"+w] || {}) : null;
                     const val = wk.improved || 0;
-                    const pval = pw ? (pw.improved || 0) : null;
                     const isCur = (m === curMonth && w === curWeek);
                     const isFuture = (m > curMonth || (m === curMonth && w > curWeek));
-                    const diff = pval !== null ? val - pval : null;
                     const display = isFuture ? "" : val;
-                    html += '<td class="num ' + (isCur?"wt-current":"") + (isFuture?" wt-future":"") + ' ' + (w===1?"wt-month-start":"") + '">' + display +
-                        (!isFuture && diff !== null && diff !== 0 ? '<span class="wt-diff ' + (diff>0?"diff-up":"diff-down") + '">' + (diff>0?"+"+diff:diff) + '</span>' : '') + '</td>';
+                    html += '<td class="num ' + (isCur?"wt-current":"") + (isFuture?" wt-future":"") + ' ' + (w===1?"wt-month-start":"") + '">' + display + '</td>';
                 }
                 const sub = d.month_subs ? (d.month_subs[String(m)] || {}) : {};
                 var monthFuture = m > curMonth;
@@ -2438,29 +2383,6 @@ function renderQuarterTable(data, prevData) {
     });
 
     container.innerHTML = html;
-}
-
-async function saveWeeklySnapshot() {
-    const year = document.getElementById("w-year").value;
-    const quarter = document.getElementById("w-quarter").value;
-    const curMonth = document.getElementById("w-cur-month").value;
-    const curWeek = document.getElementById("w-cur-week").value;
-
-    var snapshotId = year + "-Q" + quarter + "-" + curMonth + "월" + curWeek + "주";
-    var alreadySaved = weeklySavedSnapshots.some(function(s) { return s.id === snapshotId; });
-    var action = alreadySaved ? "업데이트" : "저장";
-    if (!confirm(year + "년 " + quarter + "분기 (이번주: " + curMonth + "월 " + curWeek + "주)를 " + action + "하시겠습니까?")) return;
-
-    try {
-        const res = await fetch("/api/weekly/save", {
-            method: "POST", headers: adminHeaders(),
-            body: JSON.stringify({ year: parseInt(year), quarter: parseInt(quarter), current_month: parseInt(curMonth), current_week: parseInt(curWeek) }),
-        });
-        if (!res.ok) { const err = await res.json(); alert(err.detail || action + " 실패"); return; }
-        const result = await res.json();
-        alert(result.message);
-        loadWeeklyTab();
-    } catch (e) { alert("서버 연결 실패"); }
 }
 
 // ===== Executive Comments =====

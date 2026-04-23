@@ -212,17 +212,6 @@ def init_db():
         """)
         cur.execute("DROP TABLE IF EXISTS excel_files")
         cur.execute("""
-            CREATE TABLE IF NOT EXISTS weekly_snapshots (
-                id TEXT PRIMARY KEY,
-                year INT NOT NULL,
-                quarter INT NOT NULL,
-                month INT NOT NULL,
-                week INT NOT NULL,
-                saved_at TEXT NOT NULL,
-                data JSONB NOT NULL
-            )
-        """)
-        cur.execute("""
             CREATE TABLE IF NOT EXISTS executive_comments (
                 id TEXT PRIMARY KEY,
                 role TEXT NOT NULL,
@@ -1960,108 +1949,6 @@ async def weekly_quarter(request: Request, year: str = "2026", quarter: int = 1)
     records = load_data()
     stats = compute_quarter_stats(records, year, quarter)
     return stats
-
-
-@app.post("/api/weekly/save")
-async def weekly_save(request: Request):
-    """관리자가 저장/업데이트 - 분기 스냅샷 확정"""
-    verify_admin(request)
-    body = await request.json()
-    year = int(body.get("year", 2026))
-    quarter = int(body.get("quarter", 1))
-    current_month = int(body.get("current_month", 1))
-    current_week = int(body.get("current_week", 1))
-
-    snapshot_id = f"{year}-Q{quarter}-{current_month}월{current_week}주"
-    now_kst = (datetime.utcnow() + timedelta(hours=9)).strftime("%Y-%m-%d %H:%M:%S")
-
-    records = load_data()
-    stats = compute_quarter_stats(records, str(year), quarter)
-    stats["current_month"] = current_month
-    stats["current_week"] = current_week
-
-    is_update = False
-    if DATABASE_URL:
-        conn = get_db()
-        try:
-            cur = conn.cursor()
-            cur.execute("SELECT id FROM weekly_snapshots WHERE id = %s", (snapshot_id,))
-            is_update = cur.fetchone() is not None
-            if is_update:
-                cur.execute(
-                    "UPDATE weekly_snapshots SET data = %s, saved_at = %s WHERE id = %s",
-                    (json.dumps(stats, ensure_ascii=False), now_kst, snapshot_id))
-            else:
-                cur.execute(
-                    "INSERT INTO weekly_snapshots (id, year, quarter, month, week, saved_at, data) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-                    (snapshot_id, year, quarter, current_month, current_week,
-                     now_kst, json.dumps(stats, ensure_ascii=False)))
-            conn.commit()
-            cur.close()
-        finally:
-            release_db(conn)
-
-    action = "업데이트" if is_update else "저장"
-    return {"message": f"{snapshot_id} {action} 완료", "id": snapshot_id, "is_update": is_update}
-
-
-@app.get("/api/weekly/list")
-async def weekly_list(request: Request, year: int = 2026, quarter: int = 0):
-    """저장된 스냅샷 목록 조회"""
-    verify_token(request)
-    if not DATABASE_URL:
-        return {"snapshots": []}
-    conn = get_db()
-    try:
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        if quarter > 0:
-            cur.execute("SELECT id, year, quarter, month, week, saved_at FROM weekly_snapshots WHERE year = %s AND quarter = %s ORDER BY month, week", (year, quarter))
-        else:
-            cur.execute("SELECT id, year, quarter, month, week, saved_at FROM weekly_snapshots WHERE year = %s ORDER BY quarter, month, week", (year,))
-        rows = [dict(r) for r in cur.fetchall()]
-        cur.close()
-    finally:
-        release_db(conn)
-    return {"snapshots": rows}
-
-
-@app.get("/api/weekly/get")
-async def weekly_get(request: Request, id: str = ""):
-    """저장된 스냅샷 조회"""
-    verify_token(request)
-    if not DATABASE_URL or not id:
-        return {"snapshot": None}
-    conn = get_db()
-    try:
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute("SELECT * FROM weekly_snapshots WHERE id = %s", (id,))
-        row = cur.fetchone()
-        cur.close()
-    finally:
-        release_db(conn)
-    if not row:
-        raise HTTPException(status_code=404, detail="스냅샷을 찾을 수 없습니다.")
-    row = dict(row)
-    if isinstance(row["data"], str):
-        row["data"] = json.loads(row["data"])
-    return {"snapshot": row}
-
-
-@app.delete("/api/weekly/delete")
-async def weekly_delete(request: Request, id: str = ""):
-    """관리자가 저장된 스냅샷 삭제"""
-    verify_admin(request)
-    if not DATABASE_URL or not id:
-        raise HTTPException(status_code=400, detail="ID가 필요합니다.")
-    conn = get_db()
-    try:
-        cur = conn.cursor()
-        cur.execute("DELETE FROM weekly_snapshots WHERE id = %s", (id,))
-        conn.commit()
-        cur.close()
-    finally:
-        release_db(conn)
-    return {"message": f"{id} 삭제 완료"}
 
 
 @app.get("/api/health")
