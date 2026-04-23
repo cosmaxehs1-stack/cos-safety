@@ -37,10 +37,8 @@ app.add_middleware(
 UPLOAD_DIR = os.environ.get("DATA_DIR", "uploads")
 IMAGE_DIR = os.path.join(UPLOAD_DIR, "images")
 DATA_FILE = os.path.join(UPLOAD_DIR, "current_data.json")
-PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "2026")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin2026")
 DATABASE_URL = os.environ.get("DATABASE_URL")
-SESSION_TOKENS: set[str] = set()
 ADMIN_TOKENS: set[str] = set()
 
 # --- Data Cache ---
@@ -266,11 +264,6 @@ def on_startup():
 
 
 # --- Auth ---
-@app.post("/api/login")
-async def login(request: Request):
-    return {"token": "public"}
-
-
 @app.post("/api/admin/login")
 async def admin_login(request: Request):
     body = await request.json()

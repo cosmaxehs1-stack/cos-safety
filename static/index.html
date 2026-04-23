@@ -11,21 +11,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
-    <!-- Login Screen -->
-    <div id="login-screen" class="login-screen">
-        <div class="login-box">
-            <h1>COS-Safety Dashboard</h1>
-            <p>위험요소 관리대장 - 안전점검</p>
-            <div class="login-form">
-                <input type="password" id="password-input" placeholder="비밀번호를 입력하세요" onkeydown="if(event.key==='Enter') login()">
-                <button onclick="login()">로그인</button>
-            </div>
-            <p id="login-error" class="error-msg"></p>
-        </div>
-    </div>
-
     <!-- Dashboard Layout -->
-    <div id="dashboard" class="dashboard-layout" style="display:none;">
+    <div id="dashboard" class="dashboard-layout">
         <!-- Floating reopen button (shown when sidebar collapsed) -->
         <button id="sidebar-reopen" class="sidebar-reopen" onclick="openSidebar()" style="display:none;">&#9776;</button>
 
@@ -62,7 +49,6 @@
             </nav>
             <div class="sidebar-footer">
                 <button id="btn-admin" class="btn-admin-sidebar" onclick="toggleAdmin()">관리자</button>
-                <button class="btn-logout-sidebar" onclick="logout()">로그아웃</button>
             </div>
         </aside>
 

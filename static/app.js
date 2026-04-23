@@ -21,35 +21,13 @@ const ALL_CHANNELS = [
 ];
 
 // ===== Auth =====
-async function login() {
-    const pw = document.getElementById("password-input").value;
-    const errEl = document.getElementById("login-error");
-    try {
-        const res = await fetch("/api/login", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ password: pw }),
-        });
-        if (!res.ok) { errEl.textContent = "비밀번호가 올바르지 않습니다."; return; }
-        const data = await res.json();
-        TOKEN = data.token;
-        sessionStorage.setItem("token", TOKEN);
-        showDashboard();
-    } catch (e) { errEl.textContent = "서버 연결 실패"; }
-}
-
 function logout() {
-    TOKEN = "";
     ADMIN_TOKEN = "";
-    sessionStorage.removeItem("token");
     sessionStorage.removeItem("admin_token");
-    document.getElementById("login-screen").style.display = "flex";
-    document.getElementById("dashboard").style.display = "none";
+    updateAdminUI();
 }
 
 function showDashboard() {
-    document.getElementById("login-screen").style.display = "none";
-    document.getElementById("dashboard").style.display = "flex";
     initDateDefaults();
     updateAdminUI();
     fetchSummary();
