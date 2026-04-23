@@ -1215,6 +1215,9 @@ td.red { color: #e74c3c; font-weight: 600; }
 @media (max-width: 1024px) {
     .summary-cards { grid-template-columns: 1fr; }
     .period-stats { grid-template-columns: 1fr; }
+    /* 등급현황 차트 높이 축소: 좁은 화면 전체에 적용 */
+    .stat-group .grade-chart-box { height: 110px !important; }
+    .stat-group .grade-chart-box canvas { max-height: 110px !important; }
 }
 
 @media (max-width: 768px) {
@@ -1251,7 +1254,6 @@ td.red { color: #e74c3c; font-weight: 600; }
 
     /* 등급현황/개선현황 가로 유지 + 크기 축소 */
     .grade-charts-row { gap: 6px !important; }
-    .grade-chart-box { height: 110px !important; }
     .grade-chart-arrow { font-size: 14px !important; }
     #chart-completion { width: 90px !important; height: 90px !important; }
     .grade-legend {
