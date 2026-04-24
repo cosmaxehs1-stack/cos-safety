@@ -1812,19 +1812,28 @@ def compute_quarter_stats(records: list, year: str, quarter: int) -> dict:
     """분기 전체 채널별/사업장별/주차별 발굴·개선 집계 (발굴 주차 기준)"""
     months = QUARTER_MONTHS[quarter]
 
+    def _quarter_records(q_num: int) -> list:
+        q_months = QUARTER_MONTHS[q_num]
+        out = []
+        for r in records:
+            d = r.get("date", "") or ""
+            if d[:4] != year:
+                continue
+            m_str = r.get("month", "")
+            try:
+                m_num = int(m_str.replace("월", ""))
+            except (ValueError, AttributeError):
+                continue
+            if m_num in q_months:
+                out.append(r)
+        return out
+
     # Filter records for this year & quarter months
-    filtered = []
-    for r in records:
-        d = r.get("date", "") or ""
-        if d[:4] != year:
-            continue
-        m_str = r.get("month", "")
-        try:
-            m_num = int(m_str.replace("월", ""))
-        except (ValueError, AttributeError):
-            continue
-        if m_num in months:
-            filtered.append(r)
+    filtered = _quarter_records(quarter)
+
+    # Prior quarters of same year (Q2→[1], Q3→[1,2], Q4→[1,2,3], Q1→[])
+    prior_quarter_nums = list(range(1, quarter))
+    prior_records_by_q = {q: _quarter_records(q) for q in prior_quarter_nums}
 
     # Compute previous year totals
     prev_year = str(int(year) - 1)
@@ -1845,15 +1854,28 @@ def compute_quarter_stats(records: list, year: str, quarter: int) -> dict:
     for site_name, majors in SITE_GROUPS.items():
         site_recs = filtered
         site_prev = prev_records
+        site_prior_by_q = {q: prior_records_by_q[q] for q in prior_quarter_nums}
         if majors:
             site_recs = [r for r in filtered if match_site(r, majors)]
             site_prev = [r for r in prev_records if match_site(r, majors)]
+            site_prior_by_q = {q: [r for r in prior_records_by_q[q] if match_site(r, majors)] for q in prior_quarter_nums}
 
         site_data = {}
         for ch_name in CHANNEL_ORDER:
             ch_keys = CHANNEL_GROUPS[ch_name]
             ch_recs = [r for r in site_recs if r.get("channel", "") in ch_keys]
             ch_prev = [r for r in site_prev if r.get("channel", "") in ch_keys]
+
+            # Prior quarter totals per channel
+            prior_quarters = {}
+            for q_num in prior_quarter_nums:
+                q_ch = [r for r in site_prior_by_q[q_num] if r.get("channel", "") in ch_keys]
+                prior_quarters[q_num] = {
+                    "discovered": len(q_ch),
+                    "improved": sum(1 for r in q_ch if r.get("completion") == "완료"),
+                    "d_discovered": sum(1 for r in q_ch if r.get("grade_before") == "D"),
+                    "d_improved": sum(1 for r in q_ch if r.get("grade_before") == "D" and r.get("completion") == "완료"),
+                }
 
             # Previous year totals
             prev_discovered = len(ch_prev)
@@ -1894,10 +1916,16 @@ def compute_quarter_stats(records: list, year: str, quarter: int) -> dict:
             q_d_imp = sum(1 for r in ch_recs if r.get("grade_before") == "D" and r.get("completion") == "완료")
             q_rate = round(q_improved / q_discovered, 4) if q_discovered > 0 else 0
 
+            # Cumulative rate: (prior quarters + current quarter) 누적 개선률
+            cum_discovered = q_discovered + sum(prior_quarters[q]["discovered"] for q in prior_quarter_nums)
+            cum_improved = q_improved + sum(prior_quarters[q]["improved"] for q in prior_quarter_nums)
+            cum_rate = round(cum_improved / cum_discovered, 4) if cum_discovered > 0 else 0
+
             site_data[ch_name] = {
                 "prev_discovered": prev_discovered,
                 "prev_improved": prev_improved,
                 "prev_rate": prev_rate,
+                "prior_quarters": prior_quarters,
                 "weeks": weeks_data,
                 "month_subs": month_subs,
                 "quarter_discovered": q_discovered,
@@ -1905,10 +1933,19 @@ def compute_quarter_stats(records: list, year: str, quarter: int) -> dict:
                 "quarter_d_discovered": q_d_disc,
                 "quarter_d_improved": q_d_imp,
                 "quarter_rate": q_rate,
+                "cum_discovered": cum_discovered,
+                "cum_improved": cum_improved,
+                "cum_rate": cum_rate,
             }
 
         # 합계
-        total = {"prev_discovered": 0, "prev_improved": 0, "weeks": {}, "month_subs": {}, "quarter_discovered": 0, "quarter_improved": 0, "quarter_d_discovered": 0, "quarter_d_improved": 0}
+        total = {
+            "prev_discovered": 0, "prev_improved": 0,
+            "prior_quarters": {q: {"discovered": 0, "improved": 0, "d_discovered": 0, "d_improved": 0} for q in prior_quarter_nums},
+            "weeks": {}, "month_subs": {},
+            "quarter_discovered": 0, "quarter_improved": 0,
+            "quarter_d_discovered": 0, "quarter_d_improved": 0,
+        }
         for ch in CHANNEL_ORDER:
             d = site_data[ch]
             total["prev_discovered"] += d["prev_discovered"]
@@ -1917,6 +1954,9 @@ def compute_quarter_stats(records: list, year: str, quarter: int) -> dict:
             total["quarter_improved"] += d["quarter_improved"]
             total["quarter_d_discovered"] += d["quarter_d_discovered"]
             total["quarter_d_improved"] += d["quarter_d_improved"]
+            for q_num in prior_quarter_nums:
+                for k2 in ("discovered", "improved", "d_discovered", "d_improved"):
+                    total["prior_quarters"][q_num][k2] += d["prior_quarters"][q_num][k2]
             for wk, wv in d["weeks"].items():
                 if wk not in total["weeks"]:
                     total["weeks"][wk] = {"discovered": 0, "d_discovered": 0, "improved": 0, "d_improved": 0}
@@ -1929,6 +1969,9 @@ def compute_quarter_stats(records: list, year: str, quarter: int) -> dict:
                     total["month_subs"][mk][k2] += mv[k2]
         total["prev_rate"] = round(total["prev_improved"] / total["prev_discovered"], 4) if total["prev_discovered"] > 0 else 0
         total["quarter_rate"] = round(total["quarter_improved"] / total["quarter_discovered"], 4) if total["quarter_discovered"] > 0 else 0
+        total["cum_discovered"] = total["quarter_discovered"] + sum(total["prior_quarters"][q]["discovered"] for q in prior_quarter_nums)
+        total["cum_improved"] = total["quarter_improved"] + sum(total["prior_quarters"][q]["improved"] for q in prior_quarter_nums)
+        total["cum_rate"] = round(total["cum_improved"] / total["cum_discovered"], 4) if total["cum_discovered"] > 0 else 0
         site_data["합계"] = total
 
         result[site_name] = site_data
@@ -1937,6 +1980,7 @@ def compute_quarter_stats(records: list, year: str, quarter: int) -> dict:
         "year": year,
         "quarter": quarter,
         "months": months,
+        "prior_quarters": prior_quarter_nums,
         "channel_order": CHANNEL_ORDER,
         "sites": result,
     }

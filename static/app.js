@@ -2349,6 +2349,7 @@ function renderQuarterTable(data, opts) {
 
     const months = data.months || [];
     const channels = data.channel_order || [];
+    const priorQuarters = data.prior_quarters || [];
     const selectedSite = (document.getElementById(siteSelectId) || {}).value || "전체";
     const siteNames = [selectedSite];
     const curMonth = weeklyCurrentMonth;
@@ -2373,24 +2374,34 @@ function renderQuarterTable(data, opts) {
         html += '<table class="weekly-table"><thead>';
 
         html += '<tr><th rowspan="2" class="wt-fixed">구분</th><th rowspan="2" class="wt-fixed"></th>';
+        if (priorQuarters.length > 0) {
+            html += '<th colspan="2" class="wt-month-group wt-month-start wt-prior-group">' + priorQuarters.join('+') + '분기</th>';
+        }
         months.forEach(m => {
             const weekCount = has5th[m] ? 5 : 4;
             html += '<th colspan="' + (weekCount+1) + '" class="wt-month-group">' + m + '월</th>';
         });
-        html += '<th colspan="1" class="wt-month-group" style="border-right:1px solid #999;">' + data.year + '년 ' + data.quarter + '분기</th>';
-        html += '<th rowspan="2" style="border-left:1px solid #999;">개선률</th></tr>';
+        html += '<th colspan="3" class="wt-month-group wt-month-start wt-year-group" style="border-right:1px solid #999;">' + data.year + '년</th>';
+        html += '</tr>';
 
         html += '<tr>';
+        if (priorQuarters.length > 0) {
+            html += '<th class="wt-prior-q wt-month-start">누적</th>';
+            html += '<th class="wt-prior-avg">월평균</th>';
+        }
         months.forEach(m => {
             const maxW = has5th[m] ? 5 : 4;
             for (let w = 1; w <= maxW; w++) {
                 const isCur = (m === curMonth && w === curWeek);
                 const isFuture = (m > curMonth || (m === curMonth && w > curWeek));
-                html += '<th class="' + (isCur?"wt-current":"") + (isFuture?" wt-future":"") + ' ' + (w===1?"wt-month-start":"") + '">' + w + '주' + (isCur?" ★":"") + '</th>';
+                html += '<th class="' + (isCur?"wt-current":"") + (isFuture?" wt-future":"") + ' ' + (w===1?"wt-month-start":"") + '">' + w + '주</th>';
             }
             html += '<th class="wt-sub' + (m > curMonth?" wt-future":"") + '">소계</th>';
         });
-        html += '<th class="wt-month-start">합계</th></tr></thead><tbody>';
+        html += '<th class="wt-month-start wt-year-cell">' + data.quarter + '분기</th>';
+        html += '<th class="wt-year-cell">합계</th>';
+        html += '<th class="wt-year-cell" style="border-left:1px solid #999;">개선률</th>';
+        html += '</tr></thead><tbody>';
 
         const allCh = [...channels, "합계"];
         allCh.forEach((ch, idx) => {
@@ -2399,9 +2410,29 @@ function renderQuarterTable(data, opts) {
             const isLastBeforeTotal = (idx === allCh.length - 2);
             const rowCls = isTotal ? "weekly-total-row" : "";
 
+            const priorData = d.prior_quarters || {};
+            const rateVal = (d.cum_rate !== undefined) ? d.cum_rate : d.quarter_rate;
+            const cumDisc = (d.cum_discovered !== undefined) ? d.cum_discovered : (d.quarter_discovered || 0);
+            const cumImp = (d.cum_improved !== undefined) ? d.cum_improved : (d.quarter_improved || 0);
+
+            // 전 분기 누적 합산 (여러 분기 묶어서 하나의 열로)
+            let priorDiscSum = 0, priorImpSum = 0;
+            priorQuarters.forEach(q => {
+                const pq = priorData[q] || {};
+                priorDiscSum += (pq.discovered || 0);
+                priorImpSum += (pq.improved || 0);
+            });
+            const priorMonths = priorQuarters.length * 3;
+            const priorDiscAvg = priorMonths > 0 ? Math.round(priorDiscSum / priorMonths) : 0;
+            const priorImpAvg = priorMonths > 0 ? Math.round(priorImpSum / priorMonths) : 0;
+
             html += '<tr class="' + rowCls + ' wt-ch-first">';
             html += '<td class="ch-name' + (isLastBeforeTotal?" wt-border-bottom":"") + '" rowspan="2">' + ch + '</td>';
             html += '<td class="row-type">발굴</td>';
+            if (priorQuarters.length > 0) {
+                html += '<td class="num wt-qtr wt-month-start wt-prior-q">' + priorDiscSum + '</td>';
+                html += '<td class="num wt-qtr wt-prior-avg">' + priorDiscAvg + '</td>';
+            }
             months.forEach(m => {
                 const maxW = has5th[m] ? 5 : 4;
                 for (let w = 1; w <= maxW; w++) {
@@ -2416,12 +2447,17 @@ function renderQuarterTable(data, opts) {
                 var monthFuture = m > curMonth;
                 html += '<td class="num wt-sub' + (monthFuture?" wt-future":"") + '">' + (monthFuture ? "" : (sub.discovered||0)) + '</td>';
             });
-            html += '<td class="num wt-qtr wt-month-start">' + (d.quarter_discovered||0) + '</td>';
-            html += '<td class="num rate' + (isLastBeforeTotal?" wt-border-bottom":"") + '" rowspan="2">' + (d.quarter_rate ? Math.round(d.quarter_rate*100)+"%" : "-") + '</td>';
+            html += '<td class="num wt-qtr wt-month-start wt-year-cell">' + (d.quarter_discovered||0) + '</td>';
+            html += '<td class="num wt-qtr wt-year-cell">' + cumDisc + '</td>';
+            html += '<td class="num rate wt-year-cell' + (isLastBeforeTotal?" wt-border-bottom":"") + '" rowspan="2">' + (rateVal ? Math.round(rateVal*100)+"%" : "-") + '</td>';
             html += '</tr>';
 
             html += '<tr class="' + rowCls + ' ' + (isLastBeforeTotal?"wt-before-total":"") + '">';
             html += '<td class="row-type">개선</td>';
+            if (priorQuarters.length > 0) {
+                html += '<td class="num wt-qtr wt-month-start wt-prior-q">' + priorImpSum + '</td>';
+                html += '<td class="num wt-qtr wt-prior-avg">' + priorImpAvg + '</td>';
+            }
             months.forEach(m => {
                 const maxW = has5th[m] ? 5 : 4;
                 for (let w = 1; w <= maxW; w++) {
@@ -2436,7 +2472,8 @@ function renderQuarterTable(data, opts) {
                 var monthFuture = m > curMonth;
                 html += '<td class="num wt-sub' + (monthFuture?" wt-future":"") + '">' + (monthFuture ? "" : (sub.improved||0)) + '</td>';
             });
-            html += '<td class="num wt-qtr wt-month-start">' + (d.quarter_improved||0) + '</td>';
+            html += '<td class="num wt-qtr wt-month-start wt-year-cell">' + (d.quarter_improved||0) + '</td>';
+            html += '<td class="num wt-qtr wt-year-cell">' + cumImp + '</td>';
             html += '</tr>';
         });
 
