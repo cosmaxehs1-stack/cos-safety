@@ -1812,6 +1812,42 @@ def compute_quarter_stats(records: list, year: str, quarter: int) -> dict:
     """분기 전체 채널별/사업장별/주차별 발굴·개선 집계 (발굴 주차 기준)"""
     months = QUARTER_MONTHS[quarter]
 
+    # 이번 주 개선 완료 판별용 기준일 (서버 오늘 기준)
+    _today_iso = date.today().isoformat()
+    _today_year = _today_iso[:4]
+    _today_month = int(_today_iso[5:7])
+    _today_week = calc_week_from_date(_today_iso)
+
+    def _is_actual_this_week(r: dict) -> bool:
+        ad = r.get("actual_date")
+        if not ad or not isinstance(ad, str) or len(ad) < 10:
+            return False
+        try:
+            ad_year = ad[:4]
+            ad_month = int(ad[5:7])
+            ad_week = calc_week_from_date(ad)
+            return ad_year == _today_year and ad_month == _today_month and ad_week == _today_week
+        except (ValueError, TypeError):
+            return False
+
+    def _is_date_this_week(r: dict) -> bool:
+        dd = r.get("date")
+        if not dd or not isinstance(dd, str) or len(dd) < 10:
+            return False
+        try:
+            d_year = dd[:4]
+            d_month = int(dd[5:7])
+            d_week = calc_week_from_date(dd)
+            return d_year == _today_year and d_month == _today_month and d_week == _today_week
+        except (ValueError, TypeError):
+            return False
+
+    def _delta_improved(recs: list) -> int:
+        return sum(1 for r in recs if r.get("completion") == "완료" and _is_actual_this_week(r))
+
+    def _delta_discovered(recs: list) -> int:
+        return sum(1 for r in recs if _is_date_this_week(r))
+
     def _quarter_records(q_num: int) -> list:
         q_months = QUARTER_MONTHS[q_num]
         out = []
@@ -1875,6 +1911,8 @@ def compute_quarter_stats(records: list, year: str, quarter: int) -> dict:
                     "improved": sum(1 for r in q_ch if r.get("completion") == "완료"),
                     "d_discovered": sum(1 for r in q_ch if r.get("grade_before") == "D"),
                     "d_improved": sum(1 for r in q_ch if r.get("grade_before") == "D" and r.get("completion") == "완료"),
+                    "week_improved_delta": _delta_improved(q_ch),
+                    "week_discovered_delta": _delta_discovered(q_ch),
                 }
 
             # Previous year totals
@@ -1896,6 +1934,8 @@ def compute_quarter_stats(records: list, year: str, quarter: int) -> dict:
                         "d_discovered": sum(1 for r in w_recs if r.get("grade_before") == "D"),
                         "improved": sum(1 for r in w_recs if r.get("completion") == "완료"),
                         "d_improved": sum(1 for r in w_recs if r.get("grade_before") == "D" and r.get("completion") == "완료"),
+                        "week_improved_delta": _delta_improved(w_recs),
+                        "week_discovered_delta": _delta_discovered(w_recs),
                     }
 
             # Monthly subtotals
@@ -1907,6 +1947,8 @@ def compute_quarter_stats(records: list, year: str, quarter: int) -> dict:
                     "d_discovered": sum(1 for r in m_recs if r.get("grade_before") == "D"),
                     "improved": sum(1 for r in m_recs if r.get("completion") == "완료"),
                     "d_improved": sum(1 for r in m_recs if r.get("grade_before") == "D" and r.get("completion") == "완료"),
+                    "week_improved_delta": _delta_improved(m_recs),
+                    "week_discovered_delta": _delta_discovered(m_recs),
                 }
 
             # Quarter total
@@ -1915,11 +1957,15 @@ def compute_quarter_stats(records: list, year: str, quarter: int) -> dict:
             q_d_disc = sum(1 for r in ch_recs if r.get("grade_before") == "D")
             q_d_imp = sum(1 for r in ch_recs if r.get("grade_before") == "D" and r.get("completion") == "완료")
             q_rate = round(q_improved / q_discovered, 4) if q_discovered > 0 else 0
+            q_week_delta_imp = _delta_improved(ch_recs)
+            q_week_delta_disc = _delta_discovered(ch_recs)
 
             # Cumulative rate: (prior quarters + current quarter) 누적 개선률
             cum_discovered = q_discovered + sum(prior_quarters[q]["discovered"] for q in prior_quarter_nums)
             cum_improved = q_improved + sum(prior_quarters[q]["improved"] for q in prior_quarter_nums)
             cum_rate = round(cum_improved / cum_discovered, 4) if cum_discovered > 0 else 0
+            cum_week_delta_imp = q_week_delta_imp + sum(prior_quarters[q]["week_improved_delta"] for q in prior_quarter_nums)
+            cum_week_delta_disc = q_week_delta_disc + sum(prior_quarters[q]["week_discovered_delta"] for q in prior_quarter_nums)
 
             site_data[ch_name] = {
                 "prev_discovered": prev_discovered,
@@ -1933,18 +1979,25 @@ def compute_quarter_stats(records: list, year: str, quarter: int) -> dict:
                 "quarter_d_discovered": q_d_disc,
                 "quarter_d_improved": q_d_imp,
                 "quarter_rate": q_rate,
+                "quarter_week_improved_delta": q_week_delta_imp,
+                "quarter_week_discovered_delta": q_week_delta_disc,
                 "cum_discovered": cum_discovered,
                 "cum_improved": cum_improved,
                 "cum_rate": cum_rate,
+                "cum_week_improved_delta": cum_week_delta_imp,
+                "cum_week_discovered_delta": cum_week_delta_disc,
             }
 
         # 합계
+        delta_keys = ("discovered", "improved", "d_discovered", "d_improved", "week_improved_delta", "week_discovered_delta")
         total = {
             "prev_discovered": 0, "prev_improved": 0,
-            "prior_quarters": {q: {"discovered": 0, "improved": 0, "d_discovered": 0, "d_improved": 0} for q in prior_quarter_nums},
+            "prior_quarters": {q: {k: 0 for k in delta_keys} for q in prior_quarter_nums},
             "weeks": {}, "month_subs": {},
             "quarter_discovered": 0, "quarter_improved": 0,
             "quarter_d_discovered": 0, "quarter_d_improved": 0,
+            "quarter_week_improved_delta": 0,
+            "quarter_week_discovered_delta": 0,
         }
         for ch in CHANNEL_ORDER:
             d = site_data[ch]
@@ -1954,24 +2007,28 @@ def compute_quarter_stats(records: list, year: str, quarter: int) -> dict:
             total["quarter_improved"] += d["quarter_improved"]
             total["quarter_d_discovered"] += d["quarter_d_discovered"]
             total["quarter_d_improved"] += d["quarter_d_improved"]
+            total["quarter_week_improved_delta"] += d["quarter_week_improved_delta"]
+            total["quarter_week_discovered_delta"] += d["quarter_week_discovered_delta"]
             for q_num in prior_quarter_nums:
-                for k2 in ("discovered", "improved", "d_discovered", "d_improved"):
+                for k2 in delta_keys:
                     total["prior_quarters"][q_num][k2] += d["prior_quarters"][q_num][k2]
             for wk, wv in d["weeks"].items():
                 if wk not in total["weeks"]:
-                    total["weeks"][wk] = {"discovered": 0, "d_discovered": 0, "improved": 0, "d_improved": 0}
-                for k2 in ("discovered", "d_discovered", "improved", "d_improved"):
+                    total["weeks"][wk] = {k: 0 for k in delta_keys}
+                for k2 in delta_keys:
                     total["weeks"][wk][k2] += wv[k2]
             for mk, mv in d["month_subs"].items():
                 if mk not in total["month_subs"]:
-                    total["month_subs"][mk] = {"discovered": 0, "d_discovered": 0, "improved": 0, "d_improved": 0}
-                for k2 in ("discovered", "d_discovered", "improved", "d_improved"):
+                    total["month_subs"][mk] = {k: 0 for k in delta_keys}
+                for k2 in delta_keys:
                     total["month_subs"][mk][k2] += mv[k2]
         total["prev_rate"] = round(total["prev_improved"] / total["prev_discovered"], 4) if total["prev_discovered"] > 0 else 0
         total["quarter_rate"] = round(total["quarter_improved"] / total["quarter_discovered"], 4) if total["quarter_discovered"] > 0 else 0
         total["cum_discovered"] = total["quarter_discovered"] + sum(total["prior_quarters"][q]["discovered"] for q in prior_quarter_nums)
         total["cum_improved"] = total["quarter_improved"] + sum(total["prior_quarters"][q]["improved"] for q in prior_quarter_nums)
         total["cum_rate"] = round(total["cum_improved"] / total["cum_discovered"], 4) if total["cum_discovered"] > 0 else 0
+        total["cum_week_improved_delta"] = total["quarter_week_improved_delta"] + sum(total["prior_quarters"][q]["week_improved_delta"] for q in prior_quarter_nums)
+        total["cum_week_discovered_delta"] = total["quarter_week_discovered_delta"] + sum(total["prior_quarters"][q]["week_discovered_delta"] for q in prior_quarter_nums)
         site_data["합계"] = total
 
         result[site_name] = site_data

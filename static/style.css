@@ -1101,6 +1101,11 @@ td.red { color: #e74c3c; font-weight: 600; }
 .weekly-table th.wt-year-cell, .weekly-table td.wt-year-cell {
     background: #fdf5f5 !important;
 }
+/* 주차별 증감 표시 (전주 대비) */
+.weekly-table .wt-delta {
+    font-size: 9px; color: #888; margin-top: 1px; line-height: 1;
+    font-weight: 500;
+}
 .weekly-table .wt-future { color: #e0e0e0 !important; background: #f5f5f5 !important; }
 .weekly-table th.wt-future { color: #d5d5d5 !important; background: #f0f0f0 !important; }
 .weekly-table .weekly-total-row .wt-future { color: #e0e0e0 !important; }

@@ -2355,6 +2355,11 @@ function renderQuarterTable(data, opts) {
     const curMonth = weeklyCurrentMonth;
     const curWeek = weeklyCurrentWeek;
 
+    function _deltaBadge(n) {
+        if (!n || n <= 0) return "";
+        return '<div class="wt-delta">+' + n + '</div>';
+    }
+
     const totalSite = data.sites["전체"] || {};
     const has5th = {};
     months.forEach(m => {
@@ -2430,7 +2435,12 @@ function renderQuarterTable(data, opts) {
             html += '<td class="ch-name' + (isLastBeforeTotal?" wt-border-bottom":"") + '" rowspan="2">' + ch + '</td>';
             html += '<td class="row-type">발굴</td>';
             if (priorQuarters.length > 0) {
-                html += '<td class="num wt-qtr wt-month-start wt-prior-q">' + priorDiscSum + '</td>';
+                let priorDiscDeltaSum = 0;
+                priorQuarters.forEach(q => {
+                    const pq = priorData[q] || {};
+                    priorDiscDeltaSum += (pq.week_discovered_delta || 0);
+                });
+                html += '<td class="num wt-qtr wt-month-start wt-prior-q">' + priorDiscSum + _deltaBadge(priorDiscDeltaSum) + '</td>';
                 html += '<td class="num wt-qtr wt-prior-avg">' + priorDiscAvg + '</td>';
             }
             months.forEach(m => {
@@ -2438,24 +2448,37 @@ function renderQuarterTable(data, opts) {
                 for (let w = 1; w <= maxW; w++) {
                     const wk = d.weeks ? (d.weeks[m+"-"+w] || {}) : {};
                     const val = wk.discovered || 0;
+                    const delta = wk.week_discovered_delta || 0;
                     const isCur = (m === curMonth && w === curWeek);
                     const isFuture = (m > curMonth || (m === curMonth && w > curWeek));
                     const display = isFuture ? "" : val;
-                    html += '<td class="num ' + (isCur?"wt-current":"") + (isFuture?" wt-future":"") + ' ' + (w===1?"wt-month-start":"") + '">' + display + '</td>';
+                    // 현재 주차 셀은 delta가 값과 동일하니 생략 (중복 방지)
+                    const showDelta = !isFuture && !isCur;
+                    const deltaHtml = showDelta ? _deltaBadge(delta) : "";
+                    html += '<td class="num ' + (isCur?"wt-current":"") + (isFuture?" wt-future":"") + ' ' + (w===1?"wt-month-start":"") + '">' + display + deltaHtml + '</td>';
                 }
                 const sub = d.month_subs ? (d.month_subs[String(m)] || {}) : {};
                 var monthFuture = m > curMonth;
-                html += '<td class="num wt-sub' + (monthFuture?" wt-future":"") + '">' + (monthFuture ? "" : (sub.discovered||0)) + '</td>';
+                const subDelta = sub.week_discovered_delta || 0;
+                html += '<td class="num wt-sub' + (monthFuture?" wt-future":"") + '">' + (monthFuture ? "" : (sub.discovered||0)) + (monthFuture ? "" : _deltaBadge(subDelta)) + '</td>';
             });
-            html += '<td class="num wt-qtr wt-month-start wt-year-cell">' + (d.quarter_discovered||0) + '</td>';
-            html += '<td class="num wt-qtr wt-year-cell">' + cumDisc + '</td>';
+            const qDiscDelta = d.quarter_week_discovered_delta || 0;
+            const cumDiscDelta = d.cum_week_discovered_delta || 0;
+            html += '<td class="num wt-qtr wt-month-start wt-year-cell">' + (d.quarter_discovered||0) + _deltaBadge(qDiscDelta) + '</td>';
+            html += '<td class="num wt-qtr wt-year-cell">' + cumDisc + _deltaBadge(cumDiscDelta) + '</td>';
             html += '<td class="num rate wt-year-cell' + (isLastBeforeTotal?" wt-border-bottom":"") + '" rowspan="2">' + (rateVal ? Math.round(rateVal*100)+"%" : "-") + '</td>';
             html += '</tr>';
 
             html += '<tr class="' + rowCls + ' ' + (isLastBeforeTotal?"wt-before-total":"") + '">';
             html += '<td class="row-type">개선</td>';
             if (priorQuarters.length > 0) {
-                html += '<td class="num wt-qtr wt-month-start wt-prior-q">' + priorImpSum + '</td>';
+                // 전 분기 누적의 증감: 각 분기 week_improved_delta 합
+                let priorDeltaSum = 0;
+                priorQuarters.forEach(q => {
+                    const pq = priorData[q] || {};
+                    priorDeltaSum += (pq.week_improved_delta || 0);
+                });
+                html += '<td class="num wt-qtr wt-month-start wt-prior-q">' + priorImpSum + _deltaBadge(priorDeltaSum) + '</td>';
                 html += '<td class="num wt-qtr wt-prior-avg">' + priorImpAvg + '</td>';
             }
             months.forEach(m => {
@@ -2463,17 +2486,22 @@ function renderQuarterTable(data, opts) {
                 for (let w = 1; w <= maxW; w++) {
                     const wk = d.weeks ? (d.weeks[m+"-"+w] || {}) : {};
                     const val = wk.improved || 0;
+                    const delta = wk.week_improved_delta || 0;
                     const isCur = (m === curMonth && w === curWeek);
                     const isFuture = (m > curMonth || (m === curMonth && w > curWeek));
                     const display = isFuture ? "" : val;
-                    html += '<td class="num ' + (isCur?"wt-current":"") + (isFuture?" wt-future":"") + ' ' + (w===1?"wt-month-start":"") + '">' + display + '</td>';
+                    const deltaHtml = isFuture ? "" : _deltaBadge(delta);
+                    html += '<td class="num ' + (isCur?"wt-current":"") + (isFuture?" wt-future":"") + ' ' + (w===1?"wt-month-start":"") + '">' + display + deltaHtml + '</td>';
                 }
                 const sub = d.month_subs ? (d.month_subs[String(m)] || {}) : {};
                 var monthFuture = m > curMonth;
-                html += '<td class="num wt-sub' + (monthFuture?" wt-future":"") + '">' + (monthFuture ? "" : (sub.improved||0)) + '</td>';
+                const subDelta = sub.week_improved_delta || 0;
+                html += '<td class="num wt-sub' + (monthFuture?" wt-future":"") + '">' + (monthFuture ? "" : (sub.improved||0)) + (monthFuture ? "" : _deltaBadge(subDelta)) + '</td>';
             });
-            html += '<td class="num wt-qtr wt-month-start wt-year-cell">' + (d.quarter_improved||0) + '</td>';
-            html += '<td class="num wt-qtr wt-year-cell">' + cumImp + '</td>';
+            const qDelta = d.quarter_week_improved_delta || 0;
+            const cumDelta = d.cum_week_improved_delta || 0;
+            html += '<td class="num wt-qtr wt-month-start wt-year-cell">' + (d.quarter_improved||0) + _deltaBadge(qDelta) + '</td>';
+            html += '<td class="num wt-qtr wt-year-cell">' + cumImp + _deltaBadge(cumDelta) + '</td>';
             html += '</tr>';
         });
 
