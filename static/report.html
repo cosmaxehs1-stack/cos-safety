@@ -416,6 +416,11 @@
         const has5th = {};
         months.forEach(m => {
             has5th[m] = false;
+            const lastDay = new Date(parseInt(data.year), m, 0).getDate();
+            for (let day = 29; day <= lastDay; day++) {
+                const dt = new Date(parseInt(data.year), m - 1, day);
+                if (dt.getDay() === 4) { has5th[m] = true; break; }
+            }
             [...channels, "합계"].forEach(ch => {
                 const wk = (totalSite[ch] || {}).weeks || {};
                 const w5 = wk[m + "-5"];
