@@ -2263,7 +2263,17 @@ async function printReport() {
     // Open window immediately (user gesture context) to avoid popup blocker
     const reportWin = window.open("about:blank", "_blank");
     try {
-        const res = await fetch("/api/summary?" + params.toString(), { headers: authHeaders() });
+        // 주간현황표 URL (현재 연도·분기)
+        const now = new Date();
+        const curYear = String(now.getFullYear());
+        const curQuarter = Math.ceil((now.getMonth() + 1) / 3);
+
+        // 두 요청을 병렬 실행
+        const [res, wkRes] = await Promise.all([
+            fetch("/api/summary?" + params.toString(), { headers: authHeaders() }),
+            fetch("/api/weekly/quarter?year=" + curYear + "&quarter=" + curQuarter, { headers: authHeaders() })
+        ]);
+
         if (res.status === 401) { logout(); if (reportWin) reportWin.close(); return; }
         const data = await res.json();
         if (!data.records || data.records.length === 0) {
@@ -2281,16 +2291,10 @@ async function printReport() {
         });
         lightData._team = filters.team || "전체";
 
-        // 주간현황표 데이터: 현재 연도·분기 자동
-        const now = new Date();
-        const curYear = String(now.getFullYear());
-        const curQuarter = Math.ceil((now.getMonth() + 1) / 3);
-        try {
-            const wkRes = await fetch("/api/weekly/quarter?year=" + curYear + "&quarter=" + curQuarter, { headers: authHeaders() });
-            if (wkRes.ok) {
-                lightData._weeklyQuarter = await wkRes.json();
-            }
-        } catch (e) { console.error("Weekly quarter fetch failed:", e); }
+        if (wkRes && wkRes.ok) {
+            try { lightData._weeklyQuarter = await wkRes.json(); }
+            catch (e) { console.error("Weekly quarter parse failed:", e); }
+        }
 
         sessionStorage.setItem("reportData", JSON.stringify(lightData));
         if (reportWin) reportWin.location.href = "/static/report.html";

@@ -196,61 +196,12 @@
         function esc(s) { return s ? String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') : ''; }
 
         // --- Compute Analytics ---
-        const gA = data.grade_a, gB = data.grade_b, gC = data.grade_c, gD = data.grade_d;
-        const gE = records.filter(r => r.grade_before === 'E' || r.grade_before === 'F').length;
-
-        // Channel stats
+        // Channel stats (section 2 기준)
         const channelStats = data.channel_stats || {};
-        const channelGradeStats = data.channel_grade_stats || {};
         const channelList = Object.entries(channelStats).sort((a, b) => b[1] - a[1]);
 
-        // Company stats
-        const companies = Object.entries(data.location_stats)
-            .map(([name, g]) => ({
-                name,
-                total: (g.A || 0) + (g.B || 0) + (g.C || 0) + (g.D || 0) + (g['-'] || 0),
-                A: g.A || 0, B: g.B || 0, C: g.C || 0, D: g.D || 0
-            }))
-            .sort((a, b) => b.total - a.total);
-        const maxComp = companies[0]?.total || 1;
-
-        // Weekly stats
+        // Weekly stats (section 2 기준)
         const weeks = Object.entries(data.week_stats).sort((a, b) => a[0].localeCompare(b[0]));
-
-        // Category (disaster_type > process)
-        const catMap = {};
-        records.forEach(r => {
-            const m = r.disaster_type || '기타';
-            const s = r.process || '미분류';
-            const key = m + '||' + s;
-            catMap[key] = (catMap[key] || 0) + 1;
-        });
-        const cats = Object.entries(catMap)
-            .map(([k, c]) => { const [m, s] = k.split('||'); return { m, s, c, p: total ? (c / total * 100).toFixed(1) : '0' }; })
-            .sort((a, b) => b.c - a.c);
-
-        // Main category aggregation
-        const mainCatMap = {};
-        cats.forEach(c => { mainCatMap[c.m] = (mainCatMap[c.m] || 0) + c.c; });
-        const mainCats = Object.entries(mainCatMap).sort((a, b) => b[1] - a[1]);
-
-        // High risk items (D/E)
-        const highRisk = records.filter(r => r.grade_before === 'D' || r.grade_before === 'E' || r.grade_before === 'F');
-
-        // Repeated risks
-        const contentGroups = {};
-        records.forEach(r => {
-            const c = (r.content_full || '').trim();
-            if (!c) return;
-            if (!contentGroups[c]) contentGroups[c] = { n: 0, locs: new Set() };
-            contentGroups[c].n++;
-            if (r.location_group) contentGroups[c].locs.add(r.location_group);
-        });
-        const repeats = Object.entries(contentGroups)
-            .filter(([_, v]) => v.n >= 2)
-            .map(([content, v]) => ({ content, count: v.n, location: [...v.locs].join(', ') }))
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 10);
 
         // --- Build HTML ---
         let html = '';
@@ -328,79 +279,43 @@
 
         html += '</div>';
 
-        // Section 3: Company Analysis
-        html += '<div class="section">';
-        html += '<hr class="section-line"><h2 class="section-title">구분별 위험요소 현황</h2>';
-        html += '<div class="section-sub">장소별 위험요소 분포</div>';
-        html += '<div class="chart-box"><h3>구분별 위험요소 건수</h3><div class="bar-chart">';
-        companies.forEach(c => {
-            html += '<div class="bar-row">';
-            html += '<div class="bar-label">' + esc(c.name) + '</div>';
-            html += '<div class="bar-track"><div class="bar-fill" style="width:' + (c.total / maxComp * 100).toFixed(1) + '%"></div></div>';
-            html += '<div class="bar-val">' + c.total + '</div>';
-            html += '</div>';
+        // Section: 이번주 발굴 및 개선한 건
+        const weekActivity = records.filter(r => {
+            const discThisWeek = _isThisWeek(r.date || "");
+            const impThisWeek = r.completion === "완료" && _isThisWeek(r.actual_date || "");
+            return discThisWeek || impThisWeek;
+        }).map(r => {
+            const discThisWeek = _isThisWeek(r.date || "");
+            const impThisWeek = r.completion === "완료" && _isThisWeek(r.actual_date || "");
+            let kind = "";
+            if (discThisWeek && impThisWeek) kind = "발굴+개선";
+            else if (discThisWeek) kind = "발굴";
+            else kind = "개선";
+            return { r, kind };
+        }).sort((a, b) => {
+            // 발굴+개선 → 발굴 → 개선 순, 그 안에서는 최신 날짜 순
+            const order = { "발굴+개선": 0, "발굴": 1, "개선": 2 };
+            if (order[a.kind] !== order[b.kind]) return order[a.kind] - order[b.kind];
+            return (b.r.date || "").localeCompare(a.r.date || "");
         });
-        html += '</div></div>';
 
-        html += '</div>';
-
-        // Section 4: Grade & Weekly
         html += '<div class="section">';
-        html += '<hr class="section-line"><h2 class="section-title">위험등급 및 주차별 분석</h2>';
-        html += '<div class="section-sub">등급 분포 및 주차별 발굴 추이</div>';
-        html += '<div class="chart-grid">';
-        html += '<div class="chart-box"><h3>위험등급별 분포</h3><canvas id="c-grade"></canvas></div>';
-        html += '<div class="chart-box"><h3>주차별 위험요소 발굴 현황</h3><canvas id="c-weekly"></canvas></div>';
-        html += '</div>';
-        html += '<div class="chart-box"><h3>구분별 위험등급별 현황</h3><canvas id="c-stacked"></canvas></div>';
-
-        html += '</div>';
-
-        // Section 5: Category Analysis
-        html += '<div class="section">';
-        html += '<hr class="section-line"><h2 class="section-title">유형별 위험요소 분석</h2>';
-        html += '<div class="section-sub">재해유형 및 공정별 분류</div>';
-        html += '<div class="chart-grid">';
-        html += '<div class="chart-box"><h3>대분류별 위험요소 분포</h3><canvas id="c-catpie"></canvas></div>';
-        html += '<div class="chart-box"><h3>세부 위험유형 TOP 10</h3><canvas id="c-cattop"></canvas></div>';
-        html += '</div>';
-
-        html += '</div>';
-
-        // Section 6: High Risk Items
-        html += '<div class="section">';
-        html += '<hr class="section-line"><h2 class="section-title">고위험 항목</h2>';
-        html += '<div class="section-sub">D/E/F등급 ' + highRisk.length + '건</div>';
-        html += '<table class="rtable"><thead><tr><th>구분</th><th>발견일</th><th>장소</th><th>위험요소 내용</th><th>등급</th><th>점수</th><th>완료</th></tr></thead><tbody>';
-        highRisk.forEach(r => {
+        html += '<hr class="section-line"><h2 class="section-title">이번주 발굴 및 개선한 건</h2>';
+        html += '<div class="section-sub">발굴 ' + discDelta + '건 · 개선 ' + impDelta + '건</div>';
+        html += '<table class="rtable"><thead><tr><th>구분</th><th>발견일</th><th>완료일</th><th>장소</th><th>위험요소 내용</th><th>등급</th><th>완료</th></tr></thead><tbody>';
+        weekActivity.forEach(({ r, kind }) => {
             html += '<tr>';
-            html += '<td>' + esc(r.location_group || '-') + '</td>';
+            html += '<td><strong>' + kind + '</strong></td>';
             html += '<td>' + (r.date || '-') + '</td>';
+            html += '<td>' + (r.actual_date || '-') + '</td>';
             html += '<td>' + esc(r.location || '-') + '</td>';
             html += '<td class="wrap-cell">' + esc(r.content_full || r.content || '-') + '</td>';
-            html += '<td><span class="grade-tag g-' + r.grade_before + '">' + r.grade_before + '</span></td>';
-            html += '<td>' + (r.risk_before || '-') + '</td>';
+            html += '<td><span class="grade-tag g-' + (r.grade_before || '-') + '">' + (r.grade_before || '-') + '</span></td>';
             html += '<td>' + (r.completion || '-') + '</td>';
             html += '</tr>';
         });
-        html += '</tbody></table>';
-
-        html += '</div>';
-
-        // Section 7: Repeated Risks
-        html += '<div class="section">';
-        html += '<hr class="section-line"><h2 class="section-title">반복 출현 위험요소</h2>';
-        html += '<div class="section-sub">TOP 10</div>';
-        html += '<table class="rtable"><thead><tr><th>위험요소 내용</th><th>반복 횟수</th><th>해당 구분</th></tr></thead><tbody>';
-        repeats.forEach(r => {
-            html += '<tr>';
-            html += '<td class="wrap-cell">' + esc(r.content) + '</td>';
-            html += '<td>' + r.count + '회</td>';
-            html += '<td>' + esc(r.location) + '</td>';
-            html += '</tr>';
-        });
-        if (repeats.length === 0) {
-            html += '<tr><td colspan="3" style="text-align:center;color:#999;padding:20px;">반복 위험요소가 없습니다.</td></tr>';
+        if (weekActivity.length === 0) {
+            html += '<tr><td colspan="7" style="text-align:center;color:#999;padding:20px;">이번주 활동 내역이 없습니다.</td></tr>';
         }
         html += '</tbody></table>';
         html += '</div>';
@@ -458,125 +373,6 @@
             }
         }
 
-        // Grade Pie
-        new Chart(document.getElementById('c-grade'), {
-            type: 'pie',
-            data: {
-                labels: ['A등급', 'B등급', 'C등급', 'D등급'],
-                datasets: [{
-                    data: [gA, gB, gC, gD],
-                    backgroundColor: ['#D4CEC1', '#C1C6C7', '#c0432b', '#EA1D22'],
-                    borderWidth: 2, borderColor: '#fff'
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: { position: 'bottom' },
-                    datalabels: {
-                        display: true, color: '#fff',
-                        font: { weight: 'bold', size: 14 },
-                        formatter: function(v, ctx) {
-                            var sum = ctx.dataset.data.reduce(function(a, b) { return a + b; }, 0);
-                            return sum ? Math.round(v / sum * 100) + '%' : '';
-                        }
-                    }
-                }
-            }
-        });
-
-        // Weekly Bar
-        if (weeks.length > 0) {
-            new Chart(document.getElementById('c-weekly'), {
-                type: 'bar',
-                data: {
-                    labels: weeks.map(w => w[0]),
-                    datasets: [{ label: '발굴 건수', data: weeks.map(w => w[1]), backgroundColor: '#888', borderRadius: 4 }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: { display: false },
-                        datalabels: { display: true, anchor: 'end', align: 'top', font: { weight: 'bold' }, color: '#333' }
-                    },
-                    scales: { x: { grid: { display: false } }, y: { beginAtZero: true } }
-                }
-            });
-        }
-
-        // Company Stacked Bar
-        new Chart(document.getElementById('c-stacked'), {
-            type: 'bar',
-            data: {
-                labels: companies.map(c => c.name),
-                datasets: [
-                    { label: 'A등급', data: companies.map(c => c.A), backgroundColor: '#D4CEC1', borderRadius: 2 },
-                    { label: 'B등급', data: companies.map(c => c.B), backgroundColor: '#C1C6C7', borderRadius: 2 },
-                    { label: 'C등급', data: companies.map(c => c.C), backgroundColor: '#c0432b', borderRadius: 2 },
-                    { label: 'D등급', data: companies.map(c => c.D), backgroundColor: '#EA1D22', borderRadius: 2 }
-                ]
-            },
-            options: {
-                responsive: true,
-                plugins: { legend: { position: 'top' }, datalabels: { display: false } },
-                scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true } }
-            }
-        });
-
-        // Category Pie
-        new Chart(document.getElementById('c-catpie'), {
-            type: 'pie',
-            data: {
-                labels: mainCats.map(c => c[0]),
-                datasets: [{
-                    data: mainCats.map(c => c[1]),
-                    backgroundColor: mainCats.map(function(_, i) { return COLORS[i % COLORS.length]; }),
-                    borderWidth: 2, borderColor: '#fff'
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: { position: 'bottom', labels: { font: { size: 11 } } },
-                    datalabels: {
-                        display: true, color: '#fff',
-                        font: { weight: 'bold', size: 12 },
-                        formatter: function(v, ctx) {
-                            var sum = ctx.dataset.data.reduce(function(a, b) { return a + b; }, 0);
-                            var pct = sum ? Math.round(v / sum * 100) : 0;
-                            return pct >= 5 ? pct + '%' : '';
-                        }
-                    }
-                }
-            }
-        });
-
-        // Category TOP 10 Horizontal Bar
-        var top10 = cats.slice(0, 10);
-        new Chart(document.getElementById('c-cattop'), {
-            type: 'bar',
-            data: {
-                labels: top10.map(c => c.m + ' > ' + c.s),
-                datasets: [{
-                    label: '건수',
-                    data: top10.map(c => c.c),
-                    backgroundColor: top10.map(function(_, i) { return COLORS[i % COLORS.length]; }),
-                    borderRadius: 4
-                }]
-            },
-            options: {
-                responsive: true,
-                indexAxis: 'y',
-                plugins: {
-                    legend: { display: false },
-                    datalabels: { display: true, anchor: 'end', align: 'right', font: { weight: 'bold', size: 11 }, color: '#333' }
-                },
-                scales: {
-                    x: { beginAtZero: true, grid: { display: false } },
-                    y: { grid: { display: false } }
-                }
-            }
-        });
     })();
 
     // ===== Weekly Status Table Renderer (현황 요약 홈/분석탭과 동일) =====
