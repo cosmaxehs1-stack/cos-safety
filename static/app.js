@@ -2280,6 +2280,18 @@ async function printReport() {
             return copy;
         });
         lightData._team = filters.team || "전체";
+
+        // 주간현황표 데이터: 현재 연도·분기 자동
+        const now = new Date();
+        const curYear = String(now.getFullYear());
+        const curQuarter = Math.ceil((now.getMonth() + 1) / 3);
+        try {
+            const wkRes = await fetch("/api/weekly/quarter?year=" + curYear + "&quarter=" + curQuarter, { headers: authHeaders() });
+            if (wkRes.ok) {
+                lightData._weeklyQuarter = await wkRes.json();
+            }
+        } catch (e) { console.error("Weekly quarter fetch failed:", e); }
+
         sessionStorage.setItem("reportData", JSON.stringify(lightData));
         if (reportWin) reportWin.location.href = "/static/report.html";
     } catch (e) {

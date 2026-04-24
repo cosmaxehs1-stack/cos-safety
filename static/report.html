@@ -37,6 +37,9 @@
         .s-value { font-size: 32px; font-weight: 700; color: #000; }
         .s-value.red { color: #EA1D22; }
         .s-value.teal, .s-value.green, .s-value.blue { color: #000; }
+        .s-delta { font-size: 11px; color: #888; margin-top: 6px; font-weight: 500; }
+        .s-delta.up { color: #c0432b; }
+        .s-delta.down { color: #555; }
 
         /* Chart Box */
         .chart-box { padding: 12px 0; margin-bottom: 8px; }
@@ -69,6 +72,86 @@
         .g-- { background: #ddd; color: #666; }
 
         .loading { text-align: center; padding: 80px; color: #999; font-size: 16px; }
+
+        /* ===== Weekly Table (현황 요약 홈/분석탭과 동일) ===== */
+        .weekly-table-wrap { margin-bottom: 20px; overflow-x: auto; }
+        .weekly-site-title {
+            font-size: 14px; font-weight: 700; margin: 0 0 10px 0; color: #111;
+            padding: 0 0 0 8px; border-left: 4px solid #111;
+        }
+        .weekly-table {
+            width: 100%; border-collapse: collapse; font-size: 11px; background: #fff;
+            border-top: 2px solid #333; border-bottom: 2px solid #333;
+        }
+        .weekly-table th {
+            padding: 6px 6px; text-align: center; font-weight: 700; font-size: 10px;
+            color: #111; border: 1px solid #ddd; background: #fff;
+        }
+        .weekly-table th.wt-month-group {
+            background: #f5f5f5; color: #111; font-size: 11px; border: 1px solid #ddd;
+            border-bottom: 1px solid #bbb;
+        }
+        .weekly-table thead tr:last-child th { background: #fff; color: #111; border-bottom: 1px solid #999; }
+        .weekly-table td {
+            padding: 4px 6px; text-align: center;
+            border-right: 1px solid #eee; border-bottom: 1px solid #eee;
+        }
+        .weekly-table td.ch-name {
+            text-align: left; font-weight: 600; white-space: nowrap;
+            background: #fff; border-right: 1px solid #ddd; color: #111; padding-left: 8px;
+        }
+        .weekly-table td.row-type {
+            font-size: 10px; color: #666; white-space: nowrap; width: 32px;
+            background: #fff; border-right: 1px solid #ddd; font-weight: 500;
+        }
+        .weekly-table td.num { font-variant-numeric: tabular-nums; color: #111; background: #fff; }
+        .weekly-table td.wt-sub { background: #fff; font-weight: 700; color: #111; border-right: 1px solid #999; }
+        .weekly-table th.wt-sub { background: #f5f5f5; color: #111; border-right: 1px solid #999; }
+        .weekly-table td.wt-qtr { background: #fff; font-weight: 700; color: #111; border-right: 1px solid #999; }
+        .weekly-table td.rate { font-weight: 700; color: #111; background: #fff; border-left: 1px solid #999; }
+        .weekly-table .wt-current {
+            background: transparent !important;
+            border-left: 2px solid #EA1D22 !important;
+            border-right: 2px solid #EA1D22 !important;
+        }
+        .weekly-table th.wt-current { color: #111 !important; font-weight: 700; }
+        .weekly-table thead th.wt-current { border-top: 2px solid #EA1D22 !important; }
+        .weekly-table tbody tr:last-child > td.wt-current { border-bottom: 2px solid #EA1D22 !important; }
+        .weekly-table td.wt-month-start, .weekly-table th.wt-month-start { border-left: 1px solid #999; }
+        .weekly-table tbody tr.wt-ch-first > td { border-top: 1px solid #999 !important; }
+        .weekly-table tbody tr.wt-ch-first + tr > td { border-bottom: 1px solid #999 !important; }
+        .weekly-table tbody tr.wt-ch-first > td[rowspan="2"] { border-bottom: 1px solid #999 !important; }
+        .weekly-table tr.wt-before-total td, .weekly-table .wt-border-bottom { border-bottom: 1px solid #999; }
+        .weekly-table th:first-child,
+        .weekly-table tbody tr > td:first-child { border-left: 0 !important; }
+        .weekly-table th:last-child,
+        .weekly-table tbody tr > td:last-child,
+        .weekly-table td.rate { border-right: 0 !important; }
+        .weekly-total-row td { background: #fff !important; font-weight: 700; color: #111; }
+        .weekly-total-row td.ch-name { color: #111; }
+        .weekly-total-row td.row-type { color: #111; }
+        .weekly-total-row td.rate { color: #EA1D22; }
+        .weekly-table th.wt-prior-q, .weekly-table td.wt-prior-q,
+        .weekly-table th.wt-prior-avg, .weekly-table td.wt-prior-avg {
+            width: 36px; min-width: 36px; max-width: 36px;
+            padding-left: 2px; padding-right: 2px;
+        }
+        .weekly-table th.wt-year-cell, .weekly-table td.wt-year-cell {
+            width: 44px; min-width: 44px; max-width: 44px;
+        }
+        .weekly-table th.wt-prior-group,
+        .weekly-table th.wt-year-group { background: #fcebeb !important; }
+        .weekly-table th.wt-prior-q, .weekly-table td.wt-prior-q,
+        .weekly-table th.wt-prior-avg, .weekly-table td.wt-prior-avg,
+        .weekly-table th.wt-year-cell, .weekly-table td.wt-year-cell {
+            background: #fdf5f5 !important;
+        }
+        .weekly-table .wt-delta {
+            font-size: 8px; color: #888; margin-top: 1px; line-height: 1; font-weight: 500;
+        }
+        .weekly-table .wt-future { color: #e0e0e0 !important; background: #f5f5f5 !important; }
+        .weekly-table th.wt-future { color: #d5d5d5 !important; background: #f0f0f0 !important; }
+        .weekly-table .weekly-total-row .wt-future { color: #e0e0e0 !important; }
 
         @media print {
             body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -181,16 +264,58 @@
         html += '<button class="print-btn" onclick="window.print()">인쇄 / PDF 저장</button>';
         html += '</header>';
 
+        // 저번주 대비 델타 계산
+        const _now = new Date();
+        const _curYear = String(_now.getFullYear());
+        const _curMonth = _now.getMonth() + 1;
+        const _curWeek = getWeekFromDate(_now.toISOString().split("T")[0]);
+        function _isThisWeek(ds) {
+            if (!ds || typeof ds !== "string" || ds.length < 10) return false;
+            if (ds.slice(0, 4) !== _curYear) return false;
+            if (parseInt(ds.slice(5, 7)) !== _curMonth) return false;
+            return getWeekFromDate(ds) === _curWeek;
+        }
+        const discDelta = records.filter(r => _isThisWeek(r.date || "")).length;
+        const impDelta = records.filter(r => r.completion === "완료" && _isThisWeek(r.actual_date || "")).length;
+        const incDelta = discDelta - impDelta;
+        let rateDelta = 0;
+        const _prevTotal = total - discDelta;
+        const _prevComp = data.complete - impDelta;
+        if (_prevTotal > 0 && total > 0) {
+            rateDelta = (data.complete / total * 100) - (_prevComp / _prevTotal * 100);
+        }
+        function fmtDeltaCount(n) {
+            const cls = n > 0 ? "s-delta up" : (n < 0 ? "s-delta down" : "s-delta");
+            const sign = n > 0 ? "+" : "";
+            return '<div class="' + cls + '">전주 대비 ' + sign + n + '건</div>';
+        }
+        function fmtDeltaRate(n) {
+            const rounded = Math.round(n * 10) / 10;
+            const cls = rounded > 0 ? "s-delta up" : (rounded < 0 ? "s-delta down" : "s-delta");
+            const sign = rounded > 0 ? "+" : "";
+            return '<div class="' + cls + '">전주 대비 ' + sign + rounded.toFixed(1) + '%p</div>';
+        }
+
         // Section 1: Summary
         html += '<div class="section">';
         html += '<hr class="section-line"><h2 class="section-title">전체 현황 요약</h2>';
-        html += '<div class="section-sub">위험요소 발굴 및 개선 현황</div>';
+        html += '<div class="section-sub">위험요소 발굴 및 개선 현황 (저번주 대비 증감 포함)</div>';
         html += '<div class="summary-cards">';
-        html += '<div class="s-card"><div class="s-label">전체 건수</div><div class="s-value">' + total + '</div></div>';
-        html += '<div class="s-card"><div class="s-label">개선 건수</div><div class="s-value">' + data.complete + '</div></div>';
+        html += '<div class="s-card"><div class="s-label">전체 건수</div><div class="s-value">' + total + '</div>' + fmtDeltaCount(discDelta) + '</div>';
+        html += '<div class="s-card"><div class="s-label">개선 건수</div><div class="s-value">' + data.complete + '</div>' + fmtDeltaCount(impDelta) + '</div>';
         html += '<div class="s-card"><div class="s-label">미완료 건수</div><div class="s-value">' + data.incomplete + '</div></div>';
         html += '<div class="s-card"><div class="s-label">개선률</div><div class="s-value">' + data.improvement_rate + '%</div></div>';
         html += '</div></div>';
+
+        // Section: Weekly Status Table (현재 연도·분기 기준)
+        const weeklyData = data._weeklyQuarter;
+        if (weeklyData && weeklyData.sites) {
+            html += '<div class="section">';
+            html += '<hr class="section-line"><h2 class="section-title">주간현황표</h2>';
+            html += '<div class="section-sub">' + weeklyData.year + '년 ' + weeklyData.quarter + '분기 · ' + (data._team || '전체') + '</div>';
+            html += '<div id="weekly-report-container"></div>';
+            html += '</div>';
+        }
 
         // Section 2: Channel Analysis
         html += '<div class="section">';
@@ -282,6 +407,11 @@
 
         // Render
         document.getElementById('report').innerHTML = html;
+
+        // --- Weekly Status Table ---
+        if (weeklyData && weeklyData.sites) {
+            renderWeeklyReport(weeklyData, data._team || "전체");
+        }
 
         // --- Create Charts ---
         Chart.register(ChartDataLabels);
@@ -448,6 +578,185 @@
             }
         });
     })();
+
+    // ===== Weekly Status Table Renderer (현황 요약 홈/분석탭과 동일) =====
+    function getWeekFromDate(dateStr) {
+        if (!dateStr) return 0;
+        const parts = dateStr.split("-");
+        if (parts.length < 3) return 0;
+        const month = parseInt(parts[1]);
+        const day = parseInt(parts[2]);
+        if (month === 1) {
+            if (day <= 11) return 1;
+            return Math.min(Math.floor((day - 12) / 7) + 2, 5);
+        }
+        const d = new Date(parseInt(parts[0]), month - 1, day);
+        const wd = d.getDay();
+        let diffToThu = (4 - wd + 7) % 7;
+        if (wd === 5 || wd === 6 || wd === 0) diffToThu -= 7;
+        const thu = new Date(d);
+        thu.setDate(d.getDate() + diffToThu);
+        if (thu.getMonth() !== d.getMonth()) {
+            return thu.getMonth() > d.getMonth() ? 5 : 1;
+        }
+        return Math.min(Math.floor((thu.getDate() - 1) / 7) + 1, 5);
+    }
+
+    function renderWeeklyReport(data, teamName) {
+        const container = document.getElementById("weekly-report-container");
+        if (!container || !data || !data.sites) return;
+
+        const months = data.months || [];
+        const channels = data.channel_order || [];
+        const priorQuarters = data.prior_quarters || [];
+        const selectedSite = teamName || "전체";
+        const siteData = data.sites[selectedSite] || data.sites["전체"] || {};
+
+        const now = new Date();
+        const curMonth = now.getMonth() + 1;
+        const curWeek = getWeekFromDate(now.toISOString().split("T")[0]);
+
+        const totalSite = data.sites["전체"] || {};
+        const has5th = {};
+        months.forEach(m => {
+            has5th[m] = false;
+            [...channels, "합계"].forEach(ch => {
+                const wk = (totalSite[ch] || {}).weeks || {};
+                const w5 = wk[m + "-5"];
+                if (w5 && (w5.discovered > 0 || w5.improved > 0)) has5th[m] = true;
+            });
+        });
+
+        function deltaBadge(n) {
+            if (!n || n <= 0) return "";
+            return '<div class="wt-delta">+' + n + '</div>';
+        }
+
+        let html = '<div class="weekly-table-wrap"><table class="weekly-table"><thead>';
+
+        // Header row 1
+        html += '<tr><th rowspan="2" class="wt-fixed">구분</th><th rowspan="2" class="wt-fixed"></th>';
+        if (priorQuarters.length > 0) {
+            html += '<th colspan="2" class="wt-month-group wt-month-start wt-prior-group">' + priorQuarters.join('+') + '분기</th>';
+        }
+        months.forEach(m => {
+            const weekCount = has5th[m] ? 5 : 4;
+            html += '<th colspan="' + (weekCount+1) + '" class="wt-month-group">' + m + '월</th>';
+        });
+        html += '<th colspan="3" class="wt-month-group wt-month-start wt-year-group" style="border-right:1px solid #999;">' + data.year + '년</th>';
+        html += '</tr>';
+
+        // Header row 2
+        html += '<tr>';
+        if (priorQuarters.length > 0) {
+            html += '<th class="wt-prior-q wt-month-start">누적</th>';
+            html += '<th class="wt-prior-avg">월평균</th>';
+        }
+        months.forEach(m => {
+            const maxW = has5th[m] ? 5 : 4;
+            for (let w = 1; w <= maxW; w++) {
+                const isCur = (m === curMonth && w === curWeek);
+                const isFuture = (m > curMonth || (m === curMonth && w > curWeek));
+                html += '<th class="' + (isCur?"wt-current":"") + (isFuture?" wt-future":"") + ' ' + (w===1?"wt-month-start":"") + '">' + w + '주</th>';
+            }
+            html += '<th class="wt-sub' + (m > curMonth?" wt-future":"") + '">소계</th>';
+        });
+        html += '<th class="wt-month-start wt-year-cell">' + data.quarter + '분기</th>';
+        html += '<th class="wt-year-cell">합계</th>';
+        html += '<th class="wt-year-cell" style="border-left:1px solid #999;">개선률</th>';
+        html += '</tr></thead><tbody>';
+
+        const allCh = [...channels, "합계"];
+        allCh.forEach((ch, idx) => {
+            const d = siteData[ch] || {};
+            const isTotal = ch === "합계";
+            const isLastBeforeTotal = (idx === allCh.length - 2);
+            const rowCls = isTotal ? "weekly-total-row" : "";
+
+            const priorData = d.prior_quarters || {};
+            const rateVal = (d.cum_rate !== undefined) ? d.cum_rate : d.quarter_rate;
+            const cumDisc = (d.cum_discovered !== undefined) ? d.cum_discovered : (d.quarter_discovered || 0);
+            const cumImp = (d.cum_improved !== undefined) ? d.cum_improved : (d.quarter_improved || 0);
+
+            let priorDiscSum = 0, priorImpSum = 0, priorDiscDelta = 0, priorImpDelta = 0;
+            priorQuarters.forEach(q => {
+                const pq = priorData[q] || {};
+                priorDiscSum += (pq.discovered || 0);
+                priorImpSum += (pq.improved || 0);
+                priorDiscDelta += (pq.week_discovered_delta || 0);
+                priorImpDelta += (pq.week_improved_delta || 0);
+            });
+            const priorMonths = priorQuarters.length * 3;
+            const priorDiscAvg = priorMonths > 0 ? Math.round(priorDiscSum / priorMonths) : 0;
+            const priorImpAvg = priorMonths > 0 ? Math.round(priorImpSum / priorMonths) : 0;
+
+            // 발굴 행
+            html += '<tr class="' + rowCls + ' wt-ch-first">';
+            html += '<td class="ch-name' + (isLastBeforeTotal?" wt-border-bottom":"") + '" rowspan="2">' + ch + '</td>';
+            html += '<td class="row-type">발굴</td>';
+            if (priorQuarters.length > 0) {
+                html += '<td class="num wt-qtr wt-month-start wt-prior-q">' + priorDiscSum + deltaBadge(priorDiscDelta) + '</td>';
+                html += '<td class="num wt-qtr wt-prior-avg">' + priorDiscAvg + '</td>';
+            }
+            months.forEach(m => {
+                const maxW = has5th[m] ? 5 : 4;
+                for (let w = 1; w <= maxW; w++) {
+                    const wk = d.weeks ? (d.weeks[m+"-"+w] || {}) : {};
+                    const val = wk.discovered || 0;
+                    const delta = wk.week_discovered_delta || 0;
+                    const isCur = (m === curMonth && w === curWeek);
+                    const isFuture = (m > curMonth || (m === curMonth && w > curWeek));
+                    const display = isFuture ? "" : val;
+                    const showDelta = !isFuture && !isCur;
+                    const dHtml = showDelta ? deltaBadge(delta) : "";
+                    html += '<td class="num ' + (isCur?"wt-current":"") + (isFuture?" wt-future":"") + ' ' + (w===1?"wt-month-start":"") + '">' + display + dHtml + '</td>';
+                }
+                const sub = d.month_subs ? (d.month_subs[String(m)] || {}) : {};
+                const monthFuture = m > curMonth;
+                const subDelta = sub.week_discovered_delta || 0;
+                html += '<td class="num wt-sub' + (monthFuture?" wt-future":"") + '">' + (monthFuture ? "" : (sub.discovered||0)) + (monthFuture ? "" : deltaBadge(subDelta)) + '</td>';
+            });
+            const qDiscDelta = d.quarter_week_discovered_delta || 0;
+            const cumDiscDelta = d.cum_week_discovered_delta || 0;
+            html += '<td class="num wt-qtr wt-month-start wt-year-cell">' + (d.quarter_discovered||0) + deltaBadge(qDiscDelta) + '</td>';
+            html += '<td class="num wt-qtr wt-year-cell">' + cumDisc + deltaBadge(cumDiscDelta) + '</td>';
+            html += '<td class="num rate wt-year-cell' + (isLastBeforeTotal?" wt-border-bottom":"") + '" rowspan="2">' + (rateVal ? Math.round(rateVal*100)+"%" : "-") + '</td>';
+            html += '</tr>';
+
+            // 개선 행
+            html += '<tr class="' + rowCls + ' ' + (isLastBeforeTotal?"wt-before-total":"") + '">';
+            html += '<td class="row-type">개선</td>';
+            if (priorQuarters.length > 0) {
+                html += '<td class="num wt-qtr wt-month-start wt-prior-q">' + priorImpSum + deltaBadge(priorImpDelta) + '</td>';
+                html += '<td class="num wt-qtr wt-prior-avg">' + priorImpAvg + '</td>';
+            }
+            months.forEach(m => {
+                const maxW = has5th[m] ? 5 : 4;
+                for (let w = 1; w <= maxW; w++) {
+                    const wk = d.weeks ? (d.weeks[m+"-"+w] || {}) : {};
+                    const val = wk.improved || 0;
+                    const delta = wk.week_improved_delta || 0;
+                    const isCur = (m === curMonth && w === curWeek);
+                    const isFuture = (m > curMonth || (m === curMonth && w > curWeek));
+                    const display = isFuture ? "" : val;
+                    const dHtml = isFuture ? "" : deltaBadge(delta);
+                    html += '<td class="num ' + (isCur?"wt-current":"") + (isFuture?" wt-future":"") + ' ' + (w===1?"wt-month-start":"") + '">' + display + dHtml + '</td>';
+                }
+                const sub = d.month_subs ? (d.month_subs[String(m)] || {}) : {};
+                const monthFuture = m > curMonth;
+                const subDelta = sub.week_improved_delta || 0;
+                html += '<td class="num wt-sub' + (monthFuture?" wt-future":"") + '">' + (monthFuture ? "" : (sub.improved||0)) + (monthFuture ? "" : deltaBadge(subDelta)) + '</td>';
+            });
+            const qImpDelta = d.quarter_week_improved_delta || 0;
+            const cumImpDelta = d.cum_week_improved_delta || 0;
+            html += '<td class="num wt-qtr wt-month-start wt-year-cell">' + (d.quarter_improved||0) + deltaBadge(qImpDelta) + '</td>';
+            html += '<td class="num wt-qtr wt-year-cell">' + cumImp + deltaBadge(cumImpDelta) + '</td>';
+            html += '</tr>';
+        });
+
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+    }
     </script>
 </body>
 </html>
