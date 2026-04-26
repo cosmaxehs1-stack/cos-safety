@@ -1,5 +1,14 @@
 let TOKEN = sessionStorage.getItem("token") || "";
 
+// 로컬 시간대 기준 YYYY-MM-DD 문자열 반환 (toISOString은 UTC라 KST 새벽~오전에 하루 밀림)
+function getLocalDateStr(d) {
+    d = d || new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return y + "-" + m + "-" + day;
+}
+
 // 바깥 클릭 시 info tooltip 닫기
 document.addEventListener("click", function(e) {
     if (!e.target.classList.contains("info-btn")) {
@@ -249,7 +258,7 @@ function updateWeekDropdown(records) {
     var curYear = String(now.getFullYear());
     var selYear = getFilterValue("f-rec-year");
     if ((selYear === curYear || selYear === "전체") && selectedMonth === curMonthStr) {
-        var curWeek = getWeekFromDate(now.toISOString().split("T")[0]);
+        var curWeek = getWeekFromDate(getLocalDateStr(now));
         for (var i = 1; i <= curWeek; i++) {
             if (!weeks[i]) weekList.push(i);
         }
@@ -420,7 +429,7 @@ function getDisplayRecords(data) {
         var now = new Date();
         var refYearStr = String(now.getFullYear());
         var refMonthNum = now.getMonth() + 1;
-        var refWeek = getWeekFromDate(now.toISOString().split("T")[0]);
+        var refWeek = getWeekFromDate(getLocalDateStr(now));
         records = records.filter(function(r) {
             if (r.completion !== "완료" || !r.actual_date) return false;
             // 발굴일이 올해 + 이번 주차 이전인지
@@ -521,7 +530,7 @@ function updateViewSummaryFromRecords(records, vs) {
     if (_activePrevWeekImproved && currentPage === "records") {
         var pwNow = new Date();
         var pwMonth = pwNow.getMonth() + 1;
-        var pwWeek = getWeekFromDate(pwNow.toISOString().split("T")[0]);
+        var pwWeek = getWeekFromDate(getLocalDateStr(pwNow));
         container.innerHTML =
             '<div class="prev-week-active">' +
             '<span>' + pwMonth + '월 ' + pwWeek + '주차 추가 개선' +
@@ -725,7 +734,7 @@ function updatePeriodStats(data) {
     const curYear = String(now.getFullYear());
     const curMonth = now.getMonth() + 1;
     const curMonthStr = curMonth + "월";
-    const curWeek = getWeekFromDate(now.toISOString().split("T")[0]);
+    const curWeek = getWeekFromDate(getLocalDateStr(now));
 
     // 타이틀 설정
     setText("pt-week", curMonthStr + " " + curWeek + "주차");
@@ -1194,7 +1203,7 @@ function goToRecordsFiltered(period, type) {
     const now = new Date();
     const curYear = String(now.getFullYear());
     const curMonth = (now.getMonth() + 1) + "월";
-    const curWeek = getWeekFromDate(now.toISOString().split("T")[0]);
+    const curWeek = getWeekFromDate(getLocalDateStr(now));
 
     // Stash desired filters to apply after page switch + data load
     window._pendingRecordsFilter = {
@@ -1485,7 +1494,7 @@ function updateCompletionDateDisplay() {
     if (!wrap || !valEl) return;
     if (completion === "완료") {
         const existing = document.getElementById("ar-actual-date").value;
-        const today = new Date().toISOString().split("T")[0];
+        const today = getLocalDateStr();
         valEl.textContent = existing || today;
         wrap.style.display = "";
     } else {
@@ -2312,7 +2321,7 @@ async function loadWeeklyTab() {
     // 현재 날짜 기준 이번주 월/주차 자동 설정
     var now = new Date();
     weeklyCurrentMonth = now.getMonth() + 1;
-    weeklyCurrentWeek = getWeekFromDate(now.toISOString().split("T")[0]);
+    weeklyCurrentWeek = getWeekFromDate(getLocalDateStr(now));
 
     try {
         const liveRes = await fetch("/api/weekly/quarter?year=" + year + "&quarter=" + quarter, { headers: authHeaders() });
@@ -2337,7 +2346,7 @@ async function loadSummaryWeekly() {
     const quarter = quarterEl.value;
 
     weeklyCurrentMonth = now.getMonth() + 1;
-    weeklyCurrentWeek = getWeekFromDate(now.toISOString().split("T")[0]);
+    weeklyCurrentWeek = getWeekFromDate(getLocalDateStr(now));
 
     try {
         const liveRes = await fetch("/api/weekly/quarter?year=" + year + "&quarter=" + quarter, { headers: authHeaders() });
