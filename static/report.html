@@ -310,7 +310,7 @@
             html += '<td>' + (r.actual_date || '-') + '</td>';
             html += '<td>' + esc(r.location || '-') + '</td>';
             html += '<td class="wrap-cell">' + esc(r.content_full || r.content || '-') + '</td>';
-            html += '<td><span class="grade-tag g-' + (r.grade_before || '-') + '">' + (r.grade_before || '-') + '</span></td>';
+            html += '<td><span class="grade-tag g-' + (r.grade_before || '-') + '">' + (r.grade_before === 'D' ? 'D 이상' : (r.grade_before || '-')) + '</span></td>';
             html += '<td>' + (r.completion || '-') + '</td>';
             html += '</tr>';
         });

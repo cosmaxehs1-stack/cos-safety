@@ -859,7 +859,7 @@ function updateSummaryCharts(data) {
     destroyChart("chart-grade-after");
     var gradeBarColors = ["rgba(212,206,193,0.7)", "rgba(193,198,199,0.7)", "rgba(200,100,80,0.7)", "rgba(234,29,34,0.7)"];
     var gradeBarBorders = ["#D4CEC1", "#C1C6C7", "#c0432b", "#EA1D22"];
-    var gradeLabels = ["A등급", "B등급", "C등급", "D등급"];
+    var gradeLabels = ["A등급", "B등급", "C등급", "D 이상"];
     var maxVal = Math.max(data.grade_a, data.grade_b, data.grade_c, data.grade_d, data.grade_a_current||0, data.grade_b_current||0, data.grade_c_current||0, data.grade_d_current||0, 1);
     var gradeBarOpts = function(showY) {
         return {
@@ -953,7 +953,7 @@ function renderLocationChart(data) {
         }));
     } else {
         datasets = ["A","B","C","D"].map(g => ({
-            label: g + "등급", data: locLabels.map(l => (subStats[l]||{})[g]||0),
+            label: g === "D" ? "D 이상" : g + "등급", data: locLabels.map(l => (subStats[l]||{})[g]||0),
             backgroundColor: GRADE_COLORS[g], borderRadius: 4,
         }));
     }
@@ -1135,7 +1135,7 @@ function renderRepeatTable(data) {
             '<td><span class="repeat-badge">' + r.repeat_count + "회</span></td>" +
             "<td>" + escapeHtml(r.location || "-") + "</td>" +
             "<td>" + escapeHtml(r.disaster_type || "-") + "</td>" +
-            '<td><span class="grade-badge grade-' + r.grade_before + '">' + r.grade_before + "</span></td>" +
+            '<td><span class="grade-badge grade-' + r.grade_before + '">' + formatGrade(r.grade_before) + "</span></td>" +
             '<td class="' + (r.completion === "완료" ? "status-complete" : "status-incomplete") + '">' + (r.completion || "-") + "</td>";
         tbody.appendChild(tr);
     });
@@ -1143,6 +1143,11 @@ function renderRepeatTable(data) {
 
 // ===== Data Table =====
 let _allTableRecords = [];
+
+function formatGrade(g) {
+    if (g === "D") return "D 이상";
+    return g || "-";
+}
 
 function formatShortDate(dateStr) {
     if (!dateStr) return "-";
@@ -1185,9 +1190,9 @@ function updateTable(records) {
             '<td class="td-content td-content-plan" title="' + escapeHtml(planFull) + '">' + escapeHtml(planFull || "-") + '</td>' +
             '<td class="td-status ' + (r.completion === "완료" ? "status-complete" : "status-incomplete") + '">' + (r.completion || "-") + '</td>' +
             '<td class="td-img-pair"><div class="img-pair">' +
-                '<div class="img-col">' + imgBefore + '<span class="grade-badge grade-' + r.grade_before + '">' + r.grade_before + '</span></div>' +
+                '<div class="img-col">' + imgBefore + '<span class="grade-badge grade-' + r.grade_before + '">' + formatGrade(r.grade_before) + '</span></div>' +
                 '<span class="grade-arrow">→</span>' +
-                '<div class="img-col">' + imgAfter + '<span class="grade-badge grade-' + (r.grade_after || "-") + '">' + (r.grade_after || "-") + '</span></div>' +
+                '<div class="img-col">' + imgAfter + '<span class="grade-badge grade-' + (r.grade_after || "-") + '">' + formatGrade(r.grade_after) + '</span></div>' +
             '</div></td>' +
             (ADMIN_TOKEN
                 ? '<td class="action-cell">' +
@@ -1316,7 +1321,7 @@ function showRecordDetail(r, displayNo) {
         const g = grade || '-';
         const cls = fullWidth ? 'rd-field full-width' : 'rd-field';
         return '<div class="' + cls + '"><label>' + label + '</label>'
-             + '<div class="rd-field-value rd-grade-cell"><span class="grade-badge grade-' + g + '">' + g + '</span></div></div>';
+             + '<div class="rd-field-value rd-grade-cell"><span class="grade-badge grade-' + g + '">' + formatGrade(g) + '</span></div></div>';
     }
 
     function imgBlock(label, src) {
@@ -1356,11 +1361,11 @@ function showRecordDetail(r, displayNo) {
     assess += '<div class="rd-assess-row-label">개선 전</div>';
     assess += '<div class="rd-assess-cell">' + (r.likelihood_before || '-') + '</div>';
     assess += '<div class="rd-assess-cell">' + (r.severity_before || '-') + '</div>';
-    assess += '<div class="rd-assess-cell"><span class="grade-badge grade-' + (r.grade_before || '-') + '">' + (r.grade_before || '-') + '</span></div>';
+    assess += '<div class="rd-assess-cell"><span class="grade-badge grade-' + (r.grade_before || '-') + '">' + formatGrade(r.grade_before) + '</span></div>';
     assess += '<div class="rd-assess-row-label">개선 후</div>';
     assess += '<div class="rd-assess-cell">' + (r.likelihood_after || '-') + '</div>';
     assess += '<div class="rd-assess-cell">' + (r.severity_after || '-') + '</div>';
-    assess += '<div class="rd-assess-cell"><span class="grade-badge grade-' + (r.grade_after || '-') + '">' + (r.grade_after || '-') + '</span></div>';
+    assess += '<div class="rd-assess-cell"><span class="grade-badge grade-' + (r.grade_after || '-') + '">' + formatGrade(r.grade_after) + '</span></div>';
     assess += '</div>';
     html += section('위험성 평가', assess);
 
