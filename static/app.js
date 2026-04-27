@@ -1305,32 +1305,79 @@ function showRecordDetail(r) {
         document.body.appendChild(modal);
     }
     const content = document.getElementById("record-detail-content");
-    function row(label, value) {
-        if (!value) return '';
-        return '<div class="rd-row"><div class="rd-label">' + label + '</div><div class="rd-value">' + escapeHtml(String(value)) + '</div></div>';
+
+    function field(label, value, fullWidth) {
+        const v = (value === undefined || value === null || value === '') ? '-' : escapeHtml(String(value));
+        const cls = fullWidth ? 'rd-field full-width' : 'rd-field';
+        return '<div class="' + cls + '"><label>' + label + '</label><div class="rd-field-value">' + v + '</div></div>';
     }
-    let html = '<h3 style="margin:0 0 16px;">No.' + r.no + ' 위험요소 상세</h3>';
-    html += row('채널', r.channel);
-    html += row('월', r.month);
-    html += row('담당자', r.person);
-    html += row('일시', r.date);
-    html += row('장소', r.location);
-    html += row('위험요소 내용', r.content_full || r.content);
-    html += row('재해유형', r.disaster_type);
-    html += row('공정', r.process);
-    html += row('가능성(전)', r.likelihood_before);
-    html += row('중대성(전)', r.severity_before);
-    html += '<div class="rd-row"><div class="rd-label">위험등급(전)</div><div class="rd-value"><span class="grade-badge grade-' + r.grade_before + '">' + r.grade_before + '</span></div></div>';
-    html += row('개선대책', r.improvement_plan);
-    html += row('가능성(후)', r.likelihood_after);
-    html += row('중대성(후)', r.severity_after);
-    html += '<div class="rd-row"><div class="rd-label">위험등급(후)</div><div class="rd-value"><span class="grade-badge grade-' + (r.grade_after || "-") + '">' + (r.grade_after || "-") + '</span></div></div>';
-    html += row('완료여부', r.completion);
-    html += row('완료일', r.actual_date);
-    html += row('주차', r.week);
-    if (r.is_repeat) html += row('반복', r.repeat_count + '회');
-    if (r.image) html += '<div class="rd-row"><div class="rd-label">개선 전 사진</div><div class="rd-value"><img src="' + escapeHtml(r.image) + '" style="max-width:300px;max-height:300px;cursor:pointer;" onclick="showImageModal(\'' + escapeHtml(r.image) + '\')"></div></div>';
-    if (r.image_after) html += '<div class="rd-row"><div class="rd-label">개선 후 사진</div><div class="rd-value"><img src="' + escapeHtml(r.image_after) + '" style="max-width:300px;max-height:300px;cursor:pointer;" onclick="showImageModal(\'' + escapeHtml(r.image_after) + '\')"></div></div>';
+
+    function gradeField(label, grade, fullWidth) {
+        const g = grade || '-';
+        const cls = fullWidth ? 'rd-field full-width' : 'rd-field';
+        return '<div class="' + cls + '"><label>' + label + '</label>'
+             + '<div class="rd-field-value rd-grade-cell"><span class="grade-badge grade-' + g + '">' + g + '</span></div></div>';
+    }
+
+    function imgBlock(label, src) {
+        if (!src) return '<div class="rd-field"><label>' + label + '</label><div class="rd-field-value rd-no-image">사진 없음</div></div>';
+        return '<div class="rd-field"><label>' + label + '</label>'
+             + '<div class="rd-field-value rd-image-cell"><img src="' + escapeHtml(src) + '" class="rd-image" onclick="showImageModal(\'' + escapeHtml(src) + '\')"></div></div>';
+    }
+
+    function section(title, body) {
+        return '<div class="rd-section"><div class="rd-section-title">' + title + '</div>' + body + '</div>';
+    }
+
+    let html = '<h3 class="rd-title">위험요소 상세 (No.' + r.no + ')</h3>';
+
+    // 기본 정보
+    let basic = '<div class="form-grid">';
+    basic += field('채널', r.channel);
+    basic += field('발굴자', r.person);
+    basic += field('작성일', r.date);
+    basic += field('주차', r.week);
+    basic += field('사업장', r.location);
+    basic += field('작업장', r.workplace);
+    basic += field('재해유형', r.disaster_type);
+    basic += field('기인물', r.cause_object);
+    if (r.is_repeat) basic += field('반복', r.repeat_count + '회');
+    basic += field('위험요소 내용', r.content_full || r.content, true);
+    basic += '</div>';
+    html += section('기본 정보', basic);
+
+    // 위험성 평가 (전/후 3컬럼 비교)
+    let assess = '<div class="rd-assess-grid">';
+    assess += '<div class="rd-assess-head"></div>';
+    assess += '<div class="rd-assess-head">가능성</div>';
+    assess += '<div class="rd-assess-head">중대성</div>';
+    assess += '<div class="rd-assess-head">위험등급</div>';
+    assess += '<div class="rd-assess-row-label">개선 전</div>';
+    assess += '<div class="rd-assess-cell">' + (r.likelihood_before || '-') + '</div>';
+    assess += '<div class="rd-assess-cell">' + (r.severity_before || '-') + '</div>';
+    assess += '<div class="rd-assess-cell"><span class="grade-badge grade-' + (r.grade_before || '-') + '">' + (r.grade_before || '-') + '</span></div>';
+    assess += '<div class="rd-assess-row-label">개선 후</div>';
+    assess += '<div class="rd-assess-cell">' + (r.likelihood_after || '-') + '</div>';
+    assess += '<div class="rd-assess-cell">' + (r.severity_after || '-') + '</div>';
+    assess += '<div class="rd-assess-cell"><span class="grade-badge grade-' + (r.grade_after || '-') + '">' + (r.grade_after || '-') + '</span></div>';
+    assess += '</div>';
+    html += section('위험성 평가', assess);
+
+    // 개선 조치
+    let improve = '<div class="form-grid">';
+    improve += field('완료여부', r.completion);
+    improve += field('완료일', r.actual_date);
+    improve += field('개선대책', r.improvement_plan, true);
+    improve += '</div>';
+    html += section('개선 조치', improve);
+
+    // 사진 (전/후 좌우 비교)
+    let photos = '<div class="form-grid rd-photo-grid">';
+    photos += imgBlock('개선 전 사진', r.image);
+    photos += imgBlock('개선 후 사진', r.image_after);
+    photos += '</div>';
+    html += section('사진', photos);
+
     content.innerHTML = html;
     modal.style.display = "flex";
 }
