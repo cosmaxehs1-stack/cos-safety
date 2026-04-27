@@ -1128,9 +1128,9 @@ function renderRepeatTable(data) {
     tbody.innerHTML = "";
     const records = (data.records || []).filter(r => r.is_repeat);
     records.sort((a, b) => (b.repeat_count || 0) - (a.repeat_count || 0));
-    records.forEach(r => {
+    records.forEach((r, i) => {
         const tr = document.createElement("tr");
-        tr.innerHTML = "<td>" + r.no + "</td>" +
+        tr.innerHTML = "<td>" + (i + 1) + "</td>" +
             '<td title="' + escapeHtml(r.content_full) + '">' + escapeHtml(r.content) + "</td>" +
             '<td><span class="repeat-badge">' + r.repeat_count + "회</span></td>" +
             "<td>" + escapeHtml(r.location || "-") + "</td>" +
@@ -1159,11 +1159,11 @@ function updateTable(records) {
     records.forEach((r, i) => {
         const tr = document.createElement("tr");
         tr.style.cursor = "pointer";
+        const rowNo = i + 1;
         tr.onclick = function(e) {
             if (e.target.closest("button") || e.target.closest("img")) return;
-            showRecordDetail(r);
+            showRecordDetail(r, rowNo);
         };
-        const rowNo = i + 1;
         const imgBefore = r.image
             ? '<img src="' + escapeHtml(r.image) + '" class="table-thumb" onclick="event.stopPropagation();showImageModal(\'' + escapeHtml(r.image) + '\')">'
             : (r.has_image
@@ -1191,7 +1191,7 @@ function updateTable(records) {
             '</div></td>' +
             (ADMIN_TOKEN
                 ? '<td class="action-cell">' +
-                    '<button class="btn-icon btn-edit" title="수정" onclick="event.stopPropagation();editRecord(\'' + rid + '\')">✏️</button>' +
+                    '<button class="btn-icon btn-edit" title="수정" onclick="event.stopPropagation();editRecord(\'' + rid + '\',' + rowNo + ')">✏️</button>' +
                     '<button class="btn-icon btn-row-del" title="삭제" onclick="event.stopPropagation();deleteRecord(\'' + rid + '\')">🗑️</button>' +
                   '</td>'
                 : '');
@@ -1292,7 +1292,7 @@ function applyPendingRecordsFilter() {
     fetchSummary();
 }
 
-function showRecordDetail(r) {
+function showRecordDetail(r, displayNo) {
     let modal = document.getElementById("record-detail-modal");
     if (!modal) {
         modal = document.createElement("div");
@@ -1329,7 +1329,8 @@ function showRecordDetail(r) {
         return '<div class="rd-section"><div class="rd-section-title">' + title + '</div>' + body + '</div>';
     }
 
-    let html = '<h3 class="rd-title">위험요소 상세 (No.' + r.no + ')</h3>';
+    const titleNo = (displayNo !== undefined && displayNo !== null) ? displayNo : r.no;
+    let html = '<h3 class="rd-title">위험요소 상세 (No.' + titleNo + ')</h3>';
 
     // 기본 정보
     let basic = '<div class="form-grid">';
@@ -1828,11 +1829,11 @@ async function submitAddRecord(e) {
 }
 
 // ===== Edit / Delete =====
-function editRecord(id) {
+function editRecord(id, displayNo) {
     if (!lastSummaryData) return;
     const r = lastSummaryData.records.find(rec => rec._id === id);
     if (!r) { alert("레코드를 찾을 수 없습니다."); return; }
-    doEditRecord(id, "edit");
+    doEditRecord(id, "edit", displayNo);
 }
 
 function confirmCompletionTransition() {
@@ -1953,7 +1954,7 @@ function closeEditModal() {
     modal.style.display = "none";
 }
 
-function doEditRecord(id, mode) {
+function doEditRecord(id, mode, displayNo) {
     if (!lastSummaryData) return;
     const r = lastSummaryData.records.find(rec => rec._id === id);
     if (!r) { alert("레코드를 찾을 수 없습니다."); return; }
@@ -1961,7 +1962,8 @@ function doEditRecord(id, mode) {
     openEditModal(mode);
 
     editingRecordId = id;
-    document.getElementById("register-page-title").textContent = "위험요소 수정 (No." + r.no + ")";
+    const titleNo = (displayNo !== undefined && displayNo !== null) ? displayNo : r.no;
+    document.getElementById("register-page-title").textContent = "위험요소 수정 (No." + titleNo + ")";
     document.getElementById("ar-submit-btn").textContent = "수정";
     document.getElementById("ar-cancel-btn").style.display = "inline-block";
 
